@@ -7,6 +7,12 @@ public class PlayerInteract : MonoBehaviour
     private PickupableItem currentItem;            // Vật phẩm có thể nhặt được
     private Iinteractable currentInteractable;     // Đối tượng có thể tương tác
 
+
+
+    [SerializeField] private bool isHoldingInteract = false;
+    [SerializeField] private bool isReadyToMind = false;
+
+
     [Header("Game Input")]
     [SerializeField] private GameInput gameInput;  // Script xử lý input
 
@@ -15,8 +21,8 @@ public class PlayerInteract : MonoBehaviour
     [SerializeField] private float interactDistance = 2f;    // Khoảng cách tương tác
     [SerializeField] private ItemHolder itemHolder;          // Vị trí giữ vật phẩm (trên tay)
     [SerializeField] private Transform letterPopupPrefab;    // Prefab popup chữ 
-    [SerializeField] private TextMeshProUGUI objectText;     // Text hiển thị tên vật thể
-    [SerializeField] private GameObject UI;                  // Giao diện hiện khi trỏ vào vật thể
+    /* [SerializeField] private TextMeshProUGUI objectText; */    // Text hiển thị tên vật thể
+    /*[SerializeField] private GameObject UI;  */                // Giao diện hiện khi trỏ vào vật thể
 
     private LetterPopup currentLetterPopup;        // Hiện popup chữ cái
     private bool isPointingSomething = false;      // Cờ kiểm tra có đang trỏ vào vật thể không
@@ -24,8 +30,24 @@ public class PlayerInteract : MonoBehaviour
     private void Start()
     {
         inventoryManager = InventoryManager.instance;
+        gameInput.OnInteractStarted += GameInput_OnInteractStarted;
+        gameInput.OnInteractFinished += GameInput_OnInteractFinished;
         gameInput.OnInteract += GameInput_OnInteract; // Đăng ký sự kiện nhấn nút tương tác
-        HideUI(); // Ẩn UI ban đầu
+        /*  HideUI();*/ // Ẩn UI ban đầu
+    }
+
+    private void GameInput_OnInteractFinished(object sender, System.EventArgs e)
+    {
+
+        isHoldingInteract = false;
+    }
+
+    private void GameInput_OnInteractStarted(object sender, System.EventArgs e)
+    {
+        if (isReadyToMind)
+        {
+            isHoldingInteract = true;
+        }
     }
 
     private void Update()
@@ -70,16 +92,17 @@ public class PlayerInteract : MonoBehaviour
         }
 
         Ray ray = new Ray(interactionRayOrigin.position, interactionRayOrigin.forward);
-
+        Debug.DrawRay(ray.origin, ray.direction * interactDistance, Color.green, 0.1f);
         // Thực hiện raycast
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance))
         {
+
             // Nếu trúng vật phẩm có thể nhặt
             if (hit.collider.TryGetComponent(out PickupableItem item) && item.canBePicked)
             {
                 currentItem = item;
                 currentInteractable = null;
-               /* SetUI(item.transform, item.name);*/ // Hiện UI và popup
+                /* SetUI(item.transform, item.name);*/ // Hiện UI và popup
                 return;
             }
 
@@ -95,7 +118,9 @@ public class PlayerInteract : MonoBehaviour
             // Nếu trúng đối tượng khai thác được 
             if (hit.collider.TryGetComponent(out IMinenable minenable))
             {
-                SetUI(hit.transform, hit.collider.name);
+                isReadyToMind = true;
+                Debug.DrawRay(ray.origin, ray.direction * interactDistance, Color.red, 0.1f);
+                //SetUI(hit.transform, hit.collider.name);
                 Debug.Log("Trúng đối tượng tài nguyên: " + hit.collider.name);
 
                 switch (minenable.GetResourceType())
@@ -106,9 +131,7 @@ public class PlayerInteract : MonoBehaviour
                     case ResourceType.Rock:
                         Debug.Log("→ Đá");
                         break;
-                    case ResourceType.Bush:
-                        Debug.Log("→ Bụi cây");
-                        break;
+
                 }
                 return;
             }
@@ -119,51 +142,61 @@ public class PlayerInteract : MonoBehaviour
     }
 
     // Hiển thị UI và popup chữ
-    private void SetUI(Transform target, string displayName)
-    {
-        objectText.text = displayName;
-        ShowLetterPopup(target);
-        ShowUI();
-        isPointingSomething = true;
-    }
+    //private void SetUI(Transform target, string displayName)
+    //{
+    //    objectText.text = displayName;
+    //    ShowLetterPopup(target);
+    //    //ShowUI();
+    //    isPointingSomething = true;
+    //}
 
     // Xoá thông tin đối tượng hiện tại và ẩn UI
     private void ClearTarget()
     {
+        isReadyToMind = false;
         currentItem = null;
         currentInteractable = null;
+        if (!isReadyToMind)
+        {
+            isHoldingInteract = false;
+        }
         isPointingSomething = false;
-        HideLetterPopup();
-        HideUI();
+        //HideLetterPopup();
+        //HideUI();
     }
 
-    private void ShowUI()
-    {
-        if (UI != null) UI.SetActive(true);
-    }
+    //private void ShowUI()
+    //{
+    //    if (UI != null) UI.SetActive(true);
+    //}
 
-    private void HideUI()
-    {
-        if (UI != null) UI.SetActive(false);
-    }
+    //private void HideUI()
+    //{
+    //    if (UI != null) UI.SetActive(false);
+    //}
 
     // Hiện popup chữ cái 
-    private void ShowLetterPopup(Transform target)
-    {
-        if (currentLetterPopup != null) return;
+    //private void ShowLetterPopup(Transform target)
+    //{
+    //    if (currentLetterPopup != null) return;
 
-        Transform popup = Instantiate(letterPopupPrefab, target.position + Vector3.up * 2f, Quaternion.identity);
-        currentLetterPopup = popup.GetComponent<LetterPopup>();
-        currentLetterPopup.Setup(target);
-    }
+    //    Transform popup = Instantiate(letterPopupPrefab, target.position + Vector3.up * 2f, Quaternion.identity);
+    //    currentLetterPopup = popup.GetComponent<LetterPopup>();
+    //    currentLetterPopup.Setup(target);
+    //}
 
-    // Xoá popup chữ cái
-    private void HideLetterPopup()
+    //// Xoá popup chữ cái
+    //private void HideLetterPopup()
+    //{
+    //    if (currentLetterPopup != null)
+    //    {
+    //        Destroy(currentLetterPopup.gameObject);
+    //        currentLetterPopup = null;
+    //    }
+    //}
+
+    public bool isMining()
     {
-        if (currentLetterPopup != null)
-        {
-            Destroy(currentLetterPopup.gameObject);
-            currentLetterPopup = null;
-        }
+        return isHoldingInteract;
     }
 }

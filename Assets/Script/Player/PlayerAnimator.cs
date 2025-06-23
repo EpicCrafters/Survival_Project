@@ -9,6 +9,7 @@ public class PlayerAnimator : MonoBehaviour
     private const string IS_GROUNDED = "isGrounded";
     private const string IS_FALLING = "isFalling";
     private const string IS_SPRINTING = "isSprinting";
+    private const string IS_MINING = "isMining";
 
 
 
@@ -16,14 +17,14 @@ public class PlayerAnimator : MonoBehaviour
     public bool isRock;
 
     private const string IS_ATTACKING = "Attack";
-        
+
     private const string PLAYER = "Player";
     [Header("Player blend speed")]
     [SerializeField] private float playerSpeed;
 
     [Header("Setting for movement")]
-    [SerializeField] private float playerSpeedMin=0f;
-    [SerializeField] private float playerSpeedMax=1f;
+    [SerializeField] private float playerSpeedMin = 0f;
+    [SerializeField] private float playerSpeedMax = 1f;
     [SerializeField] private float playerSpeedAcceleration = 3f;
 
 
@@ -33,7 +34,7 @@ public class PlayerAnimator : MonoBehaviour
 
     private void Awake()
     {
-        animator = GetComponent<Animator>();    
+        animator = GetComponent<Animator>();
     }
 
     private void Update()
@@ -42,13 +43,14 @@ public class PlayerAnimator : MonoBehaviour
         HandleMoveAnimation();
         animator.SetBool(IS_FALLING, player.IsFalling());
         animator.SetBool(IS_WALKING, player.IsWalking());
-        animator.SetFloat(blendSpeed,playerSpeed);
+        animator.SetFloat(blendSpeed, playerSpeed);
         animator.SetBool(IS_GROUNDED, player.IsGrounded());
         animator.SetBool(IS_SPRINTING, player.IsSprinting());
-       
+        animator.SetBool(IS_MINING, playerInteract.isMining());
+
     }
-  
-    
+
+
     public void TriggerJump()
     {
         animator.SetTrigger(IS_JUMPING);
@@ -81,13 +83,13 @@ public class PlayerAnimator : MonoBehaviour
 
         if (player.IsWalking())
         {
-            playerSpeed = Mathf.MoveTowards(playerSpeed,playerSpeedMax,playerSpeedAcceleration*Time.deltaTime);
+            playerSpeed = Mathf.MoveTowards(playerSpeed, playerSpeedMax, playerSpeedAcceleration * Time.deltaTime);
         }
         else
         {
             playerSpeed = Mathf.MoveTowards(playerSpeed, playerSpeedMin, playerSpeedAcceleration * Time.deltaTime);
         }
     }
- 
+
 
 }
