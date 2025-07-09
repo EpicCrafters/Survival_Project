@@ -14,12 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemName: PickAxe
   image: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
-  type: 0
-  worldPrefab: {fileID: 8378299844548458710, guid: e93e266dfe645c24887736168b48b127, type: 3}
+  type: 1
+  worldPrefab: {fileID: 5717276217548651798, guid: ab45392e08d212941b75a0827caf8822, type: 3}
   weapon:
-    weaponType: 3
+    weaponType: 0
     damage: 0
     range: 0
+  tool:
+    toolType: 1
+    damage: 15
   consumable:
     healAmount: 0
     fillAmount: 0

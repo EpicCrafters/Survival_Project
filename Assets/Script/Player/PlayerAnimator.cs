@@ -34,6 +34,7 @@ public class PlayerAnimator : MonoBehaviour
 
     [SerializeField] private Player player;
     [SerializeField] private PlayerInteract playerInteract;
+    [SerializeField] private PlayerHoldingItem playerholdingItem;
     private Animator animator;
 
     private void Awake()
@@ -53,6 +54,7 @@ public class PlayerAnimator : MonoBehaviour
         animator.SetBool(IS_MINING, playerInteract.IsMining());
        animator.SetBool(IS_ROCK,playerInteract.IsRock());
         animator.SetBool(IS_TREE,playerInteract.IsTree());
+        animator.SetBool(IS_HOLDING, playerholdingItem.IsHolding());
     }
   
     

@@ -1,21 +1,32 @@
-using UnityEngine;
+//using UnityEngine;
 
-public class PlayerMining : MonoBehaviour
-{
-    [SerializeField] Weapon equippedWeapon;
+//public class PlayerMining : MonoBehaviour
+//{
+//    [SerializeField] private PlayerHoldingItem holding;
 
-    public void SetEquippedWeapon(Weapon weapon)
-    {
-        equippedWeapon = weapon;
-    }
-    public void EnableHitbox()
-    {
-        equippedWeapon.EnableHitbox();
-    }
+//    public void EnableHitbox()
+//    {
+//        GameObject heldItem = holding.GetCurrentHeldObject();
+//        if (heldItem != null)
+//        {
+//            ToolHitbox hitbox = heldItem.GetComponent<ToolHitbox>();
+//            if (hitbox != null)
+//            {
+//                hitbox.EnableHitbox();
+//            }
+//        }
+//    }
 
-    public void DisableHitbox()
-    {
-        equippedWeapon.DisableHitbox();
-    }
-
-}
+//    public void DisableHitbox()
+//    {
+//        GameObject heldItem = holding.GetCurrentHeldObject();
+//        if (heldItem != null)
+//        {
+//            ToolHitbox hitbox = heldItem.GetComponent<ToolHitbox>();
+//            if (hitbox != null)
+//            {
+//                hitbox.DisableHitbox();
+//            }
+//        }
+//    }
+//}

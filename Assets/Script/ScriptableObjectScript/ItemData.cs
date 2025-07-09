@@ -1,19 +1,28 @@
+using JetBrains.Annotations;
 using System.Collections.Generic;
 using UnityEngine;
 
 public enum ItemType
 {
     Weapon,
+    Tool,
     Consumable,
     Resource
 }
+
 
 public enum WeaponType
 {
     Sword,
     Spear,
-    Axe,
-    Pickaxe
+    BattleAxe
+}
+
+public enum ToolType
+{
+    Hammer,
+    Pickaxe,
+    Axe
 }
 
 [System.Serializable]
@@ -22,6 +31,14 @@ public class WeaponStats
     public WeaponType weaponType;
     public int damage;
     public float range;
+}
+
+[System.Serializable]
+
+public class ToolStats
+{
+    public ToolType toolType;
+    public int damage;
 }
 
 [System.Serializable]
@@ -50,11 +67,15 @@ public class ItemData : ScriptableObject
     [Header("Weapon")]
     public WeaponStats weapon;
 
+    [Header("Tool")]
+    public ToolStats tool;
+
     [Header("Consumable")]
     public ConsumableStats consumable;
 
     [Header("Resource")]
     public ResourceStats resource;
+
 
 #if UNITY_EDITOR
     [UnityEditor.CustomEditor(typeof(ItemData))]
@@ -76,6 +97,9 @@ public class ItemData : ScriptableObject
             {
                 case ItemType.Weapon:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("weapon"), true);
+                    break;
+                case ItemType.Tool:
+                    UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("tool"), true);
                     break;
                 case ItemType.Consumable:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("consumable"), true);

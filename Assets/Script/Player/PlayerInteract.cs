@@ -5,39 +5,34 @@ public class PlayerInteract : MonoBehaviour
 {
     private Player player;
     private InventoryManager inventoryManager;
+    private PlayerHoldingItem playerHoldingItem;
 
-    private IPickupAble currentPickup;               // Vật phẩm có thể nhặt được
-    private Iinteractable currentInteractable;       // Đối tượng có thể tương tác (như cửa, NPC)
+    private IPickupAble currentPickup;
+    private Iinteractable currentInteractable;
 
     [Header("Thiết lập tương tác")]
-    [SerializeField] private Transform interactionRayOrigin;     // Gốc bắn ray (vị trí mắt hoặc camera)
-    [SerializeField] private float interactDistance = 2f;        // Khoảng cách tương tác
-    [SerializeField] private LayerMask interactableLayers;       // Layer để xác định vật thể có thể tương tác
+    [SerializeField] private Transform interactionRayOrigin;
+    [SerializeField] private float interactDistance = 2f;
+    [SerializeField] private LayerMask interactableLayers;
 
     [Header("Input & UI")]
-    [SerializeField] private GameInput gameInput;                // Script xử lý input
-    [SerializeField] private HealthBarScreenUI healthBarUI;      // UI thanh máu cho vật thể tương tác (cây, đá)
-    /*  [SerializeField] private Transform letterPopupPrefab; */       // Prefab hiển thị popup chữ cái (nếu có)
-
-    //private LetterPopup currentLetterPopup;
+    [SerializeField] private GameInput gameInput;
+    [SerializeField] private HealthBarScreenUI healthBarUI;
 
     private Color rayColor;
-
     private bool isRock = false;
     private bool isTree = false;
     private bool isHoldingInteract = false;
+
     public bool isReadyToMine = false;
     public bool isReadyToPickup = false;
 
     private void Start()
     {
         rayColor = Color.green;
-
-
-
         inventoryManager = InventoryManager.instance;
+        playerHoldingItem = GetComponent<PlayerHoldingItem>();
 
-        // Đăng ký sự kiện input từ người chơi
         gameInput.OnInteractStarted += OnInteractStarted;
         gameInput.OnInteractFinished += OnInteractFinished;
         gameInput.OnInteract += OnInteractPressed;
@@ -45,29 +40,25 @@ public class PlayerInteract : MonoBehaviour
 
     private void Update()
     {
-        PerformRaycast(); // Mỗi frame kiểm tra vật thể trước mặt
+        PerformRaycast();
     }
 
-    // Xử lý khi nhấn nút tương tác 1 lần (click)
     private void OnInteractPressed(object sender, System.EventArgs e)
     {
         TryPickupCurrentItem();
     }
 
-    // Xử lý khi bắt đầu giữ nút tương tác
     private void OnInteractStarted(object sender, System.EventArgs e)
     {
         if (isReadyToMine)
             isHoldingInteract = true;
     }
 
-    // Xử lý khi nhả nút tương tác
     private void OnInteractFinished(object sender, System.EventArgs e)
     {
         isHoldingInteract = false;
     }
 
-    // Hàm bắn ray kiểm tra các vật thể có thể tương tác
     private void PerformRaycast()
     {
         Ray ray = new Ray(interactionRayOrigin.position, interactionRayOrigin.forward);
@@ -75,20 +66,18 @@ public class PlayerInteract : MonoBehaviour
 
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactableLayers))
         {
-            if (TrySetPickupable(hit)) return;       // vật phẩm có thể nhặt
-            if (TrySetInteractable(hit)) return;     // đối tượng tương tác
-            if (TrySetMineable(hit)) return;         // tài nguyên khai thác duoc
+            if (TrySetPickupable(hit)) return;  // vật phẩm có thể lấy được
+            if (TrySetInteractable(hit)) return; // vật phẩm có thể tương tác được
+            if (TrySetMineable(hit)) return;   // vật phẩm có thể đào được
         }
 
-        ClearInteractionState(); // Không trúng gì
+        ClearInteractionState();
     }
 
-    // Nếu raycast trúng vật phẩm có thể nhặt
     private bool TrySetPickupable(RaycastHit hit)
     {
         if (hit.collider.TryGetComponent(out IPickupAble pickup))
         {
-
             rayColor = Color.blue;
             currentPickup = pickup;
             currentInteractable = null;
@@ -98,7 +87,6 @@ public class PlayerInteract : MonoBehaviour
         return false;
     }
 
-    // Nếu raycast trúng đối tượng có thể tương tác
     private bool TrySetInteractable(RaycastHit hit)
     {
         if (hit.collider.TryGetComponent(out Iinteractable interactable))
@@ -111,64 +99,89 @@ public class PlayerInteract : MonoBehaviour
         return false;
     }
 
-    // Nếu raycast trúng đối tượng có thể khai thác (cây, đá,...)
     private bool TrySetMineable(RaycastHit hit)
     {
-        if (hit.collider.TryGetComponent(out IMinenable minenable))
+        if (!hit.collider.TryGetComponent(out IMinenable minenable))
+            return false;
+
+        rayColor = Color.gray;
+        isReadyToMine = false;
+
+        //Lấy vật phẩm đang cầm trên tay
+        ItemData heldItemData = null;
+        if (playerHoldingItem != null && playerHoldingItem.IsHolding())
         {
-
-
-            rayColor = Color.red;
-
-
-            isReadyToMine = true;
-
-            // Hiện thanh máu nếu có
-            if (hit.collider.TryGetComponent(out MyTree tree))
-                healthBarUI.SetTarget(tree.GetHealthSystem());
-            else if (hit.collider.TryGetComponent(out MyRock rock))
-                healthBarUI.SetTarget(rock.GetHealthSystem());
-
-            // Gán loại tài nguyên (cây hay đá)
-            switch (minenable.GetResourceType())
+            GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
+            if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
             {
-                case ResourceType.Tree:
-                    isTree = true;
-                    break;
-                case ResourceType.Rock:
-                    isRock = true;
-                    break;
+                heldItemData = heldItem.itemData;
             }
-
-            return true;
         }
-        return false;
+
+        //Kiểm tra có cầm đúng vật phẩm không
+        if (heldItemData == null || heldItemData.type != ItemType.Tool)
+        {
+            Debug.Log("No valid tool held.");
+            return false;
+        }
+
+        ToolType heldTool = heldItemData.tool.toolType;
+        ResourceType resourceType = minenable.GetResourceType();
+
+        bool valid = false;
+
+        if (resourceType == ResourceType.Tree && heldTool == ToolType.Axe)
+            valid = true;
+        else if (resourceType == ResourceType.Rock && heldTool == ToolType.Pickaxe)
+            valid = true;
+       
+
+
+        if (!valid)
+        {
+            Debug.Log("Wrong tool for this resource.");
+            return false;
+        }
+
+        
+        rayColor = Color.red;
+        isReadyToMine = true;
+
+        // Health UI
+        if (hit.collider.TryGetComponent(out MyTree tree))
+            healthBarUI.SetTarget(tree.GetHealthSystem());
+        else if (hit.collider.TryGetComponent(out MyRock rock))
+            healthBarUI.SetTarget(rock.GetHealthSystem());
+
+        
+        isTree = resourceType == ResourceType.Tree;
+        isRock = resourceType == ResourceType.Rock;
+
+        return true;
     }
 
-    // Xử lý logic nhặt vật phẩm
+
+
     private void TryPickupCurrentItem()
     {
         if (currentPickup == null) return;
 
-        // Lấy ra script Item từ IPickupAble
-        if (currentPickup is MonoBehaviour mb &&
-            mb.TryGetComponent<Item>(out var itemComponent))
+        if (currentPickup is MonoBehaviour mb && mb.TryGetComponent<Item>(out var itemComponent))
         {
             bool added = inventoryManager.AddItem(itemComponent.itemData);
             if (added)
             {
-                currentPickup.Pickup(); // Gọi hàm Pickup (Destroy object)
+                currentPickup.Pickup();
                 ClearInteractionState();
             }
             else
             {
-                Debug.Log("Kho đầy!");
+                Debug.Log("Inventory is full!");
             }
         }
     }
 
-    // Reset toàn bộ trạng thái tương tác
-    private void ClearInteractionState()
+    private void ClearInteractionState()//Reset trạng thái
     {
         isRock = false;
         isTree = false;
@@ -181,7 +194,6 @@ public class PlayerInteract : MonoBehaviour
         healthBarUI.ClearTarget();
     }
 
-    // Các hàm public để kiểm tra trạng thái
     public bool IsMining() => isHoldingInteract;
     public bool IsTree() => isTree;
     public bool IsRock() => isRock;
