@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
-  m_Name: Stick
+  m_Name: Stone
   m_EditorClassIdentifier: 
-  itemName: Stick
-  image: {fileID: 21300000, guid: 432f1c320ecbb8e498f79f76e0509823, type: 3}
+  itemName: Stone
+  image: {fileID: 21300000, guid: 992d731e28ce7a045833e4b9b3f357f2, type: 3}
   type: 3
-  worldPrefab: {fileID: 235764449273442991, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  worldPrefab: {fileID: 919132149155446097, guid: 75be691eb9afc0f4ca65e32e712e0a65, type: 3}
   weapon:
     weaponType: 0
     damage: 0

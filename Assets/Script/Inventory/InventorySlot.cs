@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class InventorySlot : MonoBehaviour, IDropHandler
+public class InventorySlot : SlotBase
 {
     public Image image;
     public Color selectedColor, notSelectedColor;
@@ -22,48 +22,6 @@ public class InventorySlot : MonoBehaviour, IDropHandler
         image.color = notSelectedColor;
     }
 
-    public void OnDrop(PointerEventData eventData)
-    {
-        GameObject dropped = eventData.pointerDrag;
-        InventoryItem droppedItem = dropped.GetComponent<InventoryItem>();
-
-        // ItemData already in this slot?
-        InventoryItem existingItem = GetComponentInChildren<InventoryItem>();
-
-        if (existingItem == null)
-        {
-            // Slot is empty → just assign
-            droppedItem.parentAfterDrag = transform;
-        }
-        else if (existingItem.item == droppedItem.item && droppedItem.item.resource.stackable)
-        {
-            // Same item & stackable → merge
-            int total = existingItem.count + droppedItem.count;
-            int maxStack = droppedItem.item.resource.maxStack;
-
-            if (total <= maxStack)
-            {
-                existingItem.count = total;
-                existingItem.RefreshCount();
-                Destroy(droppedItem.gameObject);
-            }
-            else
-            {
-                int remaining = total - maxStack;
-                existingItem.count = maxStack;
-                existingItem.RefreshCount();
-
-                droppedItem.count = remaining;
-                droppedItem.RefreshCount();
-
-                // Stay in old slot
-                droppedItem.transform.SetParent(droppedItem.parentAfterDrag);
-            }
-        }
-        else
-        {
-            // Occupied by different item → swap
-            droppedItem.transform.SetParent(droppedItem.parentAfterDrag);
-        }
-    }
+    // KHÔNG cần override OnDrop nếu không thêm logic riêng
+    // Nếu cần thêm: override rồi gọi base.OnDrop(eventData)
 }

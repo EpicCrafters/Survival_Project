@@ -8,7 +8,7 @@ public class InventoryManager : MonoBehaviour
     public static InventoryManager instance;
 
 
-
+    public int IndexSlotBar = 0;
 
 
 
@@ -16,6 +16,9 @@ public class InventoryManager : MonoBehaviour
     [SerializeField] private InventorySlot[] mainInventorySlots; // Các ô trong kho chính
     [SerializeField] private GameObject inventoryItemPrefab; // Prefab itemData để hiển thị trong slot
     [SerializeField] private GameInput gameInput; // Script nhận input từ người chơi
+    //test
+    [SerializeField] private ItemData stick;
+    [SerializeField] private ItemData stone;
     //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
 
     private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>(); // Lưu số lượng từng loại itemData
@@ -32,7 +35,13 @@ public class InventoryManager : MonoBehaviour
 
     private void Start()
     {
-        ChangeHotbarSlot(0); // Chọn ô đầu tiên của hotbar
+        ChangeHotbarSlot(IndexSlotBar); // Chọn ô đầu tiên của hotbar
+        for (int i = 0; i < 7; i++)
+        {
+            AddItem(stick);
+            AddItem(stone);
+        }
+
         //if (sortButton != null)
         //    sortButton.onClick.AddListener(SortItems); // Gắn sự kiện bấm nút sắp xếp
     }
@@ -116,7 +125,7 @@ public class InventoryManager : MonoBehaviour
         InventoryItem inventoryItem = newItemGO.GetComponent<InventoryItem>();
         inventoryItem.InitialiseItem(item);
 
-       
+
         for (int i = 0; i < hotbarSlots.Length; i++)
         {
             if (slot == hotbarSlots[i] && i == selectedHotbarIndex)
@@ -149,7 +158,7 @@ public class InventoryManager : MonoBehaviour
             playerHolding.Clear();
         }
 
-       
+
     }
 
     // Cuộn qua các ô hotbar bằng chuột
@@ -159,7 +168,8 @@ public class InventoryManager : MonoBehaviour
             return;
 
         int newSlot = (selectedHotbarIndex + direction + hotbarSlots.Length) % hotbarSlots.Length;
-        ChangeHotbarSlot(newSlot);
+        IndexSlotBar = newSlot;
+        ChangeHotbarSlot(IndexSlotBar);
     }
 
     // Xử lý sự kiện cuộn chuột
@@ -180,7 +190,8 @@ public class InventoryManager : MonoBehaviour
     {
         if (index >= 0 && index < hotbarSlots.Length)
         {
-            ChangeHotbarSlot(index);
+            IndexSlotBar = index;
+            ChangeHotbarSlot(IndexSlotBar);
         }
     }
 

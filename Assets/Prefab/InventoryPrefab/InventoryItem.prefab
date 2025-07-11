@@ -94,6 +94,7 @@ MonoBehaviour:
   countText: {fileID: 7258836815477963961}
   count: 1
   parentAfterDrag: {fileID: 0}
+  isSplitClone: 0
 --- !u!1 &3495980181992927822
 GameObject:
   m_ObjectHideFlags: 0
