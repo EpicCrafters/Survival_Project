@@ -78,6 +78,20 @@ public class PlayerInteract : MonoBehaviour
     {
         if (hit.collider.TryGetComponent(out IPickupAble pickup))
         {
+            // Lấy object MonoBehaviour của pickup để so sánh
+            MonoBehaviour pickupMB = pickup as MonoBehaviour;
+
+            // Lấy item GameObject mà player đang cầm
+            GameObject heldObject = null;
+            if (playerHoldingItem != null)
+                heldObject = playerHoldingItem.GetCurrentHeldObject();
+
+            // Nếu vật thể trúng ray là đúng món đồ đang cầm thì không nhặt lại
+            if (heldObject != null && pickupMB != null && pickupMB.gameObject == heldObject)
+            {
+                return false; 
+            }
+
             rayColor = Color.blue;
             currentPickup = pickup;
             currentInteractable = null;
@@ -86,6 +100,7 @@ public class PlayerInteract : MonoBehaviour
         }
         return false;
     }
+
 
     private bool TrySetInteractable(RaycastHit hit)
     {

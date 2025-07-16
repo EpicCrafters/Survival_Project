@@ -3,67 +3,68 @@ using System.Collections.Generic;
 
 public class ItemHitBox : MonoBehaviour
 {
-    public Collider hitbox;  // Assign in inspector or auto-find in Awake
+    public Collider hitbox;
     private ItemData itemData;
 
-    private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();
+    private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();// Lưu các đối tượng đã trúng trong 1 đòn đánh
 
     private void Awake()
     {
-        // Auto-assign hitbox if not assigned in Inspector
-        if (hitbox == null)
-        {
-            // Find first child collider marked as trigger
-            Collider[] cols = GetComponentsInChildren<Collider>(true);
-            foreach (var col in cols)
-            {
-                if (col.isTrigger)
-                {
-                    hitbox = col;
-                    break;
-                }
-            }
 
-            if (hitbox == null)
-            {
-                Debug.LogWarning("ItemHitBox: No trigger collider found in children!");
-            }
-        }
+
 
         if (hitbox != null)
         {
             hitbox.enabled = false;
-            
+
         }
-      
+
     }
 
-    public void SetItemData(ItemData data)
+    public void SetItemData(ItemData data) // Gán dữ liệu vật phẩm cho hitbox
     {
         itemData = data;
     }
 
     public void EnableHitbox()
     {
-        Debug.Log("Enable Hitbox");
-        alreadyHit.Clear();
+
+        //Debug.Log(" EnableHitbox called on " + gameObject.name);
         if (hitbox != null)
+        {
+            //Debug.Log(" Enabling hitbox: " + hitbox.name);
             hitbox.enabled = true;
+        }
+        else
+        {
+            Debug.LogWarning(" No hitbox assigned in ItemHitBox!");
+        }
     }
 
     public void DisableHitbox()
     {
-        Debug.Log("Disable Hitbox");
+
+        alreadyHit.Clear();// Xoá danh sách đối tượng bi danh trung
+        //Debug.Log(" DisableHitbox called on " + gameObject.name);
         if (hitbox != null)
+        {
+            //Debug.Log(" Disabling hitbox: " + hitbox.name);
             hitbox.enabled = false;
+        }
+        else
+        {
+            Debug.LogWarning(" No hitbox assigned in ItemHitBox!");
+        }
     }
+
 
     private void OnTriggerEnter(Collider other)
     {
-        Debug.Log("Hit something: " + other.gameObject.name);
+        //Debug.Log("Hit something: " + other.gameObject.name);
 
-        if (alreadyHit.Contains(other.gameObject)) return;
-        alreadyHit.Add(other.gameObject);
+        if (alreadyHit.Contains(other.gameObject)) return;// đã bị đánh trúng trong cùng 1 lần chém 
+        alreadyHit.Add(other.gameObject); // Đánh dấu đã trúng
+
 
         if (itemData == null) return;
 
@@ -74,7 +75,7 @@ public class ItemHitBox : MonoBehaviour
             {
                 ToolType heldTool = itemData.tool.toolType;
                 ResourceType resourceType = minable.GetResourceType();
-
+                // Kiểm tra công cụ có đúng với tài nguyên 
                 if (IsToolValidForResource(heldTool, resourceType))
                 {
                     if (other.TryGetComponent<IDamageable>(out var target))
@@ -83,7 +84,7 @@ public class ItemHitBox : MonoBehaviour
                         Debug.Log($"Tool damaged {other.gameObject.name} for {itemData.tool.damage}");
                     }
                 }
-                return; // tools only hit minable resources
+                return; 
             }
         }
 
@@ -97,11 +98,11 @@ public class ItemHitBox : MonoBehaviour
         }
     }
 
-    private bool IsToolValidForResource(ToolType tool, ResourceType resource)
+    private bool IsToolValidForResource(ToolType tool, ResourceType resource) // kiểm tra xem công cụ có đúng với loại tài nguyên 
     {
         // Example logic: customize as needed
         return (tool == ToolType.Axe && resource == ResourceType.Tree)
             || (tool == ToolType.Pickaxe && resource == ResourceType.Rock)
-            || (tool == ToolType.Hammer && resource == ResourceType.Bush);
+            ;
     }
 }

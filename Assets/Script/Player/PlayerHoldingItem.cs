@@ -37,10 +37,10 @@ public class PlayerHoldingItem : MonoBehaviour
                 Debug.LogWarning("Held prefab is missing Item component! Searched self, parents, and children.");
             }
             // Set Rigidbody if exists
-            Collider col =currentHoldingItem.GetComponentInChildren<Collider>();//chỉnh collider
+            Collider col =currentHoldingItem.GetComponentInParent<Collider>();//chỉnh collider
             if (col != null)
             {
-                col.isTrigger = true;
+                //col.isTrigger = true;
             }
             Rigidbody rb = currentHoldingItem.GetComponent<Rigidbody>();//chỉnh rigibody
             if (rb != null)
@@ -54,7 +54,7 @@ public class PlayerHoldingItem : MonoBehaviour
             if (hitbox != null)
             {
                 hitbox.SetItemData(itemData);
-                hitbox.DisableHitbox();// Tắt Collider
+               // Tắt Collider
                 //Debug.Log("ItemData assigned to ItemHitBox.");
             }
             else

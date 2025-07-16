@@ -1,5 +1,4 @@
-﻿using UnityEditor.Experimental.GraphView;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
@@ -7,8 +6,6 @@ using System.Collections;
 public class Player : MonoBehaviour
 {
     public static Player Instance { get; private set; }
-
-
 
     [SerializeField] private PlayerInteract playerInteract;
 
@@ -39,8 +36,8 @@ public class Player : MonoBehaviour
     [Header("Debug Info")]
     [SerializeField] private bool showInventory;
 
-    private Rigidbody rb;
-    private bool isGrounded;
+    private CharacterController controller;
+    [SerializeField] bool isGrounded;
     private bool wasGrounded = false;
     private bool isFalling;
     private bool isWalking;
@@ -48,19 +45,18 @@ public class Player : MonoBehaviour
     private bool canJump = true;
     public bool isOnSlope = false;
 
-    
-
     private float currentSpeed;
     private float maxSpeed;
-    private float playerHeight = 1f;
+    private float verticalVelocity;
+   
 
     private Vector3 moveDir;
-    private RaycastHit slopeHit;
+    private Vector2 inputVector;
 
     private void Start()
     {
         playerInteract = GetComponent<PlayerInteract>();
-        rb = GetComponent<Rigidbody>();
+        controller = GetComponent<CharacterController>();
         maxSpeed = walkSpeed;
 
         gameInput.OnSprintStarted += GameInput_OnSprintStarted;
@@ -68,59 +64,15 @@ public class Player : MonoBehaviour
         gameInput.OnJump += GameInput_OnJump;
         gameInput.OnShowInventory += GameInput_OnShowInventory;
         gameInput.OnAttack += GameInput_OnAttack;
-        
-        
     }
 
-   
-
-    private void GameInput_OnAttack(object sender, System.EventArgs e)
-    {
-        playerAnimator.TriggerAttack();
-    }
+    private void GameInput_OnAttack(object sender, System.EventArgs e) => playerAnimator.TriggerAttack();
 
     private void Update()
     {
         Instance = this;
 
-        HandleMovement();
-        CheckIfGrounded();
-        CheckIfFalling();
-        UpdateState();
-        GravityAdjustment();
-
-        RotateTowardsCameraWhenInteracting();
-    }
-    private void RotateTowardsCameraWhenInteracting()
-    {
-        if (playerInteract != null && playerInteract.IsMining())
-        {
-            Vector3 cameraForward = Camera.main.transform.forward;
-            cameraForward.y = 0; // keep only horizontal rotation
-
-            if (cameraForward.sqrMagnitude > 0.01f)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
-                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime * 100f);
-            }
-        }
-    }
-    // ─────────────────────────────────────────────
-    // Input Events
-    private void GameInput_OnSprintStarted(object sender, System.EventArgs e) => isSprinting = true;
-    private void GameInput_OnSprintCanceled(object sender, System.EventArgs e) => isSprinting = false;
-    private void GameInput_OnJump(object sender, System.EventArgs e) => TriggerJump();
-   
-    private void GameInput_OnShowInventory(object sender, System.EventArgs e) => showInventory = !showInventory;
-
-
-    
-   
-    // ─────────────────────────────────────────────
-    // Movement
-    private void HandleMovement()
-    {
-        Vector2 inputVector = gameInput.GetMovementVector();
+        inputVector = gameInput.GetMovementVector();
 
         Transform cam = Camera.main.transform;
         Vector3 camForward = cam.forward;
@@ -131,44 +83,72 @@ public class Player : MonoBehaviour
         moveDir = (camForward * inputVector.y + camRight * inputVector.x).normalized;
         isWalking = moveDir != Vector3.zero;
 
-        if (isWalking)
+        if (isWalking && isGrounded)
         {
-            currentSpeed = Mathf.MoveTowards(currentSpeed, maxSpeed, acceleration * Time.deltaTime);
             Quaternion targetRotation = Quaternion.LookRotation(moveDir);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime * 100f);
         }
-        else
-        {
-            currentSpeed = Mathf.MoveTowards(currentSpeed, 0f, acceleration * Time.deltaTime);
-        }
+
+        CheckIfGrounded();
+        CheckIfFalling();
+        UpdateState();
+        ApplyGravity();
+        RotateTowardsCameraWhenInteracting();
 
         MovePlayer();
     }
 
+    private void RotateTowardsCameraWhenInteracting()
+    {
+        if (playerInteract != null && playerInteract.IsMining())
+        {
+            Vector3 cameraForward = Camera.main.transform.forward;
+            cameraForward.y = 0;
+
+            if (cameraForward.sqrMagnitude > 0.01f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(cameraForward);
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime * 100f);
+            }
+        }
+    }
+
+    private void GameInput_OnSprintStarted(object sender, System.EventArgs e) => isSprinting = true;
+    private void GameInput_OnSprintCanceled(object sender, System.EventArgs e) => isSprinting = false;
+    private void GameInput_OnJump(object sender, System.EventArgs e) => TriggerJump();
+    private void GameInput_OnShowInventory(object sender, System.EventArgs e) => showInventory = !showInventory;
+
     private void MovePlayer()
     {
-        Vector3 moveDirection = isGrounded && CheckSlope() ? GetSlopeMoveDirection() : moveDir;
-        isOnSlope = CheckSlope();
+        float targetSpeed = isSprinting ? sprintSpeed : walkSpeed;
+        currentSpeed = isWalking ? Mathf.MoveTowards(currentSpeed, targetSpeed, acceleration * Time.deltaTime) : 0f;
 
-        rb.MovePosition(rb.position + moveDirection * currentSpeed * Time.deltaTime);
+        Vector3 move = moveDir * currentSpeed;
+        move.y = verticalVelocity;
+        controller.Move(move * Time.deltaTime);
     }
 
     private void TriggerJump()
     {
         if (canJump && isGrounded)
         {
-            rb.linearVelocity = new Vector3(rb.linearVelocity.x, jumpForce, rb.linearVelocity.z);
+            verticalVelocity = Mathf.Sqrt(jumpForce * -2f * Physics.gravity.y);
             playerAnimator.TriggerJump();
         }
     }
 
-    private void GravityAdjustment()
+    private void ApplyGravity()
     {
-        rb.AddForce(Vector3.up * Physics.gravity.y * (gravityMultiplier - 1f), ForceMode.Acceleration);
+        if (isGrounded && verticalVelocity < 0f)
+        {
+            verticalVelocity = -2f;
+        }
+        else
+        {
+            verticalVelocity += Physics.gravity.y * gravityMultiplier * Time.deltaTime;
+        }
     }
 
-    // ─────────────────────────────────────────────
-    // State Checks
     private void CheckIfGrounded()
     {
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
@@ -183,7 +163,7 @@ public class Player : MonoBehaviour
 
     private void CheckIfFalling()
     {
-        isFalling = rb.linearVelocity.y < -0.1f && !isGrounded;
+        isFalling = verticalVelocity < -0.1f && !isGrounded;
 
         if (!isGrounded)
         {
@@ -197,7 +177,7 @@ public class Player : MonoBehaviour
         if (isFalling)
         {
             state = MovementState.Falling;
-            playerHeight = 1f;
+            
             return;
         }
 
@@ -217,42 +197,15 @@ public class Player : MonoBehaviour
         }
     }
 
-    // ─────────────────────────────────────────────
-    // Slope Handling
-    private bool CheckSlope()
-    {
-       
-        if (Physics.Raycast(groundCheck.position, Vector3.down, out slopeHit, playerHeight * 0.5f+0.3f, groundMask))
-        {
-            
-            float angle = Vector3.Angle(slopeHit.normal, Vector3.up);
-            return angle > 0f && angle <= maxSlopeAngle;
-        }
-
-        return false;
-    }
-
-    private Vector3 GetSlopeMoveDirection()
-    {
-        return Vector3.ProjectOnPlane(moveDir, slopeHit.normal).normalized;
-    }
-
-    // ─────────────────────────────────────────────
-    // Utilities
     IEnumerator ResetJumpAfterDelay()
     {
         yield return new WaitForSeconds(jumpCooldown);
         canJump = true;
     }
 
-    // ─────────────────────────────────────────────
-    // Public Getters
     public bool IsSprinting() => isSprinting;
     public bool IsFalling() => isFalling;
     public bool IsWalking() => isWalking;
     public bool IsGrounded() => isGrounded;
     public bool IsShowInventory() => showInventory;
-
-
-    
 }
