@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 657a72373ebbe974380957f00c84c339
+guid: 6a5f13a6f7078d5469f62c5f17ff32a0
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
@@ -7,18 +7,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Ash
-    second: {fileID: 2100000, guid: 9ed945378295eb4499df07e4cd5c986f, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Rocks
-    second: {fileID: -6629797300637803691, guid: 61e75042a29db344cb1270a353f63e19, type: 3}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Wood
-    second: {fileID: -3846018093981099296, guid: 4853c12b00bd73f43a7b33fa7cbef892, type: 3}
+      name: Material.004
+    second: {fileID: 2100000, guid: 34a436b44c8a4644aaae40e672a34731, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

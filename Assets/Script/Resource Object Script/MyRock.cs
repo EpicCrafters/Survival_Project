@@ -15,7 +15,7 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
     //[SerializeField] private Transform fxTreeLogDestroyed;
     //[SerializeField] private Transform fxTreeLogHalfDestroyed;
     //[SerializeField] private Transform fxTreeStumpDestroyed;
-  
+    [SerializeField] private Transform rockPrefab;
 
     private HealthSystem healthSystem;
 
@@ -41,8 +41,13 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
 
     private void HealthSystem_OnDead()
     {
+        for (int i = 0; i < 3; i++)
+        {
+            Vector3 offset = new Vector3(Random.Range(-0.2f, 0.2f), 0.1f, Random.Range(-0.2f, 0.2f));
+            Quaternion randomRot = Quaternion.Euler(0, Random.Range(0, 360), 0);
+            Instantiate(rockPrefab, transform.position + offset, randomRot);
+        }
 
-       
         Destroy(gameObject);
     }
 

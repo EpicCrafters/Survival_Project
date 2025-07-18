@@ -93,6 +93,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   treeType: 0
+  rockPrefab: {fileID: 6040415725971329579, guid: 4424af357e311b946ba68900bcac1dee, type: 3}
 --- !u!135 &1542809642168262749
 SphereCollider:
   m_ObjectHideFlags: 0

@@ -1,5 +1,6 @@
 ﻿using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class PlayerInteract : MonoBehaviour
 {
@@ -12,6 +13,8 @@ public class PlayerInteract : MonoBehaviour
 
     [Header("Thiết lập tương tác")]
     [SerializeField] private Transform interactionRayOrigin;
+    [SerializeField] private Transform startPosition;
+    [SerializeField] private float rayCastHigh;
     [SerializeField] private float interactDistance = 2f;
     [SerializeField] private LayerMask interactableLayers;
 
@@ -29,6 +32,8 @@ public class PlayerInteract : MonoBehaviour
 
     private void Start()
     {
+
+        //Cursor.lockState = CursorLockMode.Locked;
         rayColor = Color.green;
         inventoryManager = InventoryManager.instance;
         playerHoldingItem = GetComponent<PlayerHoldingItem>();
@@ -46,6 +51,12 @@ public class PlayerInteract : MonoBehaviour
     private void OnInteractPressed(object sender, System.EventArgs e)
     {
         TryPickupCurrentItem();
+        if (currentInteractable != null)
+        {
+
+            Debug.Log("Interacting with: " + currentInteractable);
+            currentInteractable.Interact();
+        }
     }
 
     private void OnInteractStarted(object sender, System.EventArgs e)
@@ -61,7 +72,7 @@ public class PlayerInteract : MonoBehaviour
 
     private void PerformRaycast()
     {
-        Ray ray = new Ray(interactionRayOrigin.position, interactionRayOrigin.forward);
+        Ray ray = new Ray(startPosition.position+Vector3.up* rayCastHigh, interactionRayOrigin.forward);
         Debug.DrawRay(ray.origin, ray.direction * interactDistance, rayColor, 0.1f);
 
         if (Physics.Raycast(ray, out RaycastHit hit, interactDistance, interactableLayers))
@@ -109,6 +120,11 @@ public class PlayerInteract : MonoBehaviour
             rayColor = Color.yellow;
             currentInteractable = interactable;
             currentPickup = null;
+            if (interactable is CampFire campfire)
+            {
+                campfire.ShowUI();
+                Debug.Log("Show");
+            }
             return true;
         }
         return false;
@@ -203,10 +219,18 @@ public class PlayerInteract : MonoBehaviour
         isReadyToMine = false;
         isReadyToPickup = false;
         isHoldingInteract = false;
-        currentPickup = null;
-        currentInteractable = null;
+
+
         rayColor = Color.green;
         healthBarUI.ClearTarget();
+
+
+        if (currentInteractable is CampFire campfire)
+        {
+            campfire.HideUI();
+        }
+        currentPickup = null;
+        currentInteractable = null;
     }
 
     public bool IsMining() => isHoldingInteract;
