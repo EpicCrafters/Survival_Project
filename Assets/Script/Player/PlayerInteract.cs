@@ -136,7 +136,7 @@ public class PlayerInteract : MonoBehaviour
         //Kiểm tra có cầm đúng vật phẩm không
         if (heldItemData == null || heldItemData.type != ItemType.Tool)
         {
-            Debug.Log("No valid tool held.");
+            //Debug.Log("No valid tool held.");
             return false;
         }
 
