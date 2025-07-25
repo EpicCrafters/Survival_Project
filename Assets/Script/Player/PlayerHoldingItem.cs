@@ -2,115 +2,128 @@
 
 public class PlayerHoldingItem : MonoBehaviour
 {
-    [SerializeField] private Transform holdingPoint;
-    private GameObject currentHoldingItem;
-    [SerializeField] private bool isHolding;
+    [SerializeField] private Transform holdingPoint; // Vị trí để hiển thị vật phẩm đang cầm
+    [SerializeField] private ItemPlacer itemPlacer;
 
-
-
+    private GameObject currentHoldingItem; // GameObject hiện đang cầm
+    [SerializeField] private bool isHolding; // Trạng thái có đang cầm hay không
+    public ItemData ItemData;
+    // Hàm gọi khi muốn cầm một vật phẩm mới
     public void HoldingItem(ItemData itemData)
     {
-        Clear();
+        Clear(); // Xóa vật phẩm đang cầm cũ nếu có
 
         if (itemData != null && itemData.worldPrefab != null)
         {
+            ItemData=itemData;
             isHolding = true;
+            // Tạo mới prefab vật phẩm tại vị trí holdingPoint
             currentHoldingItem = Instantiate(itemData.worldPrefab, holdingPoint);
-            //Debug.Log("Instantiated holding item: " + currentHoldingItem.name);
             currentHoldingItem.transform.localPosition = Vector3.zero;
             currentHoldingItem.transform.localRotation = Quaternion.identity;
-            Item item = currentHoldingItem.GetComponent<Item>();
 
+            // Lấy component Item từ prefab hoặc cha/con
+            Item item = currentHoldingItem.GetComponent<Item>();
             if (item == null)
                 item = currentHoldingItem.GetComponentInParent<Item>();
-
             if (item == null)
                 item = currentHoldingItem.GetComponentInChildren<Item>();
 
             if (item != null)
             {
-                item.itemData = itemData;
-                //Debug.Log("Assigned ItemData to item: " + item.name);
+                item.itemData = itemData; // Gán dữ liệu item cho prefab
             }
             else
             {
-                Debug.LogWarning("Held prefab is missing Item component! Searched self, parents, and children.");
+                Debug.LogWarning("Held prefab thiếu component Item!");
             }
-            // Set Rigidbody if exists
-            Collider col =currentHoldingItem.GetComponentInParent<Collider>();//chỉnh collider
-            if (col != null)
-            {
-                //col.isTrigger = true;
-            }
-            Rigidbody rb = currentHoldingItem.GetComponent<Rigidbody>();//chỉnh rigibody
+
+            // Tắt vật lý cho vật phẩm đang cầm
+            Rigidbody rb = currentHoldingItem.GetComponent<Rigidbody>();
             if (rb != null)
             {
                 rb.isKinematic = true;
                 rb.useGravity = false;
             }
 
-            
+            // Gán dữ liệu cho hitbox (nếu có)
             ItemHitBox hitbox = currentHoldingItem.GetComponentInChildren<ItemHitBox>();
             if (hitbox != null)
             {
                 hitbox.SetItemData(itemData);
-               // Tắt Collider
-                //Debug.Log("ItemData assigned to ItemHitBox.");
-            }
-            else
-            {
-                Debug.LogWarning("ItemHitBox not found on held item.");
             }
 
-            Debug.Log($"Player is holding: {itemData.itemName}");
-            Debug.Log($"Item Type: {itemData.type}");
+            // Nếu item này có thể đặt xuống => bật ghost preview
+            if (itemPlacer != null)
+            {
+                if(itemData.itemName== "Camfire")
+                {
+                    //Debug.Log("bat dau Dat item");
+                    itemPlacer.StartPlacing(itemData, this);
+                }           
+            }
 
-            if (itemData.type == ItemType.Weapon)
-            {
-                Debug.Log($"Weapon Type: {itemData.weapon.weaponType}");
-            }
-            else if (itemData.type == ItemType.Tool)
-            {
-                Debug.Log($"Tool Type: {itemData.tool.toolType}");
-            }
-            else if (itemData.type == ItemType.Consumable)
-            {
-                Debug.Log($"Heals: {itemData.consumable.healAmount}, Fills: {itemData.consumable.fillAmount}");
-            }
-            else if (itemData.type == ItemType.Resource)
-            {
-                Debug.Log($"Stackable: {itemData.resource.stackable}, Max Stack: {itemData.resource.maxStack}");
-            }
+            //Debug.Log($"Player đang cầm: {itemData.itemName}");
         }
         else
         {
-            Debug.LogWarning("Not Working: ItemData or prefab is null");
+            Debug.LogWarning("ItemData hoặc prefab null!");
         }
     }
 
-
-
-
+    // Xóa vật phẩm đang cầm 
     public void Clear()
     {
-        if(currentHoldingItem!=null)
+        if (currentHoldingItem != null)
         {
-            isHolding=false;
+            isHolding = false;
+            ItemData=null;
             Destroy(currentHoldingItem);
             currentHoldingItem = null;
         }
     }
-
+    public void OnPlaced()
+    {
+        // Gọi khi đã đặt thành
+        InventoryManager.instance.RemoveItem(ItemData,1);
+        Clear();
+        
+    }
+    // Kiểm tra có đang cầm vật phẩm không
     public bool IsHolding()
     {
         return isHolding;
     }
 
+    // Lấy GameObject vật phẩm đang cầm
     public GameObject GetCurrentHeldObject()
     {
         return currentHoldingItem;
-        
     }
 
+    // Cập nhật vật phẩm đang cầm theo số lượng mới trong kho
+    public void RefreshHoldingItem(ItemData itemData, int currentCount)
+    {
+        if (currentCount <= 0 || itemData == null)
+        {
+            Clear(); // Nếu không còn item thì xóa
+            return;
+        }
 
+        if (currentHoldingItem == null)
+        {
+            HoldingItem(itemData); // Nếu chưa cầm thì tạo mới
+        }
+        else
+        {
+            Item heldItem = currentHoldingItem.GetComponent<Item>();
+            // Nếu vật phẩm khác với đang cầm thì đổi mới
+            if (heldItem == null || heldItem.itemData != itemData)
+            {
+                Clear();
+                HoldingItem(itemData);
+            }
+        }
+
+    }
 }

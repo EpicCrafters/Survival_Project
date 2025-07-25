@@ -19,6 +19,7 @@ public class InventoryManager : MonoBehaviour
     //test
     [SerializeField] private ItemData stick;
     [SerializeField] private ItemData stone;
+    [SerializeField] private ItemData camfire;
     //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
 
     private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>(); // Lưu số lượng từng loại itemData
@@ -36,6 +37,7 @@ public class InventoryManager : MonoBehaviour
     private void Start()
     {
         ChangeHotbarSlot(IndexSlotBar); // Chọn ô đầu tiên của hotbar
+        AddItem(camfire);
         for (int i = 0; i < 7; i++)
         {
             AddItem(stick);
@@ -311,5 +313,56 @@ public class InventoryManager : MonoBehaviour
             }
         }
         return false;
+    }
+    // Hàm xóa số lượng item khỏi kho
+    public bool RemoveItem(ItemData itemData, int amount)
+    {
+        // Nếu không đủ item để xóa thì trả về false
+        if (!itemCounts.ContainsKey(itemData) || itemCounts[itemData] < amount)
+            return false;
+
+        itemCounts[itemData] -= amount; // Trừ số lượng
+        if (itemCounts[itemData] <= 0)
+            itemCounts.Remove(itemData); // Xóa key nếu không còn item
+
+        UpdateInventoryUIAfterRemove(itemData, amount); // Cập nhật UI sau khi xóa
+        return true;
+    }
+
+    // Cập nhật UI sau khi xóa item
+    private void UpdateInventoryUIAfterRemove(ItemData itemData, int amount)
+    {
+        int remaining = amount;
+
+        // Xóa trên hotbar 
+        foreach (var slot in hotbarSlots)
+        {
+            InventoryItem itemUI = slot.GetComponentInChildren<InventoryItem>();
+            if (itemUI != null && itemUI.item == itemData)
+            {
+                int removeCount = Mathf.Min(itemUI.count, remaining);
+                itemUI.count -= removeCount;
+                remaining -= removeCount;
+                if (itemUI.count <= 0)
+                    Destroy(itemUI.gameObject);
+                else
+                    itemUI.RefreshCount();
+
+                if (remaining <= 0)
+                    break;
+            }
+        }
+
+
+    }
+
+    // Hàm lấy số lượng hiện có của item
+    public int GetItemCount(ItemData itemData)
+    {
+        if (itemCounts.TryGetValue(itemData, out int count))
+        {
+            return count;
+        }
+        return 0;
     }
 }
