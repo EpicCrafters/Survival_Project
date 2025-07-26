@@ -4,8 +4,9 @@ using UnityEngine;
 using UnityEngine.UI;
 
 
-public class DayNightCycle : MonoBehaviour {
-    
+public class DayNightCycle : MonoBehaviour
+{
+
     [Header("Time")]
     [Tooltip("Day Length in Minutes")]
     [SerializeField]
@@ -97,7 +98,7 @@ public class DayNightCycle : MonoBehaviour {
     {
         _timeOfDay = 6f / 24f; // 6h sáng
         elapsedTime = _timeOfDay * targetDayLength * 60; // đồng bộ elapsedTime
-        NormalTimeCurve(); 
+        NormalTimeCurve();
     }
 
 
@@ -148,14 +149,14 @@ public class DayNightCycle : MonoBehaviour {
     {
         _timeOfDay += Time.deltaTime * _timeScale / 86400; // seconds in a day
         elapsedTime += Time.deltaTime;
-        if(_timeOfDay > 1) //new day!!
+        if (_timeOfDay > 1) //new day!!
         {
             elapsedTime = 0;
             _dayNumber++;
             _timeOfDay -= 1;
 
 
-            if(_dayNumber > _yearLength) //new year!
+            if (_dayNumber > _yearLength) //new year!
             {
                 _yearNumber++;
                 _dayNumber = 0;
@@ -189,7 +190,7 @@ public class DayNightCycle : MonoBehaviour {
             minuteString = "0" + minute.ToString();
         else
             minuteString = minute.ToString();
-        
+
         //if(use24Clock)
         //    clockText.text = hourString + " : " + minuteString;
         //else if (time > 0.5f)
