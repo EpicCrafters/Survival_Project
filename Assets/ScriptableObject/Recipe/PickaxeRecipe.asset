@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 37bd327de466bcd4ebb369ea3737f66c, type: 3}
-  m_Name: Pickaxe
+  m_Name: PickaxeRecipe
   m_EditorClassIdentifier: 
   ingredients:
   - item: {fileID: 11400000, guid: 30f051a3db686c54bac6e422d2f8ca8c, type: 2}

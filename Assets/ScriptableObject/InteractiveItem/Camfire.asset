@@ -27,5 +27,5 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
   resource:
-    stackable: 0
-    maxStack: 1
+    stackable: 1
+    maxStack: 5

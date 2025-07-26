@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
-  m_Name: Stone
+  m_Name: Log
   m_EditorClassIdentifier: 
-  itemName: Stone
-  image: {fileID: 21300000, guid: de90d4fd7585c944cb30003e414eeac7, type: 3}
+  itemName: Log
+  image: {fileID: 21300000, guid: 540f0533cdefc6140bf62dc303d2c5d8, type: 3}
   type: 3
-  worldPrefab: {fileID: 915257966390652907, guid: 7261133964df4dc4ba4761105d593507, type: 3}
+  worldPrefab: {fileID: 345173154147767209, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
   weapon:
     weaponType: 0
     damage: 0

@@ -11,18 +11,20 @@ public class PlayerHoldingItem : MonoBehaviour
     // Hàm gọi khi muốn cầm một vật phẩm mới
     public void HoldingItem(ItemData itemData)
     {
-        Clear(); // Xóa vật phẩm đang cầm cũ nếu có
+       
+        Clear(); //  Xóa vật phẩm đang cầm cũ nếu có
 
         if (itemData != null && itemData.worldPrefab != null)
         {
-            ItemData=itemData;
+            ItemData = itemData;
             isHolding = true;
-            // Tạo mới prefab vật phẩm tại vị trí holdingPoint
+
+            // Tạo prefab mới tại vị trí holdingPoint
             currentHoldingItem = Instantiate(itemData.worldPrefab, holdingPoint);
             currentHoldingItem.transform.localPosition = Vector3.zero;
             currentHoldingItem.transform.localRotation = Quaternion.identity;
 
-            // Lấy component Item từ prefab hoặc cha/con
+            // Gán dữ liệu item
             Item item = currentHoldingItem.GetComponent<Item>();
             if (item == null)
                 item = currentHoldingItem.GetComponentInParent<Item>();
@@ -31,14 +33,21 @@ public class PlayerHoldingItem : MonoBehaviour
 
             if (item != null)
             {
-                item.itemData = itemData; // Gán dữ liệu item cho prefab
+                item.itemData = itemData;
             }
             else
             {
                 Debug.LogWarning("Held prefab thiếu component Item!");
             }
 
-            // Tắt vật lý cho vật phẩm đang cầm
+            //Tắt collider 
+            Collider col = currentHoldingItem.GetComponentInChildren<Collider>();
+            if (col != null)
+            {
+                col.enabled = false;
+            }
+
+            //Tắt vật lý 
             Rigidbody rb = currentHoldingItem.GetComponent<Rigidbody>();
             if (rb != null)
             {
@@ -46,30 +55,28 @@ public class PlayerHoldingItem : MonoBehaviour
                 rb.useGravity = false;
             }
 
-            // Gán dữ liệu cho hitbox (nếu có)
+            // Gán dữ liệu cho HitBox nếu có
             ItemHitBox hitbox = currentHoldingItem.GetComponentInChildren<ItemHitBox>();
             if (hitbox != null)
             {
                 hitbox.SetItemData(itemData);
             }
 
-            // Nếu item này có thể đặt xuống => bật ghost preview
+            // Nếu item có thể đặt được => bật ghost preview
             if (itemPlacer != null)
             {
-                if(itemData.itemName== "Camfire")
+                if (itemData.itemName == "Camfire") // hoặc: itemData.canBePlaced
                 {
-                    //Debug.Log("bat dau Dat item");
                     itemPlacer.StartPlacing(itemData, this);
-                }           
+                }
             }
-
-            //Debug.Log($"Player đang cầm: {itemData.itemName}");
         }
         else
         {
             Debug.LogWarning("ItemData hoặc prefab null!");
         }
     }
+
 
     // Xóa vật phẩm đang cầm 
     public void Clear()
@@ -80,6 +87,10 @@ public class PlayerHoldingItem : MonoBehaviour
             ItemData=null;
             Destroy(currentHoldingItem);
             currentHoldingItem = null;
+            if (itemPlacer != null)
+            {
+                itemPlacer.CancelPlacing();  // Cancel ghost preview on clear
+            }
         }
     }
     public void OnPlaced()

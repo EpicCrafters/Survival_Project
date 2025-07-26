@@ -54,7 +54,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -92,7 +92,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0d648628aa433645a81d9208ae7d9cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  treeType: 0
+  rockType: 0
+  stonePrefab: {fileID: 6040415725971329579, guid: 7261133964df4dc4ba4761105d593507, type: 3}
+  itemDrop: 10
 --- !u!135 &1542809642168262749
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -112,8 +114,8 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 12.51
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Radius: 9.97
+  m_Center: {x: 0.81, y: -1.1, z: 0}
 --- !u!1001 &5589016350062195159
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -168,7 +170,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 75be691eb9afc0f4ca65e32e712e0a65, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

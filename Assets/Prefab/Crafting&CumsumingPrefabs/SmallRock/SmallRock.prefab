@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4261907004690067473}
   - component: {fileID: -2006452253060772740}
   - component: {fileID: 6925585722996701502}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: SmallRock
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -147,6 +147,10 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 43410ceecb1af094581b367a6e7a1e69, type: 3}
       propertyPath: m_Name
       value: SmallRock
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 43410ceecb1af094581b367a6e7a1e69, type: 3}
+      propertyPath: m_Layer
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

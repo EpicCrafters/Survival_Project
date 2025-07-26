@@ -9,7 +9,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 917302184313152125}
-  m_Layer: 0
+  - component: {fileID: 2789822092950377287}
+  - component: {fileID: 7321952934268978791}
+  m_Layer: 3
   m_Name: Cay Sim
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -32,6 +34,45 @@ Transform:
   - {fileID: 3077116848989500912}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2789822092950377287
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3236695765921899963}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 962bb608fba87b748a4a21e034a9aca6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maxPickup: 3
+  berryMesh: {fileID: 3753157731760758579}
+  berryDropPrefab: {fileID: 9137967743493655847, guid: c50582ee44ab21b4db457729b7eb2852, type: 3}
+  stickDropPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+--- !u!136 &7321952934268978791
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3236695765921899963}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 2.08
+  m_Height: 5.54
+  m_Direction: 1
+  m_Center: {x: 0, y: 1.85, z: 0}
 --- !u!1001 &4260737682901762616
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -40,6 +81,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 917302184313152125}
     m_Modifications:
+    - target: {fileID: 1095724133647867147, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 1266975089855330248, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -80,11 +125,25 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1854513074436685500, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 1936235085362113906, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
       propertyPath: m_Name
       value: CaySim2
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    - target: {fileID: 1936235085362113906, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 7408536623431931033, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+      propertyPath: m_Layer
+      value: 3
+      objectReference: {fileID: 0}
+    m_RemovedComponents:
+    - {fileID: 7961145221226777011, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+    - {fileID: 774820903560216196, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
@@ -92,5 +151,10 @@ PrefabInstance:
 --- !u!4 &3077116848989500912 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1266975089855330248, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
+  m_PrefabInstance: {fileID: 4260737682901762616}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &3753157731760758579 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1095724133647867147, guid: 27854cfccf290ff4991f29cb2b22c040, type: 3}
   m_PrefabInstance: {fileID: 4260737682901762616}
   m_PrefabAsset: {fileID: 0}

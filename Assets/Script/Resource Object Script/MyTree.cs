@@ -24,6 +24,7 @@ public class MyTree : MonoBehaviour, IDamageable, IMinenable
     [SerializeField] private Size treeSize;                // Kích cỡ cây được gán trong Inspector
     [SerializeField] private Type treeType;                // Loại cây được gán trong Inspector
     [SerializeField] private Transform fxTreeDestroyed;  // Hiệu ứng khi cây bị phá huỷ
+    public int itemDrop;
     //[SerializeField] private Transform fxTreeLogDestroyed;
     //[SerializeField] private Transform fxTreeLogHalfDestroyed;
     //[SerializeField] private Transform fxTreeStumpDestroyed;
@@ -94,7 +95,7 @@ public class MyTree : MonoBehaviour, IDamageable, IMinenable
 
             case Type.LogHaft:
                 // Khi nửa khúc gỗ bị phá, sinh ra que gỗ
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < itemDrop; i++)
                 {
                     Vector3 offset = new Vector3(Random.Range(-0.2f, 0.2f), 0.1f, Random.Range(-0.2f, 0.2f));
                     Quaternion randomRot = Quaternion.Euler(0, Random.Range(0, 360), 0);
@@ -103,7 +104,7 @@ public class MyTree : MonoBehaviour, IDamageable, IMinenable
                 break;
 
             case Type.Stump:
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < itemDrop; i++)
                 {
                     Vector3 offset = new Vector3(Random.Range(-0.2f, 0.2f), 0.1f, Random.Range(-0.2f, 0.2f));
                     Quaternion randomRot = Quaternion.Euler(0, Random.Range(0, 360), 0);

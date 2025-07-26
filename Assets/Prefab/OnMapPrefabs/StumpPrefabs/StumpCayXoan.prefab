@@ -50,7 +50,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       propertyPath: m_Name
-      value: StumpCayGoi
+      value: StumpCayXoan
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       propertyPath: m_Layer
@@ -62,8 +62,63 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 779446562884280093}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3518344202656321181}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5394407619354593339}
   m_SourcePrefab: {fileID: 100100000, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
+--- !u!1 &6907868166043829906 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
+  m_PrefabInstance: {fileID: 8301999817468191529}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &3518344202656321181
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6907868166043829906}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  treeSize: 0
+  treeType: 3
+  fxTreeDestroyed: {fileID: 0}
+  itemDrop: 5
+  particleSpawnPosition: {fileID: 0}
+  treeLog: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
+  treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
+  treeStump: {fileID: 9190801894893699412}
+  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+--- !u!136 &5394407619354593339
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6907868166043829906}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 1.1573877
+  m_Height: 5.6801987
+  m_Direction: 1
+  m_Center: {x: 0.0000015497208, y: 0.31162083, z: -0.000004351139}
 --- !u!4 &9190801894893699412 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
@@ -128,62 +183,8 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8437006946411234091, guid: dcd9b73a33e75e943b42196555e447b7, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 9185128731956686194}
-    - targetCorrespondingSourceObject: {fileID: 8437006946411234091, guid: dcd9b73a33e75e943b42196555e447b7, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 9158434397406211060}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: dcd9b73a33e75e943b42196555e447b7, type: 3}
---- !u!1 &115675394068022695 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8437006946411234091, guid: dcd9b73a33e75e943b42196555e447b7, type: 3}
-  m_PrefabInstance: {fileID: 8398284448255559308}
-  m_PrefabAsset: {fileID: 0}
---- !u!136 &9185128731956686194
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 115675394068022695}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 1.1573877
-  m_Height: 5.6801987
-  m_Direction: 1
-  m_Center: {x: 0.0000015497208, y: 0.31162083, z: -0.000004351139}
---- !u!114 &9158434397406211060
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 115675394068022695}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  treeSize: 0
-  treeType: 3
-  fxTreeDestroyed: {fileID: 0}
-  particleSpawnPosition: {fileID: 0}
-  treeLog: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
-  treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStump: {fileID: 9190801894893699412}
-  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
 --- !u!4 &779446562884280093 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 9105598610177268113, guid: dcd9b73a33e75e943b42196555e447b7, type: 3}

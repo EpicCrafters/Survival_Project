@@ -120,7 +120,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -164,6 +164,7 @@ MonoBehaviour:
   treeSize: 2
   treeType: 1
   fxTreeDestroyed: {fileID: 0}
+  itemDrop: 0
   particleSpawnPosition: {fileID: 0}
   treeLog: {fileID: 4831145717909944171}
   treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
@@ -179,7 +180,7 @@ Rigidbody:
   serializedVersion: 4
   m_Mass: 1
   m_Drag: 0
-  m_AngularDrag: 1
+  m_AngularDrag: 5
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}
   m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}

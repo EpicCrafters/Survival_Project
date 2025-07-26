@@ -16,6 +16,7 @@ public class GameSceneUI : MonoBehaviour
     void Update()
     {
         ShowInventory();
+        
     }
 
     private void ShowInventory()
@@ -27,6 +28,7 @@ public class GameSceneUI : MonoBehaviour
         else
         {
             Hide();
+            CraftingManager.Instance.ReturnItemsToInventory();
         }
     }
 

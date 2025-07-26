@@ -10,12 +10,14 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
     }
 
 
-    [SerializeField] private Type treeType;
+    [SerializeField] private Type rockType;
+    [SerializeField] private Transform stonePrefab;
+    public int itemDrop;
     //[SerializeField] private Transform fxTreeDestroyed;
     //[SerializeField] private Transform fxTreeLogDestroyed;
     //[SerializeField] private Transform fxTreeLogHalfDestroyed;
     //[SerializeField] private Transform fxTreeStumpDestroyed;
-  
+
 
     private HealthSystem healthSystem;
 
@@ -26,7 +28,7 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
 
 
 
-        switch (treeType)
+        switch (rockType)
         {
             default:
             case Type.Rock: healthAmount = 30; break;
@@ -42,7 +44,12 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
     private void HealthSystem_OnDead()
     {
 
-       
+        for (int i = 0; i < itemDrop; i++)
+        {
+            Vector3 offset = new Vector3(Random.Range(-0.2f, 0.2f), 0.1f, Random.Range(-0.2f, 0.2f));
+            Quaternion randomRot = Quaternion.Euler(0, Random.Range(0, 360), 0);
+            Instantiate(stonePrefab, transform.position + offset, randomRot);
+        }
         Destroy(gameObject);
     }
 
@@ -56,18 +63,18 @@ public class MyRock : MonoBehaviour, IDamageable, IMinenable
 
 
 
-    private void OnCollisionEnter(Collision collision)
-    {
-        Debug.Log($"Collision with {collision.gameObject.name}");
+    //private void OnCollisionEnter(Collision collision)
+    //{
+    //    Debug.Log($"Collision with {collision.gameObject.name}");
 
-        //IDamageable damageSource = collision.gameObject.GetComponent<IDamageable>();
-        //if (damageSource != null && collision.relativeVelocity.magnitude > 1f)
-        //{
-        //    int damageAmount = Random.Range(5, 20);
-        //    DamagePopup.Create(collision.GetContact(0).point, damageAmount, damageAmount > 14);
-        //    Damage(damageAmount);
-        //}
-    }
+    //    //IDamageable damageSource = collision.gameObject.GetComponent<IDamageable>();
+    //    //if (damageSource != null && collision.relativeVelocity.magnitude > 1f)
+    //    //{
+    //    //    int damageAmount = Random.Range(5, 20);
+    //    //    DamagePopup.Create(collision.GetContact(0).point, damageAmount, damageAmount > 14);
+    //    //    Damage(damageAmount);
+    //    //}
+    //}
     
 
     public ResourceType GetResourceType() => ResourceType.Rock;

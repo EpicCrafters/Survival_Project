@@ -141,4 +141,19 @@ public class ItemPlacer : MonoBehaviour
             rend.material = ghostMaterial;
         }
     }
+
+
+
+
+    //Them
+    public void CancelPlacing()
+    {
+        if (ghostObject != null)
+        {
+            Destroy(ghostObject);
+            ghostObject = null;
+        }
+        isPlacing = false;
+    }
+
 }

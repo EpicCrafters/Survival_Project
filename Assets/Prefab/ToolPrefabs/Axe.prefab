@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 5408496211242686550}
   - component: {fileID: 1937418379518778666}
   - component: {fileID: 764358072935647330}
-  m_Layer: 3
+  m_Layer: 7
   m_Name: HitBox
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 7729467723121628901}
   - component: {fileID: 5168767435736450479}
   - component: {fileID: 6257922087310456561}
-  m_Layer: 3
+  m_Layer: 7
   m_Name: Axe
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -218,15 +218,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 553e76460ab46924ea854f7ed219ffc3, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 2766212503428324877, guid: 553e76460ab46924ea854f7ed219ffc3, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 6017510239773530926, guid: 553e76460ab46924ea854f7ed219ffc3, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 7
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
