@@ -7,7 +7,8 @@ public enum ItemType
     Weapon,
     Tool,
     Consumable,
-    Resource
+    Resource,
+    BuildingPart
 }
 
 
@@ -23,6 +24,16 @@ public enum ToolType
     Hammer,
     Pickaxe,
     Axe
+}
+
+public enum BuildingPartType
+{
+    Foundation,
+    Wall,
+    Floor,
+    Roof,
+    Door,
+    Window
 }
 
 [System.Serializable]
@@ -53,6 +64,16 @@ public class ResourceStats
 {
     public bool stackable;
     public int maxStack = 10;
+    
+}
+[System.Serializable]
+public class BuildingStats
+{
+    public BuildingPartType partType;
+    public bool stackable;
+    public int maxStack = 5;
+    public Material ghostMaterial_Valid;
+    public Material ghostMaterial_Invalid;
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]
@@ -63,6 +84,9 @@ public class ItemData : ScriptableObject
     public Sprite image;
     public ItemType type;
     public GameObject worldPrefab;
+    public bool itemPlace;
+    public bool snapToGrid = true;
+    public float gridSize = 2f;
 
     [Header("Weapon")]
     public WeaponStats weapon;
@@ -76,6 +100,8 @@ public class ItemData : ScriptableObject
     [Header("Resource")]
     public ResourceStats resource;
 
+    [Header("Building")]
+    public BuildingStats building;
 
 #if UNITY_EDITOR
     [UnityEditor.CustomEditor(typeof(ItemData))]
@@ -89,6 +115,7 @@ public class ItemData : ScriptableObject
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("image"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("worldPrefab"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("type"));
+            UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("itemPlace"));
 
             var itemTypeProp = serializedObject.FindProperty("type");
             var selectedType = (ItemType)itemTypeProp.enumValueIndex;
@@ -106,6 +133,9 @@ public class ItemData : ScriptableObject
                     break;
                 case ItemType.Resource:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("resource"), true);
+                    break;
+                case ItemType.BuildingPart:
+                    UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("building"), true);
                     break;
             }
 

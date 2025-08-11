@@ -63,13 +63,11 @@ public class PlayerHoldingItem : MonoBehaviour
             }
 
             // Nếu item có thể đặt được => bật ghost preview
-            if (itemPlacer != null)
+            if (itemData.itemPlace)
             {
-                if (itemData.itemName == "Camfire") // hoặc: itemData.canBePlaced
-                {
-                    itemPlacer.StartPlacing(itemData, this);
-                }
+                BuildManager.Instance.StartPlacing(itemData, this);
             }
+
         }
         else
         {
@@ -91,14 +89,20 @@ public class PlayerHoldingItem : MonoBehaviour
             {
                 itemPlacer.CancelPlacing();  // Cancel ghost preview on clear
             }
+            // Gọi cancel từ BuildManager nếu đang xây
+            if (BuildManager.Instance != null)
+            {
+                BuildManager.Instance.StopPlacing();
+            }
         }
     }
     public void OnPlaced()
     {
         // Gọi khi đã đặt thành
         InventoryManager.instance.RemoveItem(ItemData,1);
+
         Clear();
-        
+
     }
     // Kiểm tra có đang cầm vật phẩm không
     public bool IsHolding()

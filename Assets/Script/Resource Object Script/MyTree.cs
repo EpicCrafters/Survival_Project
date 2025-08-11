@@ -127,7 +127,7 @@ public class MyTree : MonoBehaviour, IDamageable, IMinenable
     // Xử lý va chạm
     private void OnCollisionEnter(Collision collision)
     {
-        Debug.Log($"Va chạm với {collision.gameObject.name}");
+        //Debug.Log($"Va chạm với {collision.gameObject.name}");
 
         // Ví dụ xử lý va chạm gây sát thương 
         // IDamageable damageSource = collision.gameObject.GetComponent<IDamageable>();

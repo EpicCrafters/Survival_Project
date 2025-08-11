@@ -19,7 +19,7 @@ public class InventoryManager : MonoBehaviour
     //test
     [SerializeField] private ItemData stick;
     [SerializeField] private ItemData stone;
-    [SerializeField] private ItemData camfire;
+    //[SerializeField] private ItemData camfire;
     //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
 
     private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>(); // Lưu số lượng từng loại itemData
@@ -37,8 +37,8 @@ public class InventoryManager : MonoBehaviour
     private void Start()
     {
         ChangeHotbarSlot(IndexSlotBar); // Chọn ô đầu tiên của hotbar
-        AddItem(camfire);
-        for (int i = 0; i < 7; i++)
+        //AddItem(camfire);
+        for (int i = 0; i < 5; i++)
         {
             AddItem(stick);
             AddItem(stone);
@@ -101,6 +101,18 @@ public class InventoryManager : MonoBehaviour
                 itemInSlot.count++;
                 itemInSlot.RefreshCount(); // Cập nhật hiển thị số lượng
                 return true;
+            }
+            else
+            {
+                if (itemInSlot != null &&
+                itemInSlot.item == item &&
+                item.building.stackable &&
+                itemInSlot.count < item.building.maxStack)
+                {
+                    itemInSlot.count++;
+                    itemInSlot.RefreshCount(); // Cập nhật hiển thị số lượng
+                    return true;
+                }
             }
         }
         return false;

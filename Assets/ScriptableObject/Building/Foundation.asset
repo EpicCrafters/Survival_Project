@@ -10,13 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
-  m_Name: Camfire
+  m_Name: Foundation
   m_EditorClassIdentifier: 
-  itemName: Camfire
-  image: {fileID: 21300000, guid: b73371ccd1f6e754e835dbc76c68a5c4, type: 3}
-  type: 3
-  worldPrefab: {fileID: 3693545010943558659, guid: 4d7621a60ac2f114cb2b84b1b9fe5c0f, type: 3}
+  itemName: 
+  image: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
+  type: 4
+  worldPrefab: {fileID: 6730120286574331868, guid: 8b7e8c77f174ec246acc281e222cac8c, type: 3}
   itemPlace: 1
+  snapToGrid: 1
+  gridSize: 2
   weapon:
     weaponType: 0
     damage: 0
@@ -29,4 +31,10 @@ MonoBehaviour:
     fillAmount: 0
   resource:
     stackable: 0
-    maxStack: 1
+    maxStack: 10
+  building:
+    partType: 0
+    stackable: 1
+    maxStack: 5
+    ghostMaterial_Valid: {fileID: -6478536213147159724, guid: 911c2a5644067a14096c25bf988dce6e, type: 3}
+    ghostMaterial_Invalid: {fileID: 2100000, guid: cb944a7224abfab43b2afc3e82fe40f1, type: 2}

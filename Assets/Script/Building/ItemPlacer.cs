@@ -2,13 +2,18 @@
 
 public class ItemPlacer : MonoBehaviour
 {
+    [Header("Settings")]
     [SerializeField] private Material ghostMaterial;
+    
+    [SerializeField] private float maxPlaceDistance = 25f;
+    
 
     private GameObject ghostObject;
     private ItemData placingItem;
     private PlayerHoldingItem playerHolding;
 
     private bool isPlacing;
+    private float currentRotationY = 0f;
 
     public void StartPlacing(ItemData item, PlayerHoldingItem player)
     {
@@ -17,20 +22,28 @@ public class ItemPlacer : MonoBehaviour
 
         if (placingItem == null || placingItem.worldPrefab == null)
         {
-            Debug.LogWarning("No item to place.");
+            Debug.LogWarning("[ItemPlacer] No item to place.");
             return;
         }
 
         ghostObject = Instantiate(placingItem.worldPrefab);
         ApplyGhostMaterial(ghostObject);
 
-        // Tắt collider ghost
-        Collider[] colliders = ghostObject.GetComponentsInChildren<Collider>();
-        foreach (var col in colliders)
+        Rigidbody rb = ghostObject.GetComponent<Rigidbody>();
+        if (rb == null) rb = ghostObject.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity = false;
+
+        foreach (var col in ghostObject.GetComponentsInChildren<Collider>())
         {
-            col.enabled = false;
+            col.enabled = true;
+            col.isTrigger = true;
         }
 
+        if (ghostObject.GetComponent<GhostValidator>() == null)
+            ghostObject.AddComponent<GhostValidator>();
+
+        currentRotationY = 0f;
         isPlacing = true;
     }
 
@@ -39,7 +52,13 @@ public class ItemPlacer : MonoBehaviour
         if (!isPlacing) return;
 
         UpdateGhostPosition();
-        DebugPlacementRay();
+
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            currentRotationY += 90f;
+            ghostObject.transform.Rotate(Vector3.up, 90f);
+        }
+
         if (Input.GetMouseButtonDown(0))
         {
             PlaceItem();
@@ -48,112 +67,79 @@ public class ItemPlacer : MonoBehaviour
 
     void UpdateGhostPosition()
     {
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Transform cam = Camera.main.transform;
+        Ray ray = new Ray(cam.position, cam.forward);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, 50f)) // bỏ LayerMask
+        if (Physics.Raycast(ray, out RaycastHit hit, maxPlaceDistance))
         {
-            // Bỏ qua chính ghost
             if (ghostObject != null && hit.collider.transform.IsChildOf(ghostObject.transform))
-            {
-                Debug.Log("[Ghost] Ray hit ghost, skip");
                 return;
-            }
 
-            
             if (!hit.collider.CompareTag("Finish"))
-            {
-                Debug.Log($"[Ghost] Hit {hit.collider.name} but not Ground");
                 return;
-            }
 
             Vector3 placePos = hit.point;
 
-            // Offset cho prefab nổi lên mặt đất
+            float dist = Vector3.Distance(playerHolding.transform.position, placePos);
+            if (dist > 25f)
+                return;
+
             Renderer rend = ghostObject.GetComponentInChildren<Renderer>();
             if (rend != null)
             {
                 float offsetY = rend.bounds.extents.y;
                 placePos.y += offsetY;
-                Debug.Log($"[Ghost] OffsetY: {offsetY}");
             }
 
-            ghostObject.transform.position = placePos;
-            ghostObject.transform.rotation = Quaternion.identity;
-
-            Debug.Log($"[Ghost] Final Pos: {ghostObject.transform.position}");
-        }
-        else
-        {
-            Debug.Log("[Ghost] Ray missed any collider");
+           
+                ghostObject.transform.position = placePos;
+                ghostObject.transform.rotation = Quaternion.identity;
+            
         }
     }
+
 
     void PlaceItem()
     {
-        if (ghostObject == null)
+        if (ghostObject == null) return;
+
+        GhostValidator validator = ghostObject.GetComponent<GhostValidator>();
+        if (validator != null && !validator.IsValid)
         {
-            Debug.LogWarning("Ghost is null, cannot place");
+            Debug.Log("[PlaceItem] Cannot place: ghost is colliding.");
             return;
         }
 
-        Vector3 placePos = ghostObject.transform.position;
-        Quaternion placeRot = ghostObject.transform.rotation;
-
-        if (placePos == Vector3.zero)
-        {
-            Debug.LogWarning("Ghost position is zero! Cancel placing.");
-            return;
-        }
-
-        Instantiate(placingItem.worldPrefab, placePos, placeRot);
-
+        Instantiate(placingItem.worldPrefab, ghostObject.transform.position, ghostObject.transform.rotation);
         Destroy(ghostObject);
         isPlacing = false;
-
-        Debug.Log($"Placed: {placingItem.itemName} at {placePos}");
-
         playerHolding.OnPlaced();
-    }
-
-    private void DebugPlacementRay()
-    {
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-
-        Debug.DrawRay(ray.origin, ray.direction * 100f, Color.cyan);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, 100f))
-        {
-            Debug.Log($"[Ray] Hit: {hit.collider.name} at {hit.point} (Tag: {hit.collider.tag})");
-            Debug.DrawLine(ray.origin, hit.point, Color.green);
-            Debug.DrawRay(hit.point, Vector3.up * 0.5f, Color.red);
-        }
-        else
-        {
-            Debug.Log($"[Ray] Missed");
-        }
     }
 
     void ApplyGhostMaterial(GameObject obj)
     {
-        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
-        foreach (var rend in renderers)
+        foreach (var rend in obj.GetComponentsInChildren<Renderer>())
         {
-            rend.material = ghostMaterial;
+            Material[] ghostMats = new Material[rend.materials.Length];
+            for (int i = 0; i < ghostMats.Length; i++)
+                ghostMats[i] = ghostMaterial;
+            rend.materials = ghostMats;
         }
     }
 
-
-
-
-    //Them
     public void CancelPlacing()
     {
         if (ghostObject != null)
-        {
             Destroy(ghostObject);
-            ghostObject = null;
-        }
+
+        ghostObject = null;
         isPlacing = false;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.green;
+        Gizmos.DrawRay(Camera.main.transform.position, Camera.main.transform.forward * maxPlaceDistance);
     }
 
 }

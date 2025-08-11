@@ -205,21 +205,22 @@ public class DayNightCycle : MonoBehaviour
     //rotates the sun daily (and seasonally soon too);
     private void AdjustSunRotation()
     {
-        //float sunAngle = timeOfDay * 360f;
-        //dailyRotation.transform.localRotation = Quaternion.Euler(new Vector3(0f, 0f, sunAngle));
         float sunAngle = timeOfDay * 360f;
-        dailyRotation.transform.localRotation = Quaternion.Euler(new Vector3(sunAngle, 0f, 0f));
+        dailyRotation.localRotation = Quaternion.Euler(sunAngle, 0f, 0f);
 
         float seasonalAngle = -maxSeasonalTilt * Mathf.Cos(dayNumber / yearLength * 2f * Mathf.PI);
-        sunSeasonalRotation.localRotation = Quaternion.Euler(new Vector3(seasonalAngle, 0f, 0f));
+        sunSeasonalRotation.localRotation = Quaternion.Euler(seasonalAngle, 0f, 0f);
     }
 
 
     private void SunIntensity()
     {
-        intensity = Vector3.Dot(sun.transform.forward, Vector3.down);
-        intensity = Mathf.Clamp01(intensity);
+        float dot = Vector3.Dot(sun.transform.forward, Vector3.down);
 
+        // Cho phép ánh sáng vẫn còn mờ nhẹ khi mặt trời gần lặn
+        // Fade từ Dot = -0.1 (tối hoàn toàn) đến Dot = 0.1 (sáng hoàn toàn)
+        float fade = Mathf.InverseLerp(-0.1f, 0.2f, dot); // độ nhạy tùy chỉnh được
+        intensity = Mathf.Clamp01(fade); // giá trị 0 → 1
 
         sun.intensity = intensity * sunVariation + sunBaseIntensity;
     }
@@ -256,27 +257,27 @@ public class DayNightCycle : MonoBehaviour
     {
         float ambientIntensity = 0f;
 
-        if (timeOfDay >= 0.3f && timeOfDay <= 0.5f)
+        if (timeOfDay >= 0.15f && timeOfDay <= 0.25f)
         {
-            // Bình minh -> giữa trưa: tăng dần từ 0 -> 1
-            float t = Mathf.InverseLerp(0.3f, 0.5f, timeOfDay);
-            ambientIntensity = Mathf.Lerp(0f, 1f, t);
+            // Bình minh -> giữa trưa: tăng dần từ 0 -> 85
+            float t = Mathf.InverseLerp(0.15f, 0.25f, timeOfDay);
+            ambientIntensity = Mathf.Lerp(0f, 0.85f, t);
         }
-        else if (timeOfDay > 0.5f && timeOfDay <= 0.7f)
+        else if (timeOfDay > 0.25f && timeOfDay <= 0.7f)
         {
-            // Giữa trưa: giữ nguyên 1
-            ambientIntensity = 1f;
+            // Giữa trưa: giữ nguyên 
+            ambientIntensity = 0.85f;
         }
-        else if (timeOfDay > 0.7f && timeOfDay <= 1f)
+        else if (timeOfDay > 0.7f && timeOfDay <= 0.85f)
         {
-            // Hoàng hôn -> đêm: giảm từ 1 -> 0
-            float t = Mathf.InverseLerp(0.7f, 1f, timeOfDay);
-            ambientIntensity = Mathf.Lerp(1f, 0.15f, t);
+            // Hoàng hôn -> đêm: giảm từ 1 -> 0.05
+            float t = Mathf.InverseLerp(0.7f, 0.85f, timeOfDay);
+            ambientIntensity = Mathf.Lerp(1f, 0.05f, t);
         }
-        else if (timeOfDay < 0.3f)
+        else if (timeOfDay > 0.85f || timeOfDay < 0.15f)
         {
-            // Từ 0 -> 0.3: đêm => giữ nguyên tối
-            ambientIntensity = 0f;
+            // Đêm: giữ tối
+            ambientIntensity = 0.05f;
         }
 
         RenderSettings.ambientIntensity = ambientIntensity;

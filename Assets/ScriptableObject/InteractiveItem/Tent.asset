@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
-  m_Name: Camfire
+  m_Name: Tent
   m_EditorClassIdentifier: 
-  itemName: Camfire
-  image: {fileID: 21300000, guid: b73371ccd1f6e754e835dbc76c68a5c4, type: 3}
+  itemName: Tent
+  image: {fileID: 21300000, guid: 9af2ae2c0dcb8e44a8e20c7bd92b83ad, type: 3}
   type: 3
-  worldPrefab: {fileID: 3693545010943558659, guid: 4d7621a60ac2f114cb2b84b1b9fe5c0f, type: 3}
+  worldPrefab: {fileID: 8864245673970721402, guid: be63ee045c5e88140a95a4b2c083f883, type: 3}
   itemPlace: 1
   weapon:
     weaponType: 0
