@@ -15,7 +15,7 @@ MonoBehaviour:
   itemName: 
   image: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
   type: 4
-  worldPrefab: {fileID: 9065893481218357321, guid: 6db621de6c527004991af01922dc4b24, type: 3}
+  worldPrefab: {fileID: 9065893481218357321, guid: 81b6c140d1adf9645a4c8dab125615c7, type: 3}
   itemPlace: 1
   snapToGrid: 1
   gridSize: 2
@@ -36,5 +36,8 @@ MonoBehaviour:
     partType: 1
     stackable: 1
     maxStack: 5
-    ghostMaterial_Valid: {fileID: -6478536213147159724, guid: 911c2a5644067a14096c25bf988dce6e, type: 3}
-    ghostMaterial_Invalid: {fileID: 2100000, guid: cb944a7224abfab43b2afc3e82fe40f1, type: 2}
+    snapToGridEdge: 1
+    ignorObject: []
+    groundMask:
+      serializedVersion: 2
+      m_Bits: 2048

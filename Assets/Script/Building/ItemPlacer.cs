@@ -12,6 +12,8 @@ public class ItemPlacer : MonoBehaviour
     private ItemData placingItem;
     private PlayerHoldingItem playerHolding;
 
+    [SerializeField] private LayerMask placeableLayers;
+
     private bool isPlacing;
     private float currentRotationY = 0f;
 
@@ -67,21 +69,17 @@ public class ItemPlacer : MonoBehaviour
 
     void UpdateGhostPosition()
     {
-        Transform cam = Camera.main.transform;
-        Ray ray = new Ray(cam.position, cam.forward);
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, maxPlaceDistance))
+        if (Physics.Raycast(ray, out RaycastHit hit, maxPlaceDistance, placeableLayers))
         {
             if (ghostObject != null && hit.collider.transform.IsChildOf(ghostObject.transform))
-                return;
-
-            if (!hit.collider.CompareTag("Finish"))
                 return;
 
             Vector3 placePos = hit.point;
 
             float dist = Vector3.Distance(playerHolding.transform.position, placePos);
-            if (dist > 25f)
+            if (dist > maxPlaceDistance)
                 return;
 
             Renderer rend = ghostObject.GetComponentInChildren<Renderer>();
@@ -91,10 +89,8 @@ public class ItemPlacer : MonoBehaviour
                 placePos.y += offsetY;
             }
 
-           
-                ghostObject.transform.position = placePos;
-                ghostObject.transform.rotation = Quaternion.identity;
-            
+            ghostObject.transform.position = placePos;
+            ghostObject.transform.rotation = Quaternion.Euler(0, currentRotationY, 0);
         }
     }
 

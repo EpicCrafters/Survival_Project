@@ -53,6 +53,8 @@ public class Player : MonoBehaviour
     private Vector3 moveDir;
     private Vector2 inputVector;
 
+    public bool isFrozen = false;
+
     private void Start()
     {
         playerInteract = GetComponent<PlayerInteract>();
@@ -120,6 +122,12 @@ public class Player : MonoBehaviour
 
     private void MovePlayer()
     {
+        if (isFrozen)
+        {
+            controller.Move(Vector3.zero); // Needed to keep grounded without slipping
+            return;
+        }
+
         float targetSpeed = isSprinting ? sprintSpeed : walkSpeed;
         currentSpeed = isWalking ? Mathf.MoveTowards(currentSpeed, targetSpeed, acceleration * Time.deltaTime) : 0f;
 
@@ -127,6 +135,7 @@ public class Player : MonoBehaviour
         move.y = verticalVelocity;
         controller.Move(move * Time.deltaTime);
     }
+
 
     private void TriggerJump()
     {
@@ -139,6 +148,8 @@ public class Player : MonoBehaviour
 
     private void ApplyGravity()
     {
+        if (isFrozen) return;
+
         if (isGrounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f;

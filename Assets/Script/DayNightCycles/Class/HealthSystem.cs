@@ -1,44 +1,42 @@
-
 using System;
 
 public class HealthSystem
 {
-    public  int health;
+    public int health;
     public int healthMax;
+
     public event Action OnDead;
-
-
+    public event Action<int, int> OnHealthChanged; // current, max
 
     public HealthSystem(int healthMax)
     {
         this.healthMax = healthMax;
-        health = healthMax;
+        this.health = healthMax;
     }
 
-    public int GetHealth()
-    {
-        return health;
-    }
-    public float GetHealthPercent()
-    {
-        return (float)health / healthMax;
-    }
+    public int GetHealth() => health;
+    public int GetHealthMax() => healthMax;
 
+    public float GetHealthPercent() => (float)health / healthMax;
 
-    public void Damage(int damageAmount)
+    public void Damage(int amount)
     {
-        health -= damageAmount;
+        health -= amount;
         if (health < 0) health = 0;
+
+        OnHealthChanged?.Invoke(health, healthMax);
 
         if (health == 0)
         {
-            OnDead?.Invoke(); 
+            OnDead?.Invoke();
         }
     }
 
-    public void Heal(int healAmount)
+    public void Heal(int amount)
     {
-        health+= healAmount;
-        if(health >healthMax) health=healthMax;
+        health += amount;
+        if (health > healthMax) health = healthMax;
+
+        OnHealthChanged?.Invoke(health, healthMax);
     }
 }

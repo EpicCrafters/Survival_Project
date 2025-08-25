@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
+  m_Name: D_Wall
+  m_EditorClassIdentifier: 
+  itemName: 
+  image: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
+  type: 4
+  worldPrefab: {fileID: 9065893481218357321, guid: 6db621de6c527004991af01922dc4b24, type: 3}
+  itemPlace: 1
+  snapToGrid: 1
+  gridSize: 2
+  weapon:
+    weaponType: 0
+    damage: 0
+    range: 0
+  tool:
+    toolType: 0
+    damage: 0
+  consumable:
+    healAmount: 0
+    fillAmount: 0
+  resource:
+    stackable: 0
+    maxStack: 10
+  building:
+    partType: 0
+    stackable: 1
+    maxStack: 5
+    snapToGridEdge: 1
+    ignorObject: []
+    groundMask:
+      serializedVersion: 2
+      m_Bits: 2048

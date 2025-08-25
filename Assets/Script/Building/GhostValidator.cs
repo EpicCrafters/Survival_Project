@@ -4,8 +4,9 @@ public class GhostValidator : MonoBehaviour
 {
     private int overlapCount = 0;
     private Renderer[] renderers;
+    private bool isOnValidSurface = false;
 
-    public bool IsValid => overlapCount == 0;
+    public bool IsValid => overlapCount == 0 && isOnValidSurface;
 
     private void Awake()
     {
@@ -14,6 +15,13 @@ public class GhostValidator : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (IsSurface(other))
+        {
+            isOnValidSurface = true;
+            UpdateColor();
+            return;
+        }
+
         if (!IsIgnored(other))
         {
             overlapCount++;
@@ -23,6 +31,13 @@ public class GhostValidator : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
+        if (IsSurface(other))
+        {
+            isOnValidSurface = false;
+            UpdateColor();
+            return;
+        }
+
         if (!IsIgnored(other))
         {
             overlapCount--;
@@ -30,15 +45,22 @@ public class GhostValidator : MonoBehaviour
         }
     }
 
+    private bool IsSurface(Collider other)
+    {
+        int layer = other.gameObject.layer;
+        return layer == LayerMask.NameToLayer("Ground") ||
+               layer == LayerMask.NameToLayer("buildLayer");
+    }
+
     private bool IsIgnored(Collider other)
     {
-        // Bỏ qua trigger hoặc chính bản thân ghost
-        return other.isTrigger || other.transform.IsChildOf(transform)||other.gameObject.layer == LayerMask.NameToLayer("Ground"); ;
+        // Bỏ qua trigger và chính ghost
+        return other.isTrigger || other.transform.IsChildOf(transform);
     }
 
     private void UpdateColor()
     {
-        Color color = overlapCount == 0 ? Color.white : Color.red;
+        Color color = IsValid ? Color.white : Color.red;
 
         foreach (var rend in renderers)
         {
