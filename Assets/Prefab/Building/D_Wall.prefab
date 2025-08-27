@@ -95,7 +95,7 @@ PrefabInstance:
     - target: {fileID: -7511558181221131132, guid: 6f39a059ccecbe141aef72f3e3cfa4e7, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: a78bae7c419ee824da495d5128d26260, type: 2}
+      objectReference: {fileID: 2100000, guid: bc5a0e5ffa2b63f419be41483bb7b2f7, type: 2}
     - target: {fileID: 919132149155446097, guid: 6f39a059ccecbe141aef72f3e3cfa4e7, type: 3}
       propertyPath: m_Name
       value: DoorWall
