@@ -39,7 +39,7 @@ public class AnimalCombat : MonoBehaviour
     // Xử lý khi hitbox va chạm với đối tượng khác
     private void OnTriggerEnter(Collider other)
     {
-        var ai = GetComponent<AnimalAI>();
+        var ai = GetComponent<BaseAnimalAI>();
         if (ai.chasingTarget != null && other.transform == ai.chasingTarget)
         {
             // Nếu mục tiêu có interface IDamageable, gọi Damage
@@ -63,7 +63,7 @@ public class AnimalCombat : MonoBehaviour
     // Quay hướng thú về phía mục tiêu trước khi tấn công
     private void FaceTarget()
     {
-        var ai = GetComponent<AnimalAI>();
+        var ai = GetComponent<BaseAnimalAI>();
         if (ai.chasingTarget == null) return;
 
         Vector3 lookDir = ai.chasingTarget.position - transform.position;

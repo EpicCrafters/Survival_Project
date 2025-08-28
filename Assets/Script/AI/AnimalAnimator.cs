@@ -23,7 +23,7 @@ public class AnimalAnimator : MonoBehaviour
 
     public void PlayIdleAnimation()
     {
-        var animalData = GetComponent<AnimalAI>().animalData;
+        var animalData = GetComponent<BaseAnimalAI>().animalData;
         if (animalData == null) return;
 
         if (animalData.idleCount > 1)

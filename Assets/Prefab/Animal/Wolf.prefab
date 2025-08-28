@@ -172,7 +172,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4707455307691891438}
-  - component: {fileID: 5916142673525633238}
+  - component: {fileID: -1939654567068280643}
   - component: {fileID: 4638610902249086213}
   - component: {fileID: 555746615007459450}
   - component: {fileID: 2956574796250045068}
@@ -181,6 +181,7 @@ GameObject:
   - component: {fileID: 5403490094349926367}
   - component: {fileID: 8791037054841624859}
   - component: {fileID: 1080808742540450945}
+  - component: {fileID: 3725151059652378784}
   m_Layer: 0
   m_Name: Wolf
   m_TagString: Untagged
@@ -207,7 +208,7 @@ Transform:
   - {fileID: 3362491324035620755}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &5916142673525633238
+--- !u!114 &-1939654567068280643
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -216,61 +217,61 @@ MonoBehaviour:
   m_GameObject: {fileID: 532213249906536503}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5bae2d57e1501344ea0f8f95a2cbddef, type: 3}
+  m_Script: {fileID: 11500000, guid: 029b8d1014610f145bb6de80ead823f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   animalData: {fileID: 11400000, guid: 0b9d525ad922f864c90f6e4edf91d3b1, type: 2}
   chasingTarget: {fileID: 0}
   healthBarUI: {fileID: 7267355396312730070}
+  stopDistance: 0.8
   hurtBox: {fileID: 1080808742540450945}
   baseRigibody: {fileID: 8791037054841624859}
   ragdollBodies:
-  - {fileID: 5487572398791060751}
-  - {fileID: 7064831572745079557}
-  - {fileID: 5816511433093478538}
-  - {fileID: 2896558407125198319}
-  - {fileID: 8842383064244376643}
-  - {fileID: 1477379884455838731}
-  - {fileID: 9086948581056174909}
-  - {fileID: 3374813359253826414}
-  - {fileID: 3871235396773563589}
-  - {fileID: 3936017261095485433}
-  - {fileID: 3048881361279825220}
   - {fileID: 3802143601890913219}
-  - {fileID: 2482647201285934454}
+  - {fileID: 5487572398791060751}
   - {fileID: 3958591265621762742}
-  - {fileID: 3589675235473364279}
-  - {fileID: 2694613034997792413}
-  - {fileID: 5697931054112017512}
-  - {fileID: 6952058399227424216}
-  - {fileID: 8789569678613177061}
-  - {fileID: 8015479969100705632}
   - {fileID: 6347042389816672681}
+  - {fileID: 2896558407125198319}
+  - {fileID: 3374813359253826414}
+  - {fileID: 3589675235473364279}
+  - {fileID: 9086948581056174909}
+  - {fileID: 2694613034997792413}
+  - {fileID: 3048881361279825220}
+  - {fileID: 5697931054112017512}
+  - {fileID: 3936017261095485433}
+  - {fileID: 6952058399227424216}
+  - {fileID: 2482647201285934454}
+  - {fileID: 7064831572745079557}
+  - {fileID: 8789569678613177061}
+  - {fileID: 3871235396773563589}
+  - {fileID: 8015479969100705632}
+  - {fileID: 5816511433093478538}
   ragdollColliders:
-  - {fileID: 8192092313398630401}
-  - {fileID: 6361429296407995983}
-  - {fileID: 8573458699995549698}
-  - {fileID: 3099992583534290209}
-  - {fileID: 2319136838532623845}
-  - {fileID: 6781089089042394795}
-  - {fileID: 2573152569544764565}
-  - {fileID: 5047800253121406658}
-  - {fileID: 5842254945526480813}
-  - {fileID: 6046312013613280879}
-  - {fileID: 1133301808089433344}
   - {fileID: 2903242006353147657}
-  - {fileID: 6807631849209796593}
+  - {fileID: 8192092313398630401}
   - {fileID: 7188730007335453001}
-  - {fileID: 8258478679983833538}
-  - {fileID: 398535678386246149}
-  - {fileID: 6993788060421565988}
-  - {fileID: 1181084683852216852}
-  - {fileID: 1680739034377456420}
-  - {fileID: 5137312448549620687}
   - {fileID: 2341326065450445685}
+  - {fileID: 3099992583534290209}
+  - {fileID: 5047800253121406658}
+  - {fileID: 8258478679983833538}
+  - {fileID: 2573152569544764565}
+  - {fileID: 398535678386246149}
+  - {fileID: 1133301808089433344}
+  - {fileID: 6993788060421565988}
+  - {fileID: 6046312013613280879}
+  - {fileID: 1181084683852216852}
+  - {fileID: 6807631849209796593}
+  - {fileID: 6361429296407995983}
+  - {fileID: 1680739034377456420}
+  - {fileID: 5842254945526480813}
+  - {fileID: 5137312448549620687}
+  - {fileID: 8573458699995549698}
   ragdollDestroyDelay: 100
+  hitRecoveryTime: 2
   currentState: 0
-  debugDamageAmount: 100
+  debugDamageAmount: 10
+  huntingSpeed: 8
+  prowlRadius: 15
 --- !u!195 &4638610902249086213
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -422,6 +423,80 @@ CapsuleCollider:
   m_Height: 3.37
   m_Direction: 2
   m_Center: {x: 0, y: 1.59, z: 0.42}
+--- !u!114 &3725151059652378784
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 532213249906536503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b2d8418b0b9634b1892b0268dd9c2743, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  boneShape: 1
+  drawBones: 1
+  drawTripods: 0
+  boneSize: 1
+  tripodSize: 1
+  boneColor: {r: 0, g: 0, b: 1, a: 0.5}
+  m_Transforms:
+  - {fileID: 5202335140633918660}
+  - {fileID: 8910526658040528228}
+  - {fileID: 3663265544581246111}
+  - {fileID: 4877061541903811525}
+  - {fileID: 4210097745497420590}
+  - {fileID: 4908372370748551547}
+  - {fileID: 506789298287725040}
+  - {fileID: 7722477777104345259}
+  - {fileID: 1125899648449338717}
+  - {fileID: 2442387190222474977}
+  - {fileID: 8398177546265844879}
+  - {fileID: 3022563890143649357}
+  - {fileID: 7863056554911503151}
+  - {fileID: 6510768572493316618}
+  - {fileID: 1027448721046738299}
+  - {fileID: 120249820501662392}
+  - {fileID: 866781495043648911}
+  - {fileID: 717972283014066776}
+  - {fileID: 2211053672896593894}
+  - {fileID: 7191629639603515114}
+  - {fileID: 6846849904711604994}
+  - {fileID: 3069514213334817843}
+  - {fileID: 3664861138924475813}
+  - {fileID: 1993830445148700831}
+  - {fileID: 7392938519877647454}
+  - {fileID: 7600623574081993284}
+  - {fileID: 2284001163852479984}
+  - {fileID: 2787855571951510532}
+  - {fileID: 1669595335974497721}
+  - {fileID: 7057345063222103818}
+  - {fileID: 7731659002548408839}
+  - {fileID: 3292928347965906615}
+  - {fileID: 8024883891668533723}
+  - {fileID: 7465366282251041957}
+  - {fileID: 887098821362078271}
+  - {fileID: 7681798611178060855}
+  - {fileID: 8248891496876966816}
+  - {fileID: 3624086500881975314}
+  - {fileID: 2699093546610837699}
+  - {fileID: 9051255964067496249}
+  - {fileID: 2602307534823945625}
+  - {fileID: 735619399889674512}
+  - {fileID: 2702538083266165911}
+  - {fileID: 6364013184340767772}
+  - {fileID: 8469898622103219474}
+  - {fileID: 2881038344866105356}
+  - {fileID: 6836641440987712394}
+  - {fileID: 4675989215157304197}
+  - {fileID: 8801060712242053139}
+  - {fileID: 6071919820202462820}
+  - {fileID: 5826633598981907710}
+  - {fileID: 3388290972930750311}
+  - {fileID: 1880600712169690845}
+  - {fileID: 1342782173440551716}
+  - {fileID: 4002875251532637909}
 --- !u!1 &555411679960358860
 GameObject:
   m_ObjectHideFlags: 0

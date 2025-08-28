@@ -2,11 +2,11 @@ using UnityEngine;
 
 public class AnimalGizmos : MonoBehaviour
 {
-    private AnimalAI ai;
+    private BaseAnimalAI ai;
 
     private void OnDrawGizmosSelected()
     {
-        ai = GetComponent<AnimalAI>();
+        ai = GetComponent<BaseAnimalAI>();
         if (ai == null || ai.animalData == null) return;
 
         Gizmos.color = ai.animalData.canAttack ? Color.red : Color.green;

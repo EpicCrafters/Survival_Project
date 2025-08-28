@@ -1,95 +1,130 @@
 ﻿using UnityEngine;
 
-public class Bush : MonoBehaviour, IDamageable, Iinteractable
+public class MyBush : BaseResource, Iinteractable
 {
-    [SerializeField] private int maxPickup;                      // Số lần người chơi có thể hái berry
-    [SerializeField] private GameObject berryMesh;               // Mesh của quả berry (ẩn/hiện)
-    [SerializeField] private Transform berryDropPrefab;          // Prefab berry rơi ra khi bị phá
-    [SerializeField] private Transform stickDropPrefab;          // Prefab stick rơi ra khi bị phá
+    public enum BushType { BerryBush, FlowerBush, HerbBush }
 
-    private bool hasBerry = true;                                // Cờ kiểm tra bụi còn berry không
-    private HealthSystem healthSystem;
+    [Header("Bush Specific")]
+    [SerializeField] private BushType bushType = BushType.BerryBush;
+    [SerializeField] private int maxHarvestCount = 3;
+    [SerializeField] private GameObject berryVisualMesh;
 
-    private void Awake()
+    [Header("Bush Drops")]
+    [SerializeField] private Transform berryDropPrefab;
+    [SerializeField] private Transform stickDropPrefab;
+    [SerializeField] private Transform flowerDropPrefab;
+    [SerializeField] private Transform herbDropPrefab;
+
+    private int currentHarvestCount;
+    private bool hasHarvestableItems = true;
+
+    protected override void Awake()
     {
-        healthSystem = new HealthSystem(10);                      // Khởi tạo hệ thống máu
-        healthSystem.OnDead += OnBushDestroyed;                  // Gắn sự kiện khi bị phá
-
-        // Cảnh báo nếu thiếu prefab/mesh trong Inspector
-        if (berryMesh == null) Debug.LogWarning($"{name}: berryMesh chưa được gán!");
-        if (berryDropPrefab == null) Debug.LogWarning($"{name}: berryDropPrefab chưa được gán!");
-        if (stickDropPrefab == null) Debug.LogWarning($"{name}: stickDropPrefab chưa được gán!");
-
-        UpdateBerryVisual();                                     // Cập nhật hiển thị quả berry
+        base.Awake();
+        currentHarvestCount = maxHarvestCount;
+        UpdateVisuals();
     }
 
-    // Gọi khi người chơi tương tác
-    public void Interact()
+    protected override void InitializeHealth()
     {
-        if (!hasBerry || maxPickup <= 1)
+        int healthAmount = bushType switch
         {
-            Debug.Log("Không còn berry để hái.");
-            hasBerry = false;
-            UpdateBerryVisual();
+            BushType.BerryBush => 10,
+            BushType.FlowerBush => 8,
+            BushType.HerbBush => 12,
+            _ => 10
+        };
+
+        healthSystem = new HealthSystem(healthAmount);
+        resourceType = ResourceType.Bush;
+    }
+
+    public virtual void Interact()
+    {
+        if (!hasHarvestableItems || currentHarvestCount <= 0)
+        {
+            Debug.Log($"No more {bushType} to harvest.");
             return;
         }
 
-        maxPickup--;      // Giảm số lần hái
-        Debug.Log("Đã hái berry!");
-
-        if (maxPickup <= 0)
-        {
-            hasBerry = false;
-        }
-
-        UpdateBerryVisual();
+        HarvestFromBush();
     }
 
-    // Gọi khi bụi cây nhận sát thương
-    public void Damage(int amount)
+    private void HarvestFromBush()
     {
-        if (healthSystem != null)
+        currentHarvestCount--;
+        Debug.Log($"Harvested from {bushType}! Remaining: {currentHarvestCount}");
+
+        // Spawn harvested item
+        SpawnHarvestedItem();
+
+        if (currentHarvestCount <= 0)
         {
-            healthSystem.Damage(amount);
+            hasHarvestableItems = false;
         }
-        else
+
+        UpdateVisuals();
+    }
+
+    private void SpawnHarvestedItem()
+    {
+        Transform dropPrefab = bushType switch
         {
-            Debug.LogError($"{name}: HealthSystem chưa được khởi tạo!");
+            BushType.BerryBush => berryDropPrefab,
+            BushType.FlowerBush => flowerDropPrefab,
+            BushType.HerbBush => herbDropPrefab,
+            _ => berryDropPrefab
+        };
+
+        if (dropPrefab != null)
+        {
+            Vector3 spawnPos = transform.position + Vector3.up * 1.5f;
+            Instantiate(dropPrefab, spawnPos, Quaternion.identity);
         }
     }
 
-    // Xử lý khi bụi cây bị phá huỷ
-    private void OnBushDestroyed()
+    protected override void OnResourceDestroyed()
     {
-        // Nếu còn berry thì spawn berryPrefab
-        if (hasBerry && berryDropPrefab != null)
+        // Drop remaining harvestable items if any
+        if (hasHarvestableItems && currentHarvestCount > 0)
         {
-            Instantiate(berryDropPrefab, transform.position + Vector3.up * 1.5f, Quaternion.identity);
+            SpawnHarvestedItem();
         }
 
-        // Luôn rơi từ 1 đến 2 que nếu prefab hợp lệ
+        // Always drop some sticks
         int stickCount = Random.Range(1, 3);
-        for (int i = 0; i < stickCount; i++)
-        {
-            if (stickDropPrefab != null)
-            {
-                Vector3 offset = new Vector3(Random.Range(-0.2f, 0.2f), 0.1f, Random.Range(-0.2f, 0.2f));
-                Instantiate(stickDropPrefab, transform.position + offset, Quaternion.identity);
-            }
-        }
+        SpawnDrops(stickDropPrefab, stickCount, transform.position);
 
-        Destroy(gameObject);
+        DestroyResource();
     }
 
-    // Ẩn hoặc hiện mesh quả berry dựa theo trạng thái
-    private void UpdateBerryVisual()
+    private void UpdateVisuals()
     {
-        if (berryMesh != null)
+        if (berryVisualMesh != null)
         {
-            berryMesh.SetActive(hasBerry);
+            berryVisualMesh.SetActive(hasHarvestableItems && currentHarvestCount > 0);
         }
     }
 
-    // Trả về loại tài nguyên để tương tác
-    public ResourceType GetResourceType() => ResourceType.Bush;
+    protected override void ValidateComponents()
+    {
+        if (bushType == BushType.BerryBush && (berryDropPrefab == null || berryVisualMesh == null))
+            Debug.LogWarning($"{name}: Berry bush missing berryDropPrefab or berryVisualMesh!");
+
+        if (bushType == BushType.FlowerBush && flowerDropPrefab == null)
+            Debug.LogWarning($"{name}: Flower bush missing flowerDropPrefab!");
+
+        if (bushType == BushType.HerbBush && herbDropPrefab == null)
+            Debug.LogWarning($"{name}: Herb bush missing herbDropPrefab!");
+
+        if (stickDropPrefab == null)
+            Debug.LogWarning($"{name}: stickDropPrefab not assigned!");
+    }
+
+    public override ResourceType GetResourceType() => ResourceType.Bush;
+
+    // Public getters for bush state
+    public bool HasHarvestableItems() => hasHarvestableItems;
+    public int GetRemainingHarvests() => currentHarvestCount;
+    public BushType GetBushType() => bushType;
 }

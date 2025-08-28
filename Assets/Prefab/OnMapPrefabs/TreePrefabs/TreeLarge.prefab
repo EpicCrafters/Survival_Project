@@ -121,15 +121,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  treeSize: 2
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
   treeType: 0
-  fxTreeDestroyed: {fileID: 114944488089835927, guid: b909443b91d4c984e86f97c80a9ef8c7, type: 3}
-  itemDrop: 0
-  particleSpawnPosition: {fileID: 1706809143463132996}
-  treeLog: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}
-  treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStump: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
+  treeSize: 2
+  treeLogPrefab: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}
+  treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
+  treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  destructionFxPrefab: {fileID: 0}
+  particleSpawnPosition: {fileID: 1706809143463132996}
+  treeData:
+    position: {x: 0, y: 0, z: 0}
+    rotation: {x: 0, y: 0, z: 0, w: 0}
+    scale: {x: 0, y: 0, z: 0}
+    prefabIndex: 0
+    isCut: 0
+  spawner: {fileID: 0}
 --- !u!136 &2067900037296726063
 CapsuleCollider:
   m_ObjectHideFlags: 0

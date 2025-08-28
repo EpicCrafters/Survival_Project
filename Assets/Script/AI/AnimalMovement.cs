@@ -42,7 +42,7 @@ public class AnimalMovement : MonoBehaviour
         if (!agent.isOnNavMesh) return; // Kiểm tra NavMesh
 
         agent.isStopped = false;
-        agent.speed = GetComponent<AnimalAI>().animalData.moveSpeed; // Lấy tốc độ từ AnimalData
+        agent.speed = GetComponent<BaseAnimalAI>().animalData.moveSpeed; // Lấy tốc độ từ AnimalData
 
         // Tính vị trí ngẫu nhiên trên NavMesh
         Vector3 randomPos = RandomDirection(transform.position, Random.Range(10f, 40f), NavMesh.AllAreas);
@@ -55,7 +55,7 @@ public class AnimalMovement : MonoBehaviour
         if (target == null || !agent.isOnNavMesh) return;
 
         agent.isStopped = false;
-        agent.speed = GetComponent<AnimalAI>().animalData.fleeSpeed; // Tốc độ bỏ chạy
+        agent.speed = GetComponent<BaseAnimalAI>().animalData.fleeSpeed; // Tốc độ bỏ chạy
 
         Vector3 dir = (transform.position - target.position).normalized; // Hướng bỏ chạy
         Vector3 fleePos = transform.position + dir * fleeDistance;
@@ -70,7 +70,7 @@ public class AnimalMovement : MonoBehaviour
         if (target == null || !agent.isOnNavMesh) return;
 
         agent.isStopped = false;
-        agent.speed = GetComponent<AnimalAI>().animalData.moveSpeed; // Tốc độ chase
+        agent.speed = GetComponent<BaseAnimalAI>().animalData.moveSpeed; // Tốc độ chase
         agent.SetDestination(target.position);
     }
 
