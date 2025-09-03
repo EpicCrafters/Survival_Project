@@ -11,6 +11,7 @@ public class PlayerAnimator : MonoBehaviour
     private const string IS_SPRINTING = "isSprinting";
     private const string IS_MINING = "isMining";
     private const string IS_HOLDING = "isHolding";
+    private const string COMBO_STEP = "ComboStep";
 
 
 
@@ -35,6 +36,7 @@ public class PlayerAnimator : MonoBehaviour
     [SerializeField] private Player player;
     [SerializeField] private PlayerInteract playerInteract;
     [SerializeField] private PlayerHoldingItem playerholdingItem;
+    [SerializeField] private PlayerCombat playerCombat;
     private Animator animator;
 
     private void Awake()
@@ -55,6 +57,7 @@ public class PlayerAnimator : MonoBehaviour
        animator.SetBool(IS_ROCK,playerInteract.IsRock());
         animator.SetBool(IS_TREE,playerInteract.IsTree());
         animator.SetBool(IS_HOLDING, playerholdingItem.IsHolding());
+        animator.SetInteger(COMBO_STEP, playerCombat.CurrentCombo());
     }
   
     

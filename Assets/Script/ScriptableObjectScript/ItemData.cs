@@ -36,13 +36,29 @@ public enum BuildingPartType
     Window
 }
 
+
+
+[System.Serializable]
+public class ComboData
+{
+    public AnimationClip animation;
+    public int damage;
+    public float cooldown;
+}
+
 [System.Serializable]
 public class WeaponStats
 {
     public WeaponType weaponType;
     public int damage;
     public float range;
+
+    [Header("Combo Settings")]
+    public ComboData[] combos;
 }
+
+
+
 
 [System.Serializable]
 

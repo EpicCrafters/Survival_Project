@@ -467,7 +467,9 @@ GameObject:
   - component: {fileID: 305676098862324490}
   - component: {fileID: 2139561651648103076}
   - component: {fileID: 1623772470423931365}
+  - component: {fileID: 4546783487305403673}
   - component: {fileID: 8932842802045510987}
+  - component: {fileID: 8255018873635612558}
   m_Layer: 9
   m_Name: Player
   m_TagString: Untagged
@@ -566,6 +568,7 @@ MonoBehaviour:
   player: {fileID: 7217165074648246924}
   playerInteract: {fileID: 8379247133936365975}
   playerholdingItem: {fileID: 1418801298050016171}
+  playerCombat: {fileID: 8255018873635612558}
 --- !u!114 &2139561651648103076
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -579,6 +582,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   holding: {fileID: 1418801298050016171}
+  combat: {fileID: 8255018873635612558}
 --- !u!114 &1623772470423931365
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -602,6 +606,20 @@ MonoBehaviour:
   raycastDistance: 1
   footIkOffset: {x: 0, y: 0.3, z: 0}
   smotthnessSpeed: 10
+--- !u!114 &4546783487305403673
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 998426586775304662}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdf08002eccc7ae48aeb02395e9339cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  animator: {fileID: 1961983369148241218}
+  overrideController: {fileID: 22100000, guid: 45fe2306b23dcb14c9b049028354ab4b, type: 2}
 --- !u!114 &8932842802045510987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -618,6 +636,21 @@ MonoBehaviour:
   - m_Rig: {fileID: 4707963237897400608}
     m_Active: 1
   m_Effectors: []
+--- !u!114 &8255018873635612558
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 998426586775304662}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b621461010cbcd45bcfb5ae900c03bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gameInput: {fileID: 0}
+  playerAnimator: {fileID: 305676098862324490}
+  weaponHandler: {fileID: 4546783487305403673}
 --- !u!1 &1077700270273632173
 GameObject:
   m_ObjectHideFlags: 0
@@ -3960,7 +3993,6 @@ GameObject:
   - component: {fileID: 5873190100449657905}
   - component: {fileID: 8377111500348481694}
   - component: {fileID: 5284994920541229815}
-  - component: {fileID: 8210146682237475544}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -4105,6 +4137,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   holdingPoint: {fileID: 3240410374694254503}
   itemPlacer: {fileID: 0}
+  weaponHandler: {fileID: 4546783487305403673}
   hammerPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
   isHolding: 0
   ItemData: {fileID: 0}
@@ -4116,7 +4149,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: afd094fcde7b48d4897b685a4918c669, type: 3}
   m_Name: 
@@ -4128,7 +4161,7 @@ MonoBehaviour:
   gridRadiusInCells: 2
   gizmoSize: 1
   transparentMat: {fileID: -6478536213147159724, guid: 911c2a5644067a14096c25bf988dce6e, type: 3}
-  playerHoling: {fileID: 0}
+  playerHoling: {fileID: 1418801298050016171}
   buildLayer:
     serializedVersion: 2
     m_Bits: 2048
@@ -4139,7 +4172,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b1de057dd847b2b49b73473308e73c31, type: 3}
   m_Name: 
@@ -4170,23 +4203,6 @@ MonoBehaviour:
   maxStamina: 100
   staminaRestoreRate: 5
   maxHunger: 100
---- !u!114 &8210146682237475544
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sceneId: 0
-  _assetId: 1179871355
-  serverOnly: 0
-  visibility: 0
-  hasSpawned: 0
 --- !u!1 &8925254841853047397
 GameObject:
   m_ObjectHideFlags: 0

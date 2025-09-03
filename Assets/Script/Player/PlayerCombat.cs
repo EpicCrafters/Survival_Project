@@ -1,17 +1,18 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class PlayerCombat : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private GameInput gameInput;
     [SerializeField] private PlayerAnimator playerAnimator;
+    [SerializeField] private WeaponAnimatorHandler weaponHandler; // gives us current weapon data
 
-    public bool isAttacking=false;
-    public bool isReadyToAttack = true;
+    private bool isAttacking = false;
+    private bool isReadyToAttack = true;
+
     private int comboStep = 0;
-    private float lastAttackTime;
-    private bool canCombo;
-    private bool queuedAttack;
+    private bool canCombo = false;
+    private bool queuedAttack = false;
 
     private void Awake()
     {
@@ -27,60 +28,69 @@ public class PlayerCombat : MonoBehaviour
 
     private void HandleAttackInput(object sender, System.EventArgs e)
     {
-       
-       
-       DoAttack();
-        
-
-       
-       
+        if (isReadyToAttack)
+        {
+            DoAttack();
+        }
+        else if (canCombo)
+        {
+            queuedAttack = true; // player clicked early, remember it
+        }
     }
 
     private void DoAttack()
     {
-    
+        if (weaponHandler.CurrentWeapon == null)
+            return;
 
+        int maxCombo = weaponHandler.CurrentWeapon.weapon.combos.Length;
+
+        // reset if we go over max combo
+        if (comboStep >= maxCombo)
+            comboStep = 0;
+
+        comboStep++;
+
+        //isAttacking = true;
+        //isReadyToAttack = false;
+
+        Debug.Log($"Playing Combo {comboStep}/{maxCombo} for {weaponHandler.CurrentWeapon.itemName}");
         playerAnimator.TriggerAttack();
-        
+       
+        // ^ pass comboStep so animator knows which animation to play
     }
 
-   
+    // Called from animation event 
     public void OpenComboWindow()
     {
-        isAttacking = true;
+        canCombo = true;
 
-        isReadyToAttack = false;
-        //canCombo = true;
-
-        //// auto-continue if player clicked early
-        //if (queuedAttack)
-        //{
-        //    DoAttack();
-        //}
+        if (queuedAttack)
+        {
+            queuedAttack = false;
+            DoAttack(); // immediately continue combo
+        }
     }
 
+    // Called from animation event 
     public void CloseComboWindow()
     {
-        isAttacking = false;
-        isReadyToAttack = true;
-        //canCombo = false;
+        canCombo = false;
     }
 
-    // Reset after animation finishes
+    // Called at end of last combo animation
     public void EndCombo()
     {
         comboStep = 0;
+        isAttacking = false;
+        isReadyToAttack = true;
         canCombo = false;
         queuedAttack = false;
     }
 
-    public bool IsAttacking()
-    {
-        return isAttacking;
-    }
 
-    public bool IsReadyToAttack()
+    public int CurrentCombo()
     {
-        return isReadyToAttack;
+        return comboStep;
     }
 }

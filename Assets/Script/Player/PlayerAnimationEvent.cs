@@ -3,6 +3,8 @@ using UnityEngine;
 public class PlayerAnimationEvents : MonoBehaviour
 {
     [SerializeField] private PlayerHoldingItem holding;
+    [SerializeField] private PlayerCombat combat;
+
 
     public void EnableHitbox()
     {
@@ -34,4 +36,7 @@ public class PlayerAnimationEvents : MonoBehaviour
             }
         }
     }
+    public void OpenComboWindow() => combat.OpenComboWindow();
+    public void CloseComboWindow() => combat.CloseComboWindow();
+    public void EndCombo() => combat.EndCombo();
 }

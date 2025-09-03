@@ -6,6 +6,8 @@ public class PlayerHoldingItem : MonoBehaviour
     [SerializeField] private Transform holdingPoint; // Vị trí để hiển thị vật phẩm đang cầm
     [SerializeField] private ItemPlacer itemPlacer;
 
+    [SerializeField] private WeaponAnimatorHandler weaponHandler;
+
     private GameObject currentHoldingItem; // GameObject hiện đang cầm
     [SerializeField] private GameObject hammerPrefab; // Prefab cây búa mặc định khi cầm building part
 
@@ -36,6 +38,13 @@ public class PlayerHoldingItem : MonoBehaviour
             currentHoldingItem.transform.localPosition = Vector3.zero;
             currentHoldingItem.transform.localRotation = Quaternion.identity;
 
+
+            if (itemData.type == ItemType.Weapon)
+            {
+                
+                weaponHandler?.EquipWeapon(itemData);
+                
+            }
             // Gán dữ liệu item
             Item item = currentHoldingItem.GetComponent<Item>();
             if (item == null)
