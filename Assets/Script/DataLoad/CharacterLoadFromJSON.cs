@@ -45,7 +45,7 @@ public class CharacterLoadFromJSON : MonoBehaviour
             int hairIndex = Mathf.Clamp(data.hairIndex, 0, hairStyles.Length - 1);
             hairRenderer.sharedMesh = hairStyles[hairIndex].mesh;
             hairRenderer.material = hairStyles[hairIndex].material;
-            Debug.Log($"Loaded hair: {hairRenderer.sharedMesh.name}");
+            //Debug.Log($"Loaded hair: {hairRenderer.sharedMesh.name}");
         }
 
         // Apply clothing colors

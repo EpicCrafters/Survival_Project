@@ -1,14 +1,24 @@
-﻿using UnityEngine;
+﻿using NUnit.Framework.Interfaces;
+using UnityEngine;
 
 public class PlayerHoldingItem : MonoBehaviour
 {
     [SerializeField] private Transform holdingPoint; // Vị trí để hiển thị vật phẩm đang cầm
     [SerializeField] private ItemPlacer itemPlacer;
+    [SerializeField]private BuildManager buildManager;
 
     private GameObject currentHoldingItem; // GameObject hiện đang cầm
+    [SerializeField] private GameObject hammerPrefab; // Prefab cây búa mặc định khi cầm building part
+
     [SerializeField] private bool isHolding; // Trạng thái có đang cầm hay không
     public ItemData ItemData;
+    public bool buildingType=false;
     // Hàm gọi khi muốn cầm một vật phẩm mới
+
+    private void Start()
+    {
+        buildManager = GetComponentInChildren<BuildManager>();
+    }
     public void HoldingItem(ItemData itemData)
     {
        
@@ -19,8 +29,16 @@ public class PlayerHoldingItem : MonoBehaviour
             ItemData = itemData;
             isHolding = true;
 
-            // Tạo prefab mới tại vị trí holdingPoint
-            currentHoldingItem = Instantiate(itemData.worldPrefab, holdingPoint);
+            GameObject prefabToHold = itemData.worldPrefab;
+
+            // Nếu là BuildingPart thì thay thế model trên tay bằng cây búa
+            if (itemData.type == ItemType.BuildingPart)
+            {
+                prefabToHold = hammerPrefab;
+            }
+
+            // Tạo prefab trên tay
+            currentHoldingItem = Instantiate(prefabToHold, holdingPoint);
             currentHoldingItem.transform.localPosition = Vector3.zero;
             currentHoldingItem.transform.localRotation = Quaternion.identity;
 
@@ -65,9 +83,24 @@ public class PlayerHoldingItem : MonoBehaviour
             // Nếu item có thể đặt được => bật ghost preview
             if (itemData.itemPlace)
             {
-                BuildManager.Instance.StartPlacing(itemData, this);
+                if (itemData.type == ItemType.BuildingPart)
+                {
+                    //Debug.Log("Item là BuildingPart => tạm thời chưa bật ghost preview.");
+                    buildingType=true;
+                    buildManager.SetCurrentItem(itemData,this);
+                }
+                else
+                {
+                    buildingType=false;
+                    //Debug.Log("Bắt đầu đặt item (không phải BuildingPart).");
+                    itemPlacer.StartPlacing(ItemData,this);
+                }
             }
-
+            if(itemData.type == ItemType.Tool)
+            {
+                buildingType = true;
+                buildManager.SetCurrentItem(itemData, this);
+            }
         }
         else
         {
@@ -87,21 +120,37 @@ public class PlayerHoldingItem : MonoBehaviour
             currentHoldingItem = null;
             if (itemPlacer != null)
             {
-                itemPlacer.CancelPlacing();  // Cancel ghost preview on clear
+                if (buildingType == false)
+                {
+                    itemPlacer.CancelPlacing();  // Cancel ghost preview on clear
+                }
+                else
+                {
+                    buildManager.SetCurrentItem(null,this);
+                    buildManager.EndVisualisingObject();
+                }
             }
-            // Gọi cancel từ BuildManager nếu đang xây
-            if (BuildManager.Instance != null)
-            {
-                BuildManager.Instance.StopPlacing();
-            }
+                      
         }
     }
     public void OnPlaced()
     {
-        // Gọi khi đã đặt thành
-        InventoryManager.instance.RemoveItem(ItemData,1);
 
-        Clear();
+        bool removed = InventoryManager.instance.RemoveItem(ItemData, 1);
+
+        if (!removed)
+        {
+            // Trường hợp không xóa được (ví dụ item đã hết trước đó)
+            Clear();
+            return;
+        }
+
+        // Kiểm tra lại xem trong kho còn item này không
+        if (InventoryManager.instance.GetItemCount(ItemData)==0)
+        {
+            // Nếu không còn thì clear item đang cầm
+            Clear();
+        }
 
     }
     // Kiểm tra có đang cầm vật phẩm không

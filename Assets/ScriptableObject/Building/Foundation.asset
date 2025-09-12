@@ -36,5 +36,8 @@ MonoBehaviour:
     partType: 0
     stackable: 1
     maxStack: 5
-    ghostMaterial_Valid: {fileID: -6478536213147159724, guid: 911c2a5644067a14096c25bf988dce6e, type: 3}
-    ghostMaterial_Invalid: {fileID: 2100000, guid: cb944a7224abfab43b2afc3e82fe40f1, type: 2}
+    snapToGridEdge: 0
+    ignorObject: []
+    groundMask:
+      serializedVersion: 2
+      m_Bits: 2112

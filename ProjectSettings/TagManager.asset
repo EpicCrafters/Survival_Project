@@ -17,7 +17,7 @@ TagManager:
   - Mineable
   - Player
   - PickupableAndMineable
-  - PlacedBuild
+  - buildLayer
   - 
   - 
   - 

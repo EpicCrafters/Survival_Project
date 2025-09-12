@@ -72,8 +72,10 @@ public class BuildingStats
     public BuildingPartType partType;
     public bool stackable;
     public int maxStack = 5;
-    public Material ghostMaterial_Valid;
-    public Material ghostMaterial_Invalid;
+    public bool snapToGridEdge;
+    public List<ItemData> ignorObject;
+    public LayerMask groundMask;
+    public int verticalOffset = 0;
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]
