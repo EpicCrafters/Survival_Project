@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6711788438257980917}
-  m_Layer: 8
+  m_Layer: 0
   m_Name: Particle Position
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -221,6 +221,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2067900037296726063}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2470677869690569170}
   m_SourcePrefab: {fileID: 100100000, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
 --- !u!1 &73635140241181285 stripped
 GameObject:
@@ -250,6 +253,38 @@ CapsuleCollider:
   m_Height: 51.75
   m_Direction: 1
   m_Center: {x: 0, y: 24.11, z: 0}
+--- !u!114 &2470677869690569170
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 73635140241181285}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  uniqueId: 
+  treeType: 0
+  treeSize: 2
+  treeLogPrefab: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}
+  treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
+  treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
+  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!4 &2401683154036985251 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}

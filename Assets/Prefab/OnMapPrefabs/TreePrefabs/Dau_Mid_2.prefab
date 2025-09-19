@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &314464759183303540
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 316374788721132691}
+  m_Layer: 0
+  m_Name: ParticlePosition
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &316374788721132691
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 314464759183303540}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.2, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 673489390887627076}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &424005157042588473
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -55,7 +86,7 @@ PrefabInstance:
     - target: {fileID: 2115085978602330394, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       propertyPath: particleSpawnPosition
       value: 
-      objectReference: {fileID: 3686413818639854109}
+      objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       propertyPath: m_Name
       value: Dau_Mid_2
@@ -83,10 +114,16 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
       addedObject: {fileID: 49874808005953390}
+    - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 316374788721132691}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
       addedObject: {fileID: 7908927469332189688}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 716276559414879955}
   m_SourcePrefab: {fileID: 100100000, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
 --- !u!4 &673489390887627076 stripped
 Transform:
@@ -121,11 +158,38 @@ CapsuleCollider:
   m_Height: 36.36
   m_Direction: 1
   m_Center: {x: 0, y: 16.32, z: 0}
---- !u!4 &3686413818639854109 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 3948139167244591396, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
-  m_PrefabInstance: {fileID: 424005157042588473}
+--- !u!114 &716276559414879955
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2956986816948612738}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  uniqueId: 
+  treeType: 0
+  treeSize: 1
+  treeLogPrefab: {fileID: 4546477382489830680, guid: 52f2e715fb88f614c8e4759a5eeab3c2, type: 3}
+  treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
+  treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
+  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!1001 &521161514406830213
 PrefabInstance:
   m_ObjectHideFlags: 0

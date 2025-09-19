@@ -92,9 +92,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0d648628aa433645a81d9208ae7d9cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
   rockType: 0
   stonePrefab: {fileID: 6040415725971329579, guid: 7261133964df4dc4ba4761105d593507, type: 3}
-  itemDrop: 10
+  dustEffectPrefab: {fileID: 114944488089835927, guid: b909443b91d4c984e86f97c80a9ef8c7, type: 3}
 --- !u!135 &1542809642168262749
 SphereCollider:
   m_ObjectHideFlags: 0

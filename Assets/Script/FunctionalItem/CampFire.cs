@@ -1,6 +1,6 @@
-﻿using TMPro;
+﻿using System.Collections;
+using TMPro;
 using UnityEngine;
-using System.Collections;
 
 public class CampFire : MonoBehaviour, Iinteractable
 {
@@ -26,7 +26,7 @@ public class CampFire : MonoBehaviour, Iinteractable
 
     private void Awake()
     {
-        playerHoldingItem = FindObjectOfType<PlayerHoldingItem>();
+        playerHoldingItem = FindFirstObjectByType<PlayerHoldingItem>();
         Fire.Stop();
         flameLight.intensity = 0f;
         HideUI();

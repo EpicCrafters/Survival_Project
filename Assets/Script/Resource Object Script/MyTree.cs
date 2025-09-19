@@ -1,58 +1,68 @@
-﻿using System.Drawing;
+﻿using System;
 using UnityEngine;
 
-// MyTree kế thừa BaseResource và implement IMinenable
-// Đây là script quản lý các loại cây, khúc gỗ, khúc gỗ nửa và gốc cây
+/// <summary>
+/// MyTree - immediate behavior:
+///  - On death: persist isChopped=true via ResourceManagerOffline (if available),
+///    spawn log/stump/sticks immediately,
+///    ensure the stump carries the same uniqueId and *inherits the original's localScale*,
+///    then destroy the original.
+///
+/// Key fixes:
+///  - When spawning a persistent replacement (stump), we preserve the original localScale
+///    and call ApplyState(treatAsReplacement:true) so persistence logic doesn't hide it.
+///  - Exposes GetTreeType() for other systems to detect stump type.
+///  - Debug logging toggles for quick diagnosing.
+/// </summary>
 public class MyTree : BaseResource, IMinenable
 {
-    // Loại cây
     public enum TreeType { Tree, Log, LogHalf, Stump }
-    // Kích thước cây, dùng để xác định số lượng khúc gỗ nửa spawn ra
     public enum TreeSize { Small, Medium, Large }
 
     [Header("Tree Specific")]
     [SerializeField] private TreeType treeType = TreeType.Tree;
     [SerializeField] private TreeSize treeSize = TreeSize.Medium;
 
-    [Header("Tree Prefabs")]
-    [SerializeField] private Transform treeLogPrefab;      // Prefab khúc gỗ đầy đủ
-    [SerializeField] private Transform treeLogHalfPrefab;  // Prefab khúc gỗ nửa
-    [SerializeField] private Transform treeStumpPrefab;    // Prefab gốc cây
-    [SerializeField] private Transform stickPrefab;        // Prefab que/cành nhỏ rơi ra
+    [Header("Prefabs")]
+    [SerializeField] private Transform treeLogPrefab;
+    [SerializeField] private Transform treeLogHalfPrefab;
+    [SerializeField] private Transform treeStumpPrefab; // persistent replacement
+    [SerializeField] private Transform stickPrefab;
 
-    [Header("Effects")]
-    [SerializeField] private Transform destructionFxPrefab; // Hiệu ứng khi cây bị phá
-    [SerializeField] private Transform particleSpawnPosition; // Vị trí spawn particle
+    [Header("Byproduct Settings")]
+    [SerializeField] private float halfLogSpacing = 1.2f;
+    [SerializeField] private bool useColliderBoundsForLogLength = true;
+    [SerializeField] private float manualLogLength = 5f;
 
-    [Header("Log Halves Settings")]
-    [SerializeField] private float halfLogSpacing = 1.2f;  // Khoảng cách giữa các khúc gỗ nửa khi spawn
-    [SerializeField] private bool useColliderBounds = true; // Tự động lấy chiều dài khúc gỗ từ collider
-    [SerializeField] private float manualLogLength = 5f;   // Nếu không có collider thì dùng chiều dài mặc định
+    [Header("Drop Settings (override)")]
+    [SerializeField] private int overrideMinDropCount = -1;
+    [SerializeField] private int overrideMaxDropCount = -1;
 
-    [Header("Tree Data")]
-    [HideInInspector] public UVMapTreeSpawner.TreeData treeData; // Thông tin cây từ spawner
-    [HideInInspector] public UVMapTreeSpawner spawner;           // Tham chiếu tới spawner
+    [Header("Debug")]
+    [SerializeField] private bool debugMode = true;
+    [SerializeField] private bool verboseDebug = true;
 
-    // Khởi tạo máu cho cây dựa trên loại cây
+    // small guard to avoid double-destroy
+    private bool isBeingDestroyed = false;
+
     protected override void InitializeHealth()
     {
         int healthAmount = treeType switch
         {
-            TreeType.Tree => 30,      // Cây nguyên
-            TreeType.Log => 25,       // Khúc gỗ
-            TreeType.LogHalf => 15,   // Khúc gỗ nửa
-            TreeType.Stump => 20,     // Gốc cây
+            TreeType.Tree => 30,
+            TreeType.Log => 25,
+            TreeType.LogHalf => 15,
+            TreeType.Stump => 20,
             _ => 30
         };
-
         healthSystem = new HealthSystem(healthAmount);
         resourceType = ResourceType.Tree;
     }
 
-    // Hàm gọi khi cây bị phá hủy
     protected override void OnResourceDestroyed()
     {
-        // Ngăn không cho gọi nhiều lần
+        DebugLog($"OnResourceDestroyed called. isBeingDestroyed={isBeingDestroyed}, UniqueId='{UniqueId}', treeType={treeType}, instanceID={GetInstanceID()}");
+
         if (isBeingDestroyed)
         {
             Debug.LogWarning($"{gameObject.name}: OnResourceDestroyed called multiple times!");
@@ -60,180 +70,208 @@ public class MyTree : BaseResource, IMinenable
         }
 
         isBeingDestroyed = true;
-        Debug.Log($"{gameObject.name}: Tree destruction starting - Type: {treeType}");
+        DebugLog($"{gameObject.name}: Tree destruction starting - Type: {treeType}");
 
-        HandleTreeDestruction();
-        DestroyResource(); // Xóa object khỏi scene
-    }
-
-    // Xử lý logic khi cây bị phá
-    private void HandleTreeDestruction()
-    {
-        // Đánh dấu cây đã bị chặt trong dữ liệu spawner
-        if (treeData != null)
-            treeData.isCut = true;
-
-        // Spawn các thành phần dựa trên loại cây
-        switch (treeType)
+        // Persist the destroyed state in the manager BEFORE removing/spawning replacements.
+        // Note: ResourceInstanceOffline.ApplyState will be replacement-aware, so even if we persist
+        // before spawning the stump the replacement won't be immediately hidden.
+        if (!string.IsNullOrEmpty(UniqueId) && ResourceManagerOffline.Instance != null)
         {
-            case TreeType.Tree:
-                SpawnTreeComponents(); // Cây nguyên => spawn log + gốc
-                break;
-
-            case TreeType.Log:
-                SpawnLogHalves();      // Khúc gỗ => spawn log nửa
-                break;
-
-            case TreeType.LogHalf:
-            case TreeType.Stump:
-                SpawnSticks();         // Khúc gỗ nửa hoặc gốc => spawn stick
-                break;
+            try
+            {
+                ResourceManagerOffline.Instance.OnResourceStateChanged(UniqueId, true);
+                DebugLog($"{gameObject.name}: Called ResourceManagerOffline.OnResourceStateChanged('{UniqueId}', true)");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"{gameObject.name}: Exception while calling ResourceManagerOffline.OnResourceStateChanged: {ex}");
+            }
         }
-    }
-
-    // Spawn log và gốc cây khi chặt cây nguyên
-    private void SpawnTreeComponents()
-    {
-        Debug.Log("Tree destroyed - spawning log and stump");
-
-        // Spawn log
-        if (treeLogPrefab != null)
-        {
-            Vector3 logPosition = transform.position + transform.up * 0.2f;
-            Quaternion logRotation = Quaternion.Euler(
-                Random.Range(-1.5f, 1.5f),
-                Random.Range(0f, 360f),
-                Random.Range(-1.5f, 1.5f)
-            );
-
-            Transform spawnedLog = Instantiate(treeLogPrefab, logPosition, logRotation);
-            Debug.Log($"Spawned log: {spawnedLog.name}");
-        }
-
-        // Spawn gốc cây
-        if (treeStumpPrefab != null)
-        {
-            Transform spawnedStump = Instantiate(treeStumpPrefab, transform.position, transform.rotation);
-            Debug.Log($"Spawned stump: {spawnedStump.name}");
-        }
-
-        // Hiệu ứng phá cây
-        if (destructionFxPrefab != null && particleSpawnPosition != null)
-        {
-            Instantiate(destructionFxPrefab, particleSpawnPosition.position, particleSpawnPosition.rotation);
-        }
-    }
-
-    // Spawn các khúc gỗ nửa dựa trên size của cây
-    private void SpawnLogHalves()
-    {
-        int halfLogCount = treeSize switch
-        {
-            TreeSize.Small => 2,
-            TreeSize.Medium => 4,
-            TreeSize.Large => 6
-        };
-        float halfLogOffset = 13.0f; // Khoảng cách giữa các khúc gỗ nửa
-        for (int i = 0; i < halfLogCount; i++)
-        {
-            Vector3 offset = transform.up * halfLogOffset * i;
-            Quaternion rotation = Quaternion.LookRotation(transform.forward, transform.up) * Quaternion.Euler(0, Random.Range(0f, 360f), 0);
-            Instantiate(treeLogHalfPrefab, transform.position + offset, rotation);
-        }
-    }
-
-    // Lấy chiều dài khúc gỗ từ collider hoặc dùng manual
-    private float GetLogLength()
-    {
-        if (!useColliderBounds)
-            return manualLogLength;
-
-        Collider col = GetComponent<Collider>();
-        if (col == null)
-        {
-            Debug.LogWarning($"{gameObject.name}: No collider found, using manual length");
-            return manualLogLength;
-        }
-
-        Vector3 size = col.bounds.size;
-        return Mathf.Max(size.x, size.y, size.z); // Trả về chiều dài lớn nhất
-    }
-
-    // Lấy hướng dài nhất của khúc gỗ
-    private Vector3 GetLogLengthDirection()
-    {
-        Collider col = GetComponent<Collider>();
-        if (col == null)
-            return transform.forward;
-
-        Vector3 size = col.bounds.size;
-
-        if (size.x >= size.y && size.x >= size.z)
-            return transform.right;
-        else if (size.y >= size.x && size.y >= size.z)
-            return transform.up;
         else
-            return transform.forward;
+        {
+            if (string.IsNullOrEmpty(UniqueId))
+                Debug.LogWarning($"{gameObject.name}: UniqueId missing — persistence may not work.");
+            if (ResourceManagerOffline.Instance == null)
+                Debug.LogWarning($"{gameObject.name}: ResourceManagerOffline.Instance is null — persistence may not work.");
+        }
+
+        // Spawn immediate replacements / drops
+        SpawnTreeComponentsImmediate();
+
+        // Remove the original object from scene (use base class helper if available)
+        DebugLog($"{gameObject.name}: DestroyResource() about to be called.");
+        DestroyResource();
     }
 
-    // Thêm lực vật lý cho khúc gỗ nửa khi spawn
+    // Immediate spawn logic — spawns log + stump (or halves / sticks)
+    private void SpawnTreeComponentsImmediate()
+    {
+        DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate start (treeType={treeType})");
+
+        // spawn log (non-persistent drop)
+        if (treeType == TreeType.Tree && treeLogPrefab != null)
+        {
+            Vector3 logPos = transform.position + transform.up * 0.2f;
+            Quaternion logRot = Quaternion.Euler(
+                UnityEngine.Random.Range(-2f, 2f),
+                UnityEngine.Random.Range(0f, 360f),
+                UnityEngine.Random.Range(-2f, 2f)
+            );
+            var logObj = Instantiate(treeLogPrefab, logPos, logRot);
+            DebugLog($"Instantiated log prefab '{treeLogPrefab.name}' at {logPos} rot={logRot.eulerAngles} -> instanceID={logObj.GetInstanceID()}");
+        }
+
+        // spawn stump (persistent replacement) if applicable
+        if (treeType == TreeType.Tree && treeStumpPrefab != null)
+        {
+            DebugLog($"Attempting to instantiate stump prefab '{treeStumpPrefab.name}' at pos={transform.position}, parent={(transform.parent != null ? transform.parent.name : "<null>")}");
+            var stumpTransform = Instantiate(treeStumpPrefab, transform.position, transform.rotation, transform.parent);
+
+            // Preserve localScale of the original tree so stump visually matches.
+            try
+            {
+                stumpTransform.localScale = transform.localScale;
+                DebugLog($"Preserved localScale on stump: {stumpTransform.localScale}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"{gameObject.name}: Failed to copy localScale to stump: {ex.Message}");
+            }
+
+            var stumpGo = stumpTransform.gameObject;
+            DebugLog($"Stump instantiated -> name='{stumpGo.name}' instanceID={stumpGo.GetInstanceID()}");
+
+            // assign uniqueId so loader recognizes this stump as the same record (chopped)
+            try
+            {
+                var inst = stumpGo.GetComponent<ResourceInstanceOffline>() ?? stumpGo.AddComponent<ResourceInstanceOffline>();
+                inst.uniqueId = UniqueId;
+                inst.isChopped = true;
+                // Treat the newly-created stump as a replacement so ApplyState won't hide it.
+                inst.ApplyState(treatAsReplacement: true);
+                DebugLog($"Assigned ResourceInstanceOffline(uniqueId='{UniqueId}', isChopped=true) and called ApplyState(treatAsReplacement:true)");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"{gameObject.name}: Exception while assigning ResourceInstanceOffline on stump: {ex}");
+            }
+
+            var br = stumpGo.GetComponent<BaseResource>();
+            if (br != null)
+            {
+                try
+                {
+                    br.SetUniqueId(UniqueId);
+                    DebugLog($"Called SetUniqueId on stump's BaseResource (instanceID={stumpGo.GetInstanceID()})");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"{gameObject.name}: Exception calling SetUniqueId on stump's BaseResource: {ex}");
+                }
+            }
+        }
+
+        // log halves for Log type
+        if (treeType == TreeType.Log && treeLogHalfPrefab != null)
+        {
+            int halfCount = treeSize switch { TreeSize.Small => 2, TreeSize.Medium => 4, TreeSize.Large => 6, _ => 4 };
+            float len = GetLogLength();
+            Vector3 dir = GetLogLengthDirection().normalized;
+            float spacing = Mathf.Max(halfLogSpacing, len * 0.5f);
+            DebugLog($"Spawning {halfCount} log halves (length={len} spacing={spacing} dir={dir})");
+            for (int i = 0; i < halfCount; i++)
+            {
+                Vector3 pos = transform.position + dir * spacing * i;
+                Quaternion rot = Quaternion.LookRotation(transform.forward, transform.up) * Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0);
+                var half = Instantiate(treeLogHalfPrefab, pos, rot);
+                DebugLog($"Instantiated log half {i} at {pos} rot={rot.eulerAngles} -> instanceID={half.GetInstanceID()}");
+                AddPhysicsToHalfLog(half.gameObject, dir);
+
+                // preserve localScale of the original log if desired
+                try { half.localScale = transform.localScale; } catch { }
+            }
+        }
+
+        // sticks for LogHalf or Stump types
+        if ((treeType == TreeType.LogHalf || treeType == TreeType.Stump) && stickPrefab != null)
+        {
+            int minC = overrideMinDropCount >= 0 ? overrideMinDropCount : minDropCount;
+            int maxC = overrideMaxDropCount >= 0 ? overrideMaxDropCount : maxDropCount;
+            int count = UnityEngine.Random.Range(minC, maxC + 1);
+            DebugLog($"Spawning {count} sticks (min={minC} max={maxC})");
+            for (int i = 0; i < count; i++)
+            {
+                Vector3 offset = new Vector3(UnityEngine.Random.Range(-dropRadius, dropRadius), dropHeight, UnityEngine.Random.Range(-dropRadius, dropRadius));
+                var stick = Instantiate(stickPrefab, transform.position + offset, Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0));
+                DebugLog($"Instantiated stick {i} at {transform.position + offset} -> instanceID={stick.GetInstanceID()}");
+            }
+        }
+
+        DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate end.");
+    }
+
+    // ---------- Physics & spawn helpers ----------
+    private void TryAddPhysicsTo(GameObject go)
+    {
+        if (go == null) return;
+        var rb = go.GetComponent<Rigidbody>() ?? go.AddComponent<Rigidbody>();
+        rb.AddForce(Vector3.up * UnityEngine.Random.Range(0.3f, 1f) + UnityEngine.Random.insideUnitSphere * UnityEngine.Random.Range(0.1f, 0.8f), ForceMode.Impulse);
+        rb.AddTorque(UnityEngine.Random.insideUnitSphere * 0.5f, ForceMode.Impulse);
+    }
+
     private void AddPhysicsToHalfLog(GameObject halfLog, Vector3 lengthDirection)
     {
-        Rigidbody rb = halfLog.GetComponent<Rigidbody>();
-        if (rb == null) return;
-
-        // Lực scatter ngẫu nhiên
-        Vector3 scatterForce = Vector3.Cross(lengthDirection, Vector3.up) * Random.Range(-2f, 2f);
-        scatterForce += Vector3.up * Random.Range(0f, 1f);
-
-        rb.AddForce(scatterForce, ForceMode.Impulse);
-        rb.AddTorque(Random.insideUnitSphere * 1f, ForceMode.Impulse);
+        if (halfLog == null) return;
+        var rb = halfLog.GetComponent<Rigidbody>() ?? halfLog.AddComponent<Rigidbody>();
+        Vector3 tangent = Vector3.Cross(lengthDirection, Vector3.up);
+        if (tangent.sqrMagnitude < 0.001f)
+            tangent = Vector3.Cross(lengthDirection, Vector3.right);
+        Vector3 scatter = tangent.normalized * UnityEngine.Random.Range(-1.2f, 1.2f) + Vector3.up * UnityEngine.Random.Range(0.2f, 1f);
+        rb.AddForce(scatter, ForceMode.Impulse);
+        rb.AddTorque(UnityEngine.Random.insideUnitSphere * UnityEngine.Random.Range(0.2f, 1f), ForceMode.Impulse);
     }
 
-    // Spawn stick nhỏ khi log half hoặc stump bị phá
-    private void SpawnSticks()
+    private float GetLogLength()
     {
-        int stickCount = Random.Range(minDropCount, maxDropCount + 1);
-        Debug.Log($"Spawning {stickCount} sticks");
-        SpawnDrops(stickPrefab, stickCount, transform.position);
+        if (!useColliderBoundsForLogLength) return manualLogLength;
+        var c = GetComponent<Collider>();
+        if (c == null) return manualLogLength;
+        var s = c.bounds.size;
+        return Mathf.Max(s.x, Mathf.Max(s.y, s.z));
     }
 
-    // Kiểm tra xem các prefab đã được gán chưa
+    private Vector3 GetLogLengthDirection()
+    {
+        var c = GetComponent<Collider>();
+        if (c == null) return Vector3.forward;
+        var s = c.bounds.size;
+        if (s.x >= s.y && s.x >= s.z) return Vector3.right;
+        if (s.y >= s.x && s.y >= s.z) return Vector3.up;
+        return Vector3.forward;
+    }
+
     protected override void ValidateComponents()
     {
         if (treeType == TreeType.Tree && treeLogPrefab == null)
             Debug.LogWarning($"{name}: treeLogPrefab not assigned!");
-
         if (treeType == TreeType.Log && treeLogHalfPrefab == null)
             Debug.LogWarning($"{name}: treeLogHalfPrefab not assigned!");
-
         if ((treeType == TreeType.LogHalf || treeType == TreeType.Stump) && stickPrefab == null)
             Debug.LogWarning($"{name}: stickPrefab not assigned!");
     }
 
-    // Trả về loại resource
+    // Public accessor to help other systems (ResourceInstanceOffline, ResourceManagerOffline) detect stump type
+    public TreeType GetTreeType() => treeType;
+
+    // small helper to centralize debug output and avoid spamming Release builds
+    private void DebugLog(string msg)
+    {
+        if (!debugMode) return;
+        if (verboseDebug)
+            Debug.Log($"[MyTree][{name}] {msg}");
+        else
+            Debug.Log($"[MyTree] {msg}");
+    }
+
     public override ResourceType GetResourceType() => ResourceType.Tree;
-
-    [ContextMenu("Test Damage 10")]
-    private void TestDamage()
-    {
-        if (healthSystem == null)
-        {
-            InitializeHealth();
-        }
-
-        healthSystem.Damage(30);
-        Debug.Log($"{name} took 10 damage. Current HP: {healthSystem.GetHealth()}");
-    }
-
-    [ContextMenu("Debug Log Info")]
-    private void DebugLogInfo()
-    {
-        Debug.Log($"Tree Type: {treeType}, Size: {treeSize}");
-        Debug.Log($"Log Length: {GetLogLength()}, Direction: {GetLogLengthDirection()}");
-
-        Collider col = GetComponent<Collider>();
-        if (col != null)
-            Debug.Log($"Collider bounds: {col.bounds.size}");
-    }
 }

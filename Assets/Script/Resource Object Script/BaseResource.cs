@@ -1,87 +1,174 @@
 ﻿using UnityEngine;
 
-// BaseResource là lớp trừu tượng (abstract) quản lý các resource chung trong game
-// Các resource như cây, đá, khoáng sản sẽ kế thừa lớp này
+/// <summary>
+/// BaseResource: abstract base for all world-placed resources (trees, rocks, etc.)
+/// - Adds persistent uniqueId support (set by loader at spawn time)
+/// - Provides safe damage / destroy lifecycle and helpers to request persistence/replace via ResourceManagerOffline
+///
+/// IMPORTANT: ResourceManagerOffline should still be the sole writer of JSON. Resources call into it to request changes.
+/// </summary>
 public abstract class BaseResource : MonoBehaviour, IDamageable
 {
-    [Header("Base Resource Settings")]
-    [SerializeField] protected int baseHealth = 30;           // Máu cơ bản nếu resource không override
-    [SerializeField] protected ResourceType resourceType;     // Loại resource (Tree, Rock, v.v.)
+[Header("Base Resource Settings")]
+[SerializeField] protected int baseHealth = 30;
+[SerializeField] protected ResourceType resourceType;
 
-    [Header("Drop Settings")]
-    [SerializeField] protected int minDropCount = 1;          // Số lượng rơi tối thiểu
-    [SerializeField] protected int maxDropCount = 3;          // Số lượng rơi tối đa
-    [SerializeField] protected float dropRadius = 0.2f;       // Bán kính rơi ra xung quanh resource
-    [SerializeField] protected float dropHeight = 0.1f;       // Chiều cao spawn khi rơi
+[Header("Drop Settings")]
+    [SerializeField] protected int minDropCount = 1;
+    [SerializeField] protected int maxDropCount = 3;
+    [SerializeField] protected float dropRadius = 0.2f;
+    [SerializeField] protected float dropHeight = 0.1f;
 
-    protected HealthSystem healthSystem;       // Hệ thống quản lý máu
-    protected bool isDestroyed = false;        // Kiểm tra resource đã bị xóa chưa
-    protected bool isBeingDestroyed = false;   // Ngăn gọi hủy nhiều lần
+    // runtime state
+    protected HealthSystem healthSystem;
+    protected bool isDestroyed = false;       // object already fully removed
+    protected bool isBeingDestroyed = false;  // destruction process in progress
 
-    // Awake được gọi khi object được load
+    // persistent unique id (assigned by loader / ResourceManager at spawn time)
+    [SerializeField] private string uniqueId;
+    public string UniqueId => uniqueId;
+    public void SetUniqueId(string id) { uniqueId = id; }
+
+    // Awake: initialize health and hook death callback
     protected virtual void Awake()
     {
-        // Ngăn không khởi tạo nhiều lần
+        // Avoid double-initialization if Awake is called again (editor scripts, etc.)
         if (healthSystem != null) return;
 
-        InitializeHealth();                 // Khởi tạo máu theo loại resource
-        healthSystem.OnDead += OnResourceDestroyed; // Đăng ký sự kiện khi resource chết
-        ValidateComponents();               // Kiểm tra prefab, thành phần cần thiết
+        InitializeHealth();
+
+        if (healthSystem != null)
+        {
+            // subscribe to death event (ensure your HealthSystem exposes OnDead)
+            healthSystem.OnDead += OnResourceDestroyed;
+        }
+        else
+        {
+            Debug.LogWarning($"{name}: HealthSystem null after InitializeHealth().");
+        }
+
+        ValidateComponents();
     }
 
-    // Các phương thức trừu tượng, bắt buộc lớp con implement
-    protected abstract void InitializeHealth();       // Khởi tạo máu riêng từng loại
-    protected abstract void OnResourceDestroyed();    // Logic khi resource bị phá
-    protected abstract void ValidateComponents();     // Kiểm tra các prefab/thiết lập
+    // Ensure we clean up subscription to avoid stray references
+    protected virtual void OnDestroy()
+    {
+        if (healthSystem != null)
+            healthSystem.OnDead -= OnResourceDestroyed;
+    }
 
-    public abstract ResourceType GetResourceType();   // Trả về loại resource
+    // --- Abstracts to implement in derived classes ---
+    protected abstract void InitializeHealth();      // set up healthSystem
+    protected abstract void OnResourceDestroyed();   // resource-specific destruction behavior
+    protected abstract void ValidateComponents();    // check assigned prefabs, colliders, etc.
+    public abstract ResourceType GetResourceType();
 
-    // Xử lý nhận sát thương
+    // --- Damage API (from IDamageable) ---
     public virtual void Damage(int amount)
     {
         if (isDestroyed || isBeingDestroyed || healthSystem == null) return;
-
-        healthSystem.Damage(amount);       // Trừ máu
-        OnDamageReceived(amount);           // Gọi hàm xử lý thêm
+        healthSystem.Damage(amount);
+        OnDamageReceived(amount);
     }
 
-    // Xử lý thêm khi resource nhận sát thương (có thể override)
+    /// <summary>
+    /// Override to respond to damage events (e.g. play hit fx)
+    /// </summary>
     protected virtual void OnDamageReceived(int amount)
     {
-        Debug.Log($"{gameObject.name} took {amount} damage. Health: {healthSystem.GetHealth()}");
+        if (healthSystem != null)
+            Debug.Log($"{gameObject.name} took {amount} damage. Health: {healthSystem.GetHealth()}");
     }
 
-    // Trả về HealthSystem để các script khác có thể kiểm tra máu
-    public virtual HealthSystem GetHealthSystem()
-    {
-        return healthSystem;
-    }
+    public virtual HealthSystem GetHealthSystem() => healthSystem;
 
-    // Hàm spawn các drop chung (cây, đá, khoáng sản,...)
+    // --- Common helper for spawning item drops (non-persistent)
     protected void SpawnDrops(Transform prefab, int count, Vector3 basePosition)
     {
         if (prefab == null) return;
 
         for (int i = 0; i < count; i++)
         {
-            // Random vị trí xung quanh basePosition theo dropRadius
             Vector3 offset = new Vector3(
                 Random.Range(-dropRadius, dropRadius),
                 dropHeight,
                 Random.Range(-dropRadius, dropRadius)
             );
-            // Random xoay quanh trục Y
-            Quaternion randomRotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
+
+            Quaternion randomRotation = Quaternion.Euler(0, Random.Range(0, 360f), 0);
             Instantiate(prefab, basePosition + offset, randomRotation);
         }
     }
 
-    // Xóa resource khỏi scene
+    // --- Simple removal helper (local-only)
+    // Use RequestDestroyAndReplace to update the authoritative manager + persist.
     protected virtual void DestroyResource()
     {
         if (isDestroyed) return;
-
         isDestroyed = true;
-        Destroy(gameObject); // Xóa GameObject khỏi scene
+        Destroy(gameObject);
     }
+
+    // --- Helpers to interact with ResourceManagerOffline (centralized persistence)
+    /// <summary>
+    /// Ask ResourceManagerOffline to mark this resource destroyed and optionally replace it with a replacement prefab.
+    /// This method is safe if manager is missing: it will perform a local fallback destroy.
+    /// </summary>
+    /// <param name="replacementPrefab">replacement GameObject prefab (can be null)</param>
+    public void RequestDestroyAndReplace(GameObject replacementPrefab = null)
+    {
+        if (isBeingDestroyed || isDestroyed) return;
+        isBeingDestroyed = true;
+
+        if (!string.IsNullOrEmpty(UniqueId) && ResourceManagerOffline.Instance != null)
+        {
+            // Centralized manager will update JSON, save, destroy and spawn replacement properly.
+            ResourceManagerOffline.Instance.MarkResourceDestroyedAndReplace(UniqueId, this.gameObject, replacementPrefab);
+        }
+        else
+        {
+            // Fallback: update local scene only (no persistence)
+            if (!string.IsNullOrEmpty(UniqueId) && ResourceManagerOffline.Instance == null)
+                Debug.LogWarning($"{name}: ResourceManagerOffline instance not found - performing local destroy only for UniqueId={UniqueId}.");
+            if (replacementPrefab != null)
+            {
+                var r = Instantiate(replacementPrefab, transform.position, transform.rotation, transform.parent);
+                // try attach ids if possible
+                var inst = r.GetComponent<ResourceInstanceOffline>() ?? r.AddComponent<ResourceInstanceOffline>();
+                inst.uniqueId = UniqueId;
+                inst.isChopped = true;
+                inst.ApplyState();
+
+                var br = r.GetComponent<BaseResource>();
+                if (br != null) br.SetUniqueId(UniqueId);
+            }
+
+            DestroyResource();
+        }
+    }
+
+    /// <summary>
+    /// Ask ResourceManagerOffline to persist a state change (e.g. isChopped=true) without replacing the object.
+    /// Manager handles updating in-memory record and saving JSON.
+    /// </summary>
+    public void RequestPersistState(bool isChopped)
+    {
+        if (string.IsNullOrEmpty(UniqueId))
+        {
+            Debug.LogWarning($"{name}: RequestPersistState called but UniqueId is empty.");
+            return;
+        }
+
+        if (ResourceManagerOffline.Instance == null)
+        {
+            Debug.LogWarning($"{name}: RequestPersistState called but ResourceManagerOffline.Instance is null. No persistence will occur.");
+            return;
+        }
+
+        ResourceManagerOffline.Instance.OnResourceStateChanged(UniqueId, isChopped);
+    }
+
+    // Expose status for other systems / debugging
+    public bool IsDestroyed => isDestroyed;
+    public bool IsBeingDestroyed => isBeingDestroyed;
 }
