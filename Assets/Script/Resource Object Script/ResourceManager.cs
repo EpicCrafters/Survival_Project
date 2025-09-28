@@ -1,20 +1,95 @@
-// ResourceManager.cs
+﻿// ResourceManager.cs
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 using Mirror;
 using UnityEngine.SceneManagement;
+using System.Linq;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 public enum ResourceManagerRole { Standalone, Host, Client }
+public enum ResourceChangeSource { Local, Network, ClientRequest, Preload, Unknown }
+
+public class ResourceStateChangeEvent
+{
+    public string uniqueId;
+    public bool previousState;
+    public bool newState;
+    public GameObject instance;
+    public ResourceChangeSource source;
+    public DateTime timestamp;
+
+    public ResourceStateChangeEvent(string uniqueId, bool previousState, bool newState, GameObject instance, ResourceChangeSource source)
+    {
+        this.uniqueId = uniqueId;
+        this.previousState = previousState;
+        this.newState = newState;
+        this.instance = instance;
+        this.source = source;
+        this.timestamp = DateTime.UtcNow;
+    }
+}
 
 [DisallowMultipleComponent]
 public class ResourceManager : MonoBehaviour
 {
+    // --- Singleton / service locator helpers ---
+    private static ResourceManager _instance;
+    private static readonly object _instanceLock = new object();
+
+    /// <summary>
+    /// Public static accessor. Lazy-finds the manager if not already assigned.
+    /// Returns null if none exists (use GetOrCreateInstance to auto-create).
+    /// NOTE: call this from the main thread; Unity objects are not thread-safe.
+    /// </summary>
+    public static ResourceManager Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                // Try to find an instance in the scene (costly but safe fallback)
+                _instance = FindObjectOfType<ResourceManager>();
+                if (_instance == null)
+                {
+                    Debug.LogWarning("[ResourceManager] Instance accessed but no ResourceManager present in scene.");
+                }
+            }
+            return _instance;
+        }
+    }
+
+    /// <summary>
+    /// Ensure an instance exists. If none found, create a runtime one.
+    /// Use only when you want an automatic manager (e.g. in small games / bootstrap).
+    /// </summary>
+    public static ResourceManager GetOrCreateInstance(bool makePersistent = true)
+    {
+        var inst = Instance;
+        if (inst != null) return inst;
+
+        lock (_instanceLock)
+        {
+            inst = FindObjectOfType<ResourceManager>();
+            if (inst != null)
+            {
+                _instance = inst;
+                return _instance;
+            }
+
+            var go = new GameObject("ResourceManager");
+            if (makePersistent) DontDestroyOnLoad(go);
+            _instance = go.AddComponent<ResourceManager>();
+            Debug.Log("[ResourceManager] Runtime-created ResourceManager instance.");
+            return _instance;
+        }
+    }
+
     [Header("Role")]
     public ResourceManagerRole role = ResourceManagerRole.Standalone;
 
@@ -27,34 +102,115 @@ public class ResourceManager : MonoBehaviour
     public Transform exporterReference;
     public bool recordsAreLocalSpace = true; // If true and exporterReference == null, records are assumed LOCAL to spawnParent
     public bool spawnPlaceholderForMissingPrefabs = true;
-    //public bool clearSpawnParentOnLoad = true;
+    public bool clearSpawnParentOnLoad = true; // optional
+
+    [Header("Startup control")]
+    [Tooltip("When true, Start() will not auto-load; call LoadSnapshotAndSpawnImmediate() manually (useful with HostBootstrap).")]
+    public bool deferLoadUntilManualStart = false;
 
     [Header("Persistence / Network")]
     public bool manualSaveOnly = true;
-    public bool enableAutoSave = false; // only honored when manualSaveOnly == false
+    public bool enableAutoSave = false;
     public float autoSaveIntervalSeconds = 300f;
+
+    [Header("Client-side performance tuning")]
+    [Tooltip("Max milliseconds per frame to spend instantiating objects from a large snapshot on clients (0 disables).")]
+    public float spawnTimeBudgetMs = 8f;
+    [Tooltip("When client record count > this, use time-budgeted spawning.")]
+    public int batchSpawnThreshold = 200;
 
     [Header("Debug")]
     public bool verboseLogs = true;
+
+    [Header("Runtime Prefab Registry (for builds)")]
+    public List<GameObject> runtimePrefabs = new List<GameObject>();
+    private Dictionary<string, GameObject> runtimePrefabMap;
 
     // Core + adapters
     public ResourceManagerCore core;
     IResourcePersistence persistence;
     INetworkAdapter network;
 
+    // Live instance map (unique id -> GameObject)
+    private readonly Dictionary<string, GameObject> instancesById = new Dictionary<string, GameObject>();
+
+    // Map for runtime destroyed/stump replacement prefabs keyed by uniqueId.
+    // This lets external code supply a visual replacement for a specific resource at runtime.
+    private readonly Dictionary<string, GameObject> destroyedReplacementPrefabMap = new Dictionary<string, GameObject>();
+    private readonly object destroyedReplacementMapLock = new object();
+
     // dirty flag
     public bool hasUnsavedChanges { get; private set; } = false;
     public event Action<bool> OnDirtyStateChanged;
 
+    // Events for unified state-change handling
+    public event Action<ResourceStateChangeEvent> OnResourceStateChanged;
+    // When client requests a change; network adapter should forward to host
+    public event Action<string, bool> OnClientResourceChangeRequested;
+
     // internals
     private Coroutine autoSaveCoroutine = null;
 
+    // main-thread marshalling
+    private readonly Queue<Action> mainThreadQueue = new Queue<Action>();
+    private int mainThreadId;
+
+    // pending-spawn guard (avoid duplicate spawn attempts)
+    private readonly HashSet<string> pendingSpawns = new HashSet<string>();
+    private readonly object pendingSpawnsLock = new object();
+
+    // preloading flag (skip per-instance Mirror-enqueue during host preload)
+    private bool isPreloading = false;
+
+    // guard to avoid registering runtime prefabs multiple times
+    private bool runtimePrefabsRegisteredWithMirror = false;
+
+    // small helpers
+    void LogV(string s) { if (verboseLogs) Debug.Log(s); }
+    void LogW(string s) { if (verboseLogs) Debug.LogWarning(s); }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void OnDomainReload() { /* no-op placeholder in this file */ }
+
+    #region Unity lifecycle
+
     void Awake()
     {
+        // singleton registration (must be early)
+        if (_instance == null)
+        {
+            _instance = this;
+        }
+        else if (_instance != this)
+        {
+            Debug.LogWarning("[ResourceManager] Duplicate ResourceManager detected. Destroying duplicate.");
+            Destroy(this.gameObject);
+            return;
+        }
+
+        mainThreadId = Thread.CurrentThread.ManagedThreadId;
         core = new ResourceManagerCore();
 
-        // default adaptors if not configured externally
+        // Build runtime prefab map (use names/paths as keys if needed).
+        runtimePrefabMap = new Dictionary<string, GameObject>();
+        if (runtimePrefabs != null)
+        {
+            foreach (var p in runtimePrefabs)
+            {
+                if (p == null) continue;
+                var key = p.name;
+                if (!runtimePrefabMap.ContainsKey(key)) runtimePrefabMap[key] = p;
+            }
+        }
+
+        // adapters
+        if (network == null)
+        {
+            var found = GetComponents<MonoBehaviour>().OfType<INetworkAdapter>().FirstOrDefault();
+            if (found != null) network = found;
+        }
         if (network == null) network = new NoNetworkAdapter();
+
         if (persistence == null)
         {
             if (role == ResourceManagerRole.Client) persistence = new NullPersistence();
@@ -63,158 +219,289 @@ public class ResourceManager : MonoBehaviour
 
         // wire core events
         core.OnSpawnRequested += SpawnRecordVisual;
-        core.OnRecordChangedRaw += (id, state) => { SetDirty(true); };
+        core.OnRecordChangedRaw += (id, state) => SetDirty(true);
 
         // wire network events
         network.OnChangeReceived += HandleNetworkChange;
         network.OnSnapshotReceived += HandleSnapshotReceived;
+
+        // register runtime prefabs with Mirror early (best-effort)
+        if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
     }
 
     void Start()
     {
-        // auto-load for Host/Standalone: persistence loads snapshot and we spawn
-        if (role == ResourceManagerRole.Standalone || role == ResourceManagerRole.Host)
-        {
-            var snapshot = persistence.Load();
-            core.LoadSnapshot(snapshot);
-            core.RequestSpawnAll();
-            SetDirty(false);
-            if (verboseLogs) Debug.Log($"[ResourceManager] Loaded snapshot with {core.recordsById.Count} records.");
+        // register runtime prefabs again (if Mirror wasn't ready at Awake)
+        if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
 
-            Debug.Log($"Snapshot loaded. Count = {snapshot?.records?.Count ?? 0}");
+        // auto-load for Host/Standalone: persistence loads snapshot and we spawn
+        if (!deferLoadUntilManualStart && (role == ResourceManagerRole.Standalone || role == ResourceManagerRole.Host))
+        {
+            try
+            {
+                var snapshot = persistence.Load();
+                core.LoadSnapshot(snapshot);
+
+                // Host/Standalone: spawn synchronously (fast local spawn)
+                // Clients are throttled in HandleSnapshotReceived
+                core.RequestSpawnAll();
+
+                // If host and Mirror active, spawn network Identities now (if any)
+                if (role == ResourceManagerRole.Host && useMirrorRegistrationRecommended() && NetworkServer.active)
+                {
+                    // Spawn networked objects immediately (small batches internally if needed)
+                    StartCoroutine(MirrorSpawnRegisteredInstancesCoroutine(50));
+                }
+
+                SetDirty(false);
+                LogV($"[ResourceManager] Loaded snapshot with {core.recordsById.Count} records.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResourceManager] Failed to load snapshot: {ex}");
+                try { core.LoadSnapshot(new SpawnRecordCollection()); } catch { }
+            }
         }
-        else // client
+        else if (role == ResourceManagerRole.Client)
         {
             // ask host for snapshot (network adapter implementation must handle this)
-            network.RequestSnapshot();
-            if (verboseLogs) Debug.Log("[ResourceManager] Client requested snapshot from host.");
+            try
+            {
+                network.RequestSnapshot();
+                LogV("[ResourceManager] Client requested snapshot from host.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResourceManager] Error requesting snapshot from network adapter: {ex}");
+            }
         }
 
-        // auto-save coroutine only if allowed
+        // auto-save coroutine (only if not manual-only and not client)
         if (enableAutoSave && !manualSaveOnly && role != ResourceManagerRole.Client)
             autoSaveCoroutine = StartCoroutine(AutoSaveCoroutine());
     }
 
-    void OnDestroy()
+    void Update()
     {
-        if (autoSaveCoroutine != null) StopCoroutine(autoSaveCoroutine);
+        // Drain main-thread queue (fast)
+        Action[] actions = null;
+        lock (mainThreadQueue)
+        {
+            if (mainThreadQueue.Count > 0)
+            {
+                actions = mainThreadQueue.ToArray();
+                mainThreadQueue.Clear();
+            }
+        }
+        if (actions != null)
+        {
+            foreach (var a in actions)
+            {
+                try { a?.Invoke(); } catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in queued action: {ex}"); }
+            }
+        }
     }
 
-    #region Public API called by gameplay / ResourceInstanceOffline
+    void OnDestroy()
+    {
+        try { if (autoSaveCoroutine != null) StopCoroutine(autoSaveCoroutine); } catch { }
+        try { network.OnChangeReceived -= HandleNetworkChange; network.OnSnapshotReceived -= HandleSnapshotReceived; } catch { }
+        try { core.OnSpawnRequested -= SpawnRecordVisual; } catch { }
 
-    public void OnResourceStateChanged(string uniqueId, bool isChopped)
+        // clear singleton only if we are current instance
+        if (_instance == this) _instance = null;
+    }
+
+    #endregion
+
+    #region Public API / helpers
+
+    // Decide whether registration with Mirror is meaningful (Mirror present + we intend to use Mirror)
+    private bool useMirrorRegistrationRecommended()
+    {
+        return true; // keep true for projects using Mirror; adapter may be NoNetworkAdapter for singleplayer
+    }
+
+    public void SetNetworkAdapter(INetworkAdapter adapter)
+    {
+        if (network != null)
+        {
+            try { network.OnChangeReceived -= HandleNetworkChange; network.OnSnapshotReceived -= HandleSnapshotReceived; } catch { }
+        }
+        network = adapter ?? new NoNetworkAdapter();
+        try { network.OnChangeReceived += HandleNetworkChange; network.OnSnapshotReceived += HandleSnapshotReceived; } catch { }
+        LogV("[ResourceManager] Network adapter set.");
+    }
+
+    /// <summary>
+    /// Load the snapshot and spawn everything immediately (synchronous). Useful when host wants to preload world
+    /// before starting the network host. After calling this, call NetworkManager.StartHost() and then MirrorSpawnRegisteredInstances().
+    /// </summary>
+    public void LoadSnapshotAndSpawnImmediate()
     {
         if (role == ResourceManagerRole.Client)
         {
-            if (verboseLogs) Debug.Log($"[ResourceManager] Client requests change {uniqueId} -> {isChopped}");
-            network.RequestChange(uniqueId, isChopped);
+            Debug.LogWarning("[ResourceManager] LoadSnapshotAndSpawnImmediate called in Client role — use only on Host/Standalone.");
             return;
         }
 
-        // Host or Standalone: apply locally and broadcast if host
-        core.ApplyLocalChange(uniqueId, isChopped);
-
-        if (role == ResourceManagerRole.Host)
+        isPreloading = true;
+        try
         {
-            network.BroadcastChange(uniqueId, isChopped);
-            // host will persist when SaveNow is called
+            var snapshot = persistence.Load();
+            core.LoadSnapshot(snapshot);
+
+            // selective clear (optional)
+            if (clearSpawnParentOnLoad && spawnParent != null)
+            {
+                for (int i = spawnParent.childCount - 1; i >= 0; i--)
+                {
+                    var child = spawnParent.GetChild(i)?.gameObject;
+                    if (child == null) continue;
+                    var rv = child.GetComponent<ResourceInstanceVisual>() ?? child.GetComponentInChildren<ResourceInstanceVisual>();
+                    if (rv != null && !string.IsNullOrEmpty(rv.uniqueId) && core.recordsById.ContainsKey(rv.uniqueId))
+                        continue;
+#if UNITY_EDITOR
+                    if (Application.isPlaying) Destroy(child);
+                    else DestroyImmediate(child);
+#else
+                    Destroy(child);
+#endif
+                }
+            }
+
+            // spawn synchronously (fast)
+            core.RequestSpawnAll();
+
+            SetDirty(false);
+            LogV("[ResourceManager] LoadSnapshotAndSpawnImmediate: spawn complete.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ResourceManager] LoadSnapshotAndSpawnImmediate failed: {ex}");
+        }
+        finally
+        {
+            isPreloading = false;
         }
     }
 
-    public GameObject MarkResourceDestroyedAndReplace(string uniqueId, GameObject currentInstance, GameObject replacementPrefab = null, bool saveNow = false)
+    /// <summary>
+    /// After preloading on host, call this once NetworkServer.active == true to NetworkServer.Spawn the pre-instantiated objects.
+    /// This coroutine does small yields to avoid a long single-frame hitch.
+    /// </summary>
+    public IEnumerator MirrorSpawnRegisteredInstancesCoroutine(int yieldEvery = 50)
     {
-        if (role == ResourceManagerRole.Client)
+        while (!NetworkServer.active)
+            yield return null;
+
+        int spawned = 0;
+        foreach (var kv in instancesById)
         {
-            // clients request host to perform destruction
-            network.RequestChange(uniqueId, true);
-            // optimistic client-side replacement can be implemented by caller if desired; we skip it here
-            return null;
-        }
-
-        if (!core.recordsById.TryGetValue(uniqueId, out var rec))
-        {
-            Debug.LogWarning($"[ResourceManager] MarkResourceDestroyedAndReplace: unknown id {uniqueId}");
-            return null;
-        }
-
-        if (!rec.isChopped)
-        {
-            rec.isChopped = true;
-            SetDirty(true);
-        }
-
-        GameObject spawned = null;
-        if (currentInstance != null)
-        {
-            Transform parent = currentInstance.transform.parent;
-            Vector3 pos = currentInstance.transform.position;
-            Quaternion rot = currentInstance.transform.rotation;
-            Vector3 localScale = currentInstance.transform.localScale;
-
-#if UNITY_EDITOR
-            if (Application.isPlaying) Destroy(currentInstance);
-            else DestroyImmediate(currentInstance);
-#else
-            Destroy(currentInstance);
-#endif
-
-            if (replacementPrefab != null)
+            var go = kv.Value;
+            if (go == null) continue;
+            var ni = go.GetComponent<NetworkIdentity>();
+            if (ni != null)
             {
-                spawned = Instantiate(replacementPrefab, pos, rot, parent);
-                spawned.transform.localScale = localScale;
-
-                var inst = spawned.GetComponent<ResourceInstanceOffline>() ?? spawned.AddComponent<ResourceInstanceOffline>();
-                inst.uniqueId = uniqueId;
-                inst.isChopped = true;
-                inst.ApplyState();
-
-                var br = spawned.GetComponent<BaseResource>();
-                if (br != null) br.SetUniqueId(uniqueId);
+                try { NetworkServer.Spawn(go); }
+                catch (Exception ex) { Debug.LogWarning($"[ResourceManager] Mirror spawn failed for {go.name}: {ex.Message}"); }
+                spawned++;
+                if (yieldEvery > 0 && spawned % yieldEvery == 0) yield return null;
             }
         }
+    }
 
-        if (role == ResourceManagerRole.Host)
-            network.BroadcastChange(uniqueId, true);
-
-        if (saveNow && role != ResourceManagerRole.Client)
-            SaveNow();
-
-        return spawned;
+    public void MirrorSpawnRegisteredInstances(int yieldEvery = 50)
+    {
+        StartCoroutine(MirrorSpawnRegisteredInstancesCoroutine(yieldEvery));
     }
 
     #endregion
 
     #region Network / Snapshot handlers
 
-    void HandleNetworkChange(string uniqueId, bool isChopped)
+    // main-thread marshalling helper: only enqueue if caller is off main thread
+    private void EnqueueOrExecute(Action action)
     {
-        if (role == ResourceManagerRole.Host)
+        if (action == null) return;
+        if (Thread.CurrentThread.ManagedThreadId != mainThreadId)
         {
-            if (!core.recordsById.ContainsKey(uniqueId))
-            {
-                Debug.LogWarning($"[ResourceManager] Host received change for unknown id {uniqueId}");
-                return;
-            }
-            core.ApplyLocalChange(uniqueId, isChopped);
-            SetDirty(true);
-            network.BroadcastChange(uniqueId, isChopped);
-        }
-        else if (role == ResourceManagerRole.Client)
-        {
-            core.ApplyAuthorityChange(uniqueId, isChopped);
+            lock (mainThreadQueue) mainThreadQueue.Enqueue(action);
         }
         else
         {
-            core.ApplyLocalChange(uniqueId, isChopped);
+            action();
         }
+    }
+
+    void HandleNetworkChange(string uniqueId, bool isChopped)
+    {
+        EnqueueOrExecute(() => HandleNetworkChangeMainThread(uniqueId, isChopped));
+    }
+
+    // Network-originated changes use the centralized apply path
+    void HandleNetworkChangeMainThread(string uniqueId, bool isChopped)
+    {
+        ApplyResourceStateChange(uniqueId, isChopped, ResourceChangeSource.Network);
     }
 
     void HandleSnapshotReceived(SpawnRecordCollection container)
     {
-        core.LoadSnapshot(container);
-        core.RequestSpawnAll();
+        EnqueueOrExecute(() => HandleSnapshotReceivedMainThread(container));
+    }
+
+    void HandleSnapshotReceivedMainThread(SpawnRecordCollection container)
+    {
+        LogV("[ResourceManager] HandleSnapshotReceivedMainThread start");
+
+        try
+        {
+            core.LoadSnapshot(container);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ResourceManager] Failed to load snapshot container: {ex}");
+            try { core.LoadSnapshot(new SpawnRecordCollection()); } catch { }
+        }
+
+        // selective clear spawnParent if configured
+        if (clearSpawnParentOnLoad && spawnParent != null && !(role == ResourceManagerRole.Client && true /*clients may rely on Mirror spawn*/))
+        {
+            for (int i = spawnParent.childCount - 1; i >= 0; i--)
+            {
+                var child = spawnParent.GetChild(i)?.gameObject;
+                if (child == null) continue;
+                var rv = child.GetComponent<ResourceInstanceVisual>() ?? child.GetComponentInChildren<ResourceInstanceVisual>();
+                if (rv != null && !string.IsNullOrEmpty(rv.uniqueId) && core.recordsById.ContainsKey(rv.uniqueId))
+                    continue;
+#if UNITY_EDITOR
+                if (Application.isPlaying) Destroy(child);
+                else DestroyImmediate(child);
+#else
+                Destroy(child);
+#endif
+            }
+        }
+
+        // Clear instance registry for this snapshot (clients using Mirror spawn may not want this)
+        if (!(role == ResourceManagerRole.Client))
+            instancesById.Clear();
+
+        // Spawn behavior:
+        // - Clients: throttle if snapshot large (prevent freeze)
+        // - Host/Standalone: spawn immediately (fast)
+        if (role == ResourceManagerRole.Client && core.recordsById.Count > batchSpawnThreshold && spawnTimeBudgetMs > 0f)
+        {
+            LogV($"[ResourceManager] Client will spawn {core.recordsById.Count} records using time budget {spawnTimeBudgetMs}ms/frame.");
+            StartCoroutine(SpawnRecordsTimed(core.recordsById.Values, spawnTimeBudgetMs));
+        }
+        else
+        {
+            core.RequestSpawnAll();
+        }
+
         SetDirty(false);
-        if (verboseLogs) Debug.Log($"[ResourceManager] Snapshot received (records={core.recordsById.Count})");
+        LogV($"[ResourceManager] Snapshot received (records={core.recordsById.Count})");
     }
 
     #endregion
@@ -226,14 +513,22 @@ public class ResourceManager : MonoBehaviour
         if (role == ResourceManagerRole.Client)
         {
             Debug.LogWarning("[ResourceManager] Client should not call SaveNow(): request host to save if you want persistence.");
-            network.RequestHostSave();
+            try { network.RequestHostSave(); } catch (Exception ex) { Debug.LogWarning($"[ResourceManager] RequestHostSave failed: {ex}"); }
             return;
         }
-
+        
         var container = core.GetSnapshot();
-        persistence.Save(container);
-        SetDirty(false);
-        if (verboseLogs) Debug.Log("[ResourceManager] SaveNow completed.");
+        DrainMainThreadQueueImmediately();
+        try
+        {
+            persistence.Save(container);
+            SetDirty(false);
+            LogV("[ResourceManager] SaveNow completed.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ResourceManager] SaveNow failed: {ex}");
+        }
     }
 
     void SetDirty(bool dirty)
@@ -263,156 +558,194 @@ public class ResourceManager : MonoBehaviour
 
     #endregion
 
-    #region Spawn helpers (uses Editor AssetDatabase when available)
+    #region Spawn helpers
 
-    void SpawnRecordVisual(SpawnRecord r)
+    // Timed spawning for clients: spawn across multiple frames to avoid freeze
+    private IEnumerator SpawnRecordsTimed(IEnumerable<SpawnRecord> records, float budgetMsPerFrame)
     {
-        Debug.Log($"[RM] SpawnRecordVisual: id={r?.uniqueId} spawnParent={(spawnParent ? spawnParent.name : "NULL")} " +
-          $"spawnParentScene={(spawnParent ? spawnParent.gameObject.scene.name : "<null>")} " +
-          $"resourceManagerScene={gameObject.scene.name}");
-
-        if (r == null) return;
-        GameObject prefab = ResolvePrefabFromRecord(r);
-
-        if (prefab == null) Debug.LogWarning($"Prefab missing for record {r.uniqueId}");
-
-        // Determine whether the record should be treated as:
-        // A) local-space relative to spawnParent (recordsAreLocalSpace==true && exporterReference==null)
-        // B) local-space relative to exporterReference (recordsAreLocalSpace==true && exporterReference!=null)
-        // C) world-space (recordsAreLocalSpace==false)
-        bool recordIsLocalToParent = recordsAreLocalSpace && exporterReference == null && spawnParent != null;
-        bool recordIsLocalToExporter = recordsAreLocalSpace && exporterReference != null;
-
-        // computed world TRS used when we treat the record as world-space (case C) or exporter-reference-local (case B)
-        Vector3 desiredWorldPos = Vector3.zero;
-        Quaternion desiredWorldRot = Quaternion.identity;
-        Vector3 desiredWorldScale = Vector3.one;
-
-        if (recordIsLocalToExporter)
+        if (budgetMsPerFrame <= 0f)
         {
-            desiredWorldPos = exporterReference.TransformPoint(r.position);
-            desiredWorldRot = exporterReference.rotation * r.rotation;
-            desiredWorldScale = Vector3.Scale(exporterReference.lossyScale, r.scale);
-        }
-        else if (!recordsAreLocalSpace)
-        {
-            // record already in world space
-            desiredWorldPos = r.position;
-            desiredWorldRot = r.rotation;
-            desiredWorldScale = r.scale;
-        }
-        // else if recordIsLocalToParent: we'll use r.position/rotation/scale as *local* values (do not convert to world here)
-
-        GameObject go = null;
-
-        if (prefab != null)
-        {
-            if (recordIsLocalToParent)
-            {
-                // JSON stores transform *local to spawnParent*. Parent first, then assign local TRS.
-                // Instantiate with parent so Awake/OnEnable will see correct hierarchy (avoid temporary wrong parenting)
-                go = Instantiate(prefab, spawnParent);
-                // now assign local TRS from JSON
-                go.transform.localPosition = r.position;
-                go.transform.localRotation = r.rotation;
-                go.transform.localScale = r.scale;
-
-                if (verboseLogs) Debug.Log($"[RM] Spawned '{go.name}' as LOCAL-to-parent (localPos={r.position}, localRot={r.rotation.eulerAngles}, localScale={r.scale}) under '{spawnParent.name}'");
-            }
-            else
-            {
-                // Treat record as world-space (either exported from exporterReference or given as absolute world TRS)
-                go = Instantiate(prefab, desiredWorldPos, desiredWorldRot);
-
-                // set world scale before parenting (so world appearance matches JSON)
-                go.transform.localScale = desiredWorldScale;
-
-                if (spawnParent != null)
-                {
-                    // Move to parent's scene explicitly (optional)
-                    SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
-
-                    // parent while preserving world transform
-                    go.transform.SetParent(spawnParent, true);
-                }
-                else
-                {
-                    // ensure it's root in its scene
-                    go.transform.SetParent(null, true);
-                }
-
-                if (verboseLogs) Debug.Log($"[RM] Spawned '{go.name}' at world TRS pos={desiredWorldPos}, rot={desiredWorldRot.eulerAngles}, scl={desiredWorldScale}");
-            }
-        }
-        else if (spawnPlaceholderForMissingPrefabs)
-        {
-            if (recordIsLocalToParent)
-            {
-                // create placeholder as child and assign local TRS
-                GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                cube.name = $"MISSING_PREFAB_{r.uniqueId}";
-                cube.transform.SetParent(spawnParent, false); // set local TRS
-                cube.transform.localPosition = r.position;
-                cube.transform.localRotation = r.rotation;
-                cube.transform.localScale = r.scale;
-
-                var col = cube.GetComponent<Collider>();
-                if (col != null)
-                {
-#if UNITY_EDITOR
-                    DestroyImmediate(col);
-#else
-                    Destroy(col);
-#endif
-                }
-
-                go = cube;
-
-                if (verboseLogs) Debug.LogWarning($"[ResourceManager] Spawned placeholder (local) for missing prefab for record {r.uniqueId}");
-            }
-            else
-            {
-                // world-case placeholder
-                go = CreateMissingPrefabPlaceholder(r.uniqueId, desiredWorldPos, desiredWorldRot, desiredWorldScale);
-
-                if (spawnParent != null)
-                {
-                    SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
-                    go.transform.SetParent(spawnParent, true);
-                }
-                else
-                {
-                    go.transform.SetParent(null, true);
-                }
-
-                if (verboseLogs) Debug.LogWarning($"[ResourceManager] Spawned placeholder (world) for missing prefab for record {r.uniqueId}");
-            }
+            foreach (var r in records) SpawnRecordVisual(r);
+            yield break;
         }
 
-        if (go != null)
+        float budgetSec = budgetMsPerFrame / 1000f;
+        float frameStart = Time.realtimeSinceStartup;
+        int processed = 0;
+        foreach (var r in records)
         {
-            var inst = go.GetComponent<ResourceInstanceOffline>() ?? go.AddComponent<ResourceInstanceOffline>();
-            inst.uniqueId = r.uniqueId;
-            inst.isChopped = r.isChopped;
-            inst.ApplyState();
-
-            var br = go.GetComponent<BaseResource>();
-            if (br != null) br.SetUniqueId(r.uniqueId);
+            SpawnRecordVisual(r);
+            processed++;
+            if (Time.realtimeSinceStartup - frameStart > budgetSec)
+            {
+                LogV($"[ResourceManager] SpawnRecordsTimed yielding after {processed} items this frame.");
+                yield return null;
+                frameStart = Time.realtimeSinceStartup;
+                processed = 0;
+            }
         }
     }
 
-    GameObject ResolvePrefabFromRecord(SpawnRecord r)
+    void SpawnRecordVisual(SpawnRecord r)
+    {
+        if (r == null) return;
+
+        // Prevent duplicate spawn attempts for same id
+        lock (pendingSpawnsLock)
+        {
+            if (pendingSpawns.Contains(r.uniqueId)) return;
+            pendingSpawns.Add(r.uniqueId);
+        }
+
+        try
+        {
+            // If client relies on Mirror spawn, do not instantiate local world objects here.
+            if (role == ResourceManagerRole.Client && useMirrorRegistrationRecommended())
+            {
+                LogV($"[ResourceManager] Client suppressed SpawnRecordVisual for {r.uniqueId} (Mirror-managed).");
+                return;
+            }
+
+            LogV($"[RM] SpawnRecordVisual: id={r?.uniqueId} spawnParent={(spawnParent ? spawnParent.name : "NULL")} " +
+                $"spawnParentScene={(spawnParent ? spawnParent.gameObject.scene.name : "<null>")} resourceManagerScene={gameObject.scene.name}");
+
+            GameObject prefab = ResolvePrefabFromRecord(r);
+            if (prefab == null) LogW($"Prefab missing for record {r.uniqueId}");
+
+            bool recordIsLocalToParent = recordsAreLocalSpace && exporterReference == null && spawnParent != null;
+            bool recordIsLocalToExporter = recordsAreLocalSpace && exporterReference != null;
+
+            Vector3 desiredWorldPos = Vector3.zero;
+            Quaternion desiredWorldRot = Quaternion.identity;
+            Vector3 desiredWorldScale = Vector3.one;
+
+            if (recordIsLocalToExporter)
+            {
+                desiredWorldPos = exporterReference.TransformPoint(r.position);
+                desiredWorldRot = exporterReference.rotation * r.rotation;
+                desiredWorldScale = Vector3.Scale(exporterReference.lossyScale, r.scale);
+            }
+            else if (!recordsAreLocalSpace)
+            {
+                desiredWorldPos = r.position;
+                desiredWorldRot = r.rotation;
+                desiredWorldScale = r.scale;
+            }
+
+            GameObject go = null;
+            if (prefab != null)
+            {
+                if (recordIsLocalToParent)
+                {
+                    go = Instantiate(prefab, spawnParent);
+                    go.transform.localPosition = r.position;
+                    go.transform.localRotation = r.rotation;
+                    go.transform.localScale = r.scale;
+                }
+                else
+                {
+                    go = Instantiate(prefab, desiredWorldPos, desiredWorldRot);
+                    go.transform.localScale = desiredWorldScale;
+                    if (spawnParent != null)
+                    {
+                        SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
+                        go.transform.SetParent(spawnParent, true);
+                    }
+                    else go.transform.SetParent(null, true);
+                }
+            }
+            else if (spawnPlaceholderForMissingPrefabs)
+            {
+                if (recordIsLocalToParent)
+                {
+                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    cube.name = $"MISSING_PREFAB_{r.uniqueId}";
+                    cube.transform.SetParent(spawnParent, false);
+                    cube.transform.localPosition = r.position;
+                    cube.transform.localRotation = r.rotation;
+                    cube.transform.localScale = r.scale;
+                    var col = cube.GetComponent<Collider>();
+                    if (col != null) { if (Application.isPlaying) Destroy(col); else DestroyImmediate(col); }
+                    go = cube;
+                }
+                else
+                {
+                    go = CreateMissingPrefabPlaceholder(r.uniqueId, desiredWorldPos, desiredWorldRot, desiredWorldScale);
+                    if (spawnParent != null)
+                    {
+                        SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
+                        go.transform.SetParent(spawnParent, true);
+                    }
+                    else go.transform.SetParent(null, true);
+                }
+            }
+
+            if (go != null)
+            {
+                // Attach or update the visual script
+                var visual = go.GetComponent<ResourceInstanceVisual>() ?? go.AddComponent<ResourceInstanceVisual>();
+                visual.SetUniqueId(r.uniqueId);
+                visual.isChopped = r.isChopped;
+
+                // If a runtime destroyed replacement was registered for this uniqueId, apply it to the visual now
+                GameObject replacementPrefab = null;
+                lock (destroyedReplacementMapLock)
+                {
+                    destroyedReplacementPrefabMap.TryGetValue(r.uniqueId, out replacementPrefab);
+                }
+                if (replacementPrefab != null)
+                {
+                    try { visual.SetDestroyedReplacementPrefab(replacementPrefab); }
+                    catch (Exception ex) { Debug.LogWarning($"[ResourceManager] Visual.SetDestroyedReplacementPrefab threw: {ex.Message}"); }
+                }
+
+                visual.ApplyState();
+
+                // Register with ResourceManager so it can be tracked
+                try { RegisterInstance(visual); }
+                catch (Exception ex) { Debug.LogWarning($"[SpawnRecordVisual] Failed to register {r.uniqueId}: {ex}"); }
+
+                // Legacy fallback for BaseResource if you still need it
+                var br = go.GetComponent<BaseResource>();
+                if (br != null) br.SetUniqueId(r.uniqueId);
+
+                // Register instance for offline-to-network sync (host batch MirrorSpawn)
+                RegisterInstance(r.uniqueId, go);
+
+                // Mirror spawn on host: either spawn immediately if not preloading or skip and batch later
+                if (role == ResourceManagerRole.Host && useMirrorRegistrationRecommended() && NetworkServer.active)
+                {
+                    if (isPreloading)
+                    {
+                        // skip, we'll call MirrorSpawnRegisteredInstancesCoroutine after preload finishes
+                    }
+                    else
+                    {
+                        var ni = go.GetComponent<NetworkIdentity>();
+                        if (ni != null)
+                        {
+                            try { NetworkServer.Spawn(go); }
+                            catch (Exception ex) { LogW($"NetworkServer.Spawn failed for {go.name}: {ex.Message}"); }
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            lock (pendingSpawnsLock) pendingSpawns.Remove(r.uniqueId);
+        }
+    }
+
+    protected virtual GameObject ResolvePrefabFromRecord(SpawnRecord r)
     {
 #if UNITY_EDITOR
         string path = null;
         if (!string.IsNullOrEmpty(r.prefabGuid))
         {
-            try { path = AssetDatabase.GUIDToAssetPath(r.prefabGuid); }
-            catch { path = null; }
+            try { path = AssetDatabase.GUIDToAssetPath(r.prefabGuid); } catch { path = null; }
         }
-        if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(r.prefabPath))
-            path = r.prefabPath;
-
+        if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(r.prefabPath)) path = r.prefabPath;
         if (!string.IsNullOrEmpty(path))
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -420,6 +753,21 @@ public class ResourceManager : MonoBehaviour
             return prefab;
         }
 #endif
+        if (r == null) return null;
+
+        // try runtime map by name
+        if (!string.IsNullOrEmpty(r.prefabPath) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabPath, out var p1))
+            return p1;
+        if (!string.IsNullOrEmpty(r.prefabGuid) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabGuid, out var p2))
+            return p2;
+
+        // try by path using Resources
+        if (!string.IsNullOrEmpty(r.prefabPath))
+        {
+            var loaded = Resources.Load<GameObject>(r.prefabPath);
+            if (loaded != null) return loaded;
+        }
+
         return null;
     }
 
@@ -430,18 +778,234 @@ public class ResourceManager : MonoBehaviour
         cube.transform.position = worldPos;
         cube.transform.rotation = worldRot;
         cube.transform.localScale = worldScale;
-
         var col = cube.GetComponent<Collider>();
-        if (col != null)
-        {
-#if UNITY_EDITOR
-            DestroyImmediate(col);
-#else
-            Destroy(col);
-#endif
-        }
+        if (col != null) { if (Application.isPlaying) Destroy(col); else DestroyImmediate(col); }
         return cube;
     }
 
     #endregion
+
+    #region Instance registry & centralized change API
+
+    /// <summary>
+    /// Gameplay/UI should call this to request a change.
+    /// On clients this raises OnClientResourceChangeRequested which network adapter should forward to host.
+    /// On host/standalone this applies directly (and host will broadcast).
+    /// Thread-safe entry.
+    /// </summary>
+    public void RequestResourceStateChange(string uniqueId, bool isChopped)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        if (role == ResourceManagerRole.Client)
+        {
+            // Clients must ask host to change authoritative state
+            LogV($"[ResourceManager] Client requests change: {uniqueId} -> {isChopped}");
+            try { OnClientResourceChangeRequested?.Invoke(uniqueId, isChopped); }
+            catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in OnClientResourceChangeRequested handlers: {ex}"); }
+            return;
+        }
+
+        // Host/Standalone: apply immediately on main thread
+        ApplyResourceStateChange(uniqueId, isChopped, ResourceChangeSource.Local);
+    }
+
+    /// <summary>
+    /// Apply a resource state change (safe to call from any thread).
+    /// Use source to indicate origin; host-local changes will be broadcasted.
+    /// </summary>
+    public void ApplyResourceStateChange(string uniqueId, bool isChopped, ResourceChangeSource source = ResourceChangeSource.Local)
+    {
+        EnqueueOrExecute(() => ApplyResourceStateChangeMainThread(uniqueId, isChopped, source));
+    }
+
+    private void ApplyResourceStateChangeMainThread(string uniqueId, bool isChopped, ResourceChangeSource source)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        SpawnRecord rec = null;
+        if (core.recordsById != null && core.recordsById.TryGetValue(uniqueId, out rec))
+        {
+            bool previousState = rec.isChopped;
+
+            // Update core authoritative data depending on role
+            if (role == ResourceManagerRole.Host)
+            {
+                core.ApplyLocalChange(uniqueId, isChopped);
+                SetDirty(true);
+            }
+            else if (role == ResourceManagerRole.Client)
+            {
+                core.ApplyAuthorityChange(uniqueId, isChopped);
+            }
+            else // Standalone
+            {
+                core.ApplyLocalChange(uniqueId, isChopped);
+                SetDirty(true);
+            }
+
+            // Update visual instance if present
+            GameObject instanceGo = null;
+            if (instancesById.TryGetValue(uniqueId, out instanceGo) && instanceGo != null)
+            {
+                var inst = instanceGo.GetComponent<ResourceInstanceVisual>() ?? instanceGo.GetComponentInChildren<ResourceInstanceVisual>();
+                if (inst != null)
+                {
+                    inst.isChopped = isChopped;
+                    inst.ApplyState();
+                }
+            }
+
+            // Host-origin local changes should be broadcast to clients
+            if (role == ResourceManagerRole.Host && source == ResourceChangeSource.Local)
+            {
+                try { network.BroadcastChange(uniqueId, isChopped); }
+                catch (Exception ex) { LogW($"[ResourceManager] BroadcastChange failed for {uniqueId}: {ex.Message}"); }
+            }
+
+            // Fire unified event for other systems
+            var evt = new ResourceStateChangeEvent(uniqueId, previousState, isChopped, instanceGo, source);
+            try { OnResourceStateChanged?.Invoke(evt); }
+            catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in OnResourceStateChanged handlers: {ex}"); }
+        }
+        else
+        {
+            LogW($"[ResourceManager] ApplyResourceStateChange: unknown id {uniqueId}");
+        }
+    }
+
+    // Safer RegisterInstance that stores GameObject by unique id
+    private void RegisterInstance(string uniqueId, GameObject go)
+    {
+        if (string.IsNullOrEmpty(uniqueId) || go == null) return;
+        lock (instancesById)
+        {
+            if (instancesById.TryGetValue(uniqueId, out var existing) && existing != null && existing != go)
+            {
+                LogW($"[ResourceManager] RegisterInstance replacing existing instance for id {uniqueId} (old={existing.name}, new={go.name})");
+            }
+            instancesById[uniqueId] = go;
+        }
+    }
+
+    // Overload used by SpawnRecordVisual (and existing call sites that pass ResourceInstanceVisual)
+    public void RegisterInstance(ResourceInstanceVisual visual)
+    {
+        if (visual == null) return;
+        if (string.IsNullOrEmpty(visual.uniqueId))
+        {
+            LogW("[ResourceManager] RegisterInstance(ResourceInstanceVisual) called with empty uniqueId.");
+            return;
+        }
+        RegisterInstance(visual.uniqueId, visual.gameObject);
+    }
+
+    public void UnregisterInstance(string uniqueId)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return;
+        lock (instancesById)
+        {
+            instancesById.Remove(uniqueId);
+        }
+    }
+
+    public void UnregisterInstance(ResourceInstanceVisual visual)
+    {
+        if (visual == null) return;
+        UnregisterInstance(visual.uniqueId);
+    }
+
+    public bool TryGetInstance(string uniqueId, out GameObject inst)
+    {
+        inst = null;
+        if (string.IsNullOrEmpty(uniqueId)) return false;
+        return instancesById.TryGetValue(uniqueId, out inst) && inst != null;
+    }
+
+    /// <summary>
+    /// Public API: set or clear a runtime destroyed/stump replacement prefab for a particular uniqueId.
+    /// - If prefab is non-null, it will be stored and applied to the visual now (if present) and to any future spawn of that id.
+    /// - If prefab is null, the stored override is removed.
+    /// Thread-safe entry: will run on main thread.
+    /// </summary>
+    public void SetDestroyedReplacementPrefab(string uniqueId, GameObject prefab)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        EnqueueOrExecute(() =>
+        {
+            lock (destroyedReplacementMapLock)
+            {
+                if (prefab == null)
+                {
+                    if (destroyedReplacementPrefabMap.ContainsKey(uniqueId))
+                        destroyedReplacementPrefabMap.Remove(uniqueId);
+                }
+                else
+                {
+                    destroyedReplacementPrefabMap[uniqueId] = prefab;
+                }
+            }
+
+            // If an instance is already present, apply immediately
+            if (instancesById.TryGetValue(uniqueId, out var go) && go != null)
+            {
+                var vis = go.GetComponent<ResourceInstanceVisual>();
+                if (vis != null)
+                {
+                    try { vis.SetDestroyedReplacementPrefab(prefab); }
+                    catch (Exception ex) { Debug.LogWarning($"[ResourceManager] SetDestroyedReplacementPrefab failed on visual: {ex.Message}"); }
+                }
+            }
+        });
+    }
+
+    #endregion
+
+    #region Mirror prefab registration helper
+
+    private void TryRegisterRuntimePrefabsWithMirror()
+    {
+        if (runtimePrefabsRegisteredWithMirror) return;
+        if (runtimePrefabs == null || runtimePrefabs.Count == 0) { runtimePrefabsRegisteredWithMirror = true; return; }
+
+        int registered = 0;
+        foreach (var p in runtimePrefabs)
+        {
+            if (p == null) continue;
+            try
+            {
+                var ni = p.GetComponent<NetworkIdentity>();
+                if (ni == null) { LogW($"[ResourceManager] Prefab '{p.name}' has no NetworkIdentity; Mirror registration skipped."); continue; }
+                NetworkClient.RegisterPrefab(p);
+                registered++;
+            }
+            catch (Exception ex) { LogW($"[ResourceManager] Failed to register prefab '{p.name}' with Mirror: {ex.Message}"); }
+        }
+        runtimePrefabsRegisteredWithMirror = true;
+        LogV($"[ResourceManager] Registered {registered} runtime prefabs with Mirror.");
+    }
+
+    #endregion
+
+    private void DrainMainThreadQueueImmediately()
+    {
+        Action[] actions = null;
+        lock (mainThreadQueue)
+        {
+            if (mainThreadQueue.Count > 0)
+            {
+                actions = mainThreadQueue.ToArray();
+                mainThreadQueue.Clear();
+            }
+        }
+        if (actions != null)
+        {
+            foreach (var a in actions)
+            {
+                try { a?.Invoke(); } catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in queued action while draining before save: {ex}"); }
+            }
+        }
+    }
+
 }

@@ -20,5 +20,7 @@ public class SpawnRecord
 [Serializable]
 public class SpawnRecordCollection
 {
+    public long snapshotSeq;
+    public long timestampTicks;
     public List<SpawnRecord> records = new List<SpawnRecord>();
 }

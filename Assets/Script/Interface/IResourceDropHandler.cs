@@ -8,5 +8,5 @@ public interface IResourceDropHandler
     /// Should return a list of spawned GameObjects (empty list if none). The handler may call manager APIs
     /// (e.g. SpawnPersistentDrop) which abstract away local vs network spawning.
     /// </summary>
-    List<GameObject> SpawnDrops(ResourceManagerOffline manager, GameObject currentInstance, SpawnRecord record);
+    List<GameObject> SpawnDrops(ResourceManager manager, GameObject currentInstance, SpawnRecord record);
 }

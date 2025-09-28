@@ -3,16 +3,10 @@ using UnityEngine;
 
 /// <summary>
 /// MyTree - immediate behavior:
-///  - On death: persist isChopped=true via ResourceManagerOffline (if available),
-///    spawn log/stump/sticks immediately,
-///    ensure the stump carries the same uniqueId and *inherits the original's localScale*,
-///    then destroy the original.
-///
-/// Key fixes:
-///  - When spawning a persistent replacement (stump), we preserve the original localScale
-///    and call ApplyState(treatAsReplacement:true) so persistence logic doesn't hide it.
-///  - Exposes GetTreeType() for other systems to detect stump type.
-///  - Debug logging toggles for quick diagnosing.
+///  - On death: persist isChopped=true via ResourceManager (if available),
+///    spawn log/stump/sticks immediately (visual feedback),
+///    ensure the stump carries the same uniqueId and inherits the original's localScale when we instantiate a dedicated stump (fallback),
+///    then destroy the original only in the local-only fallback.
 /// </summary>
 public class MyTree : BaseResource, IMinenable
 {
@@ -26,7 +20,7 @@ public class MyTree : BaseResource, IMinenable
     [Header("Prefabs")]
     [SerializeField] private Transform treeLogPrefab;
     [SerializeField] private Transform treeLogHalfPrefab;
-    [SerializeField] private Transform treeStumpPrefab; // persistent replacement
+    [SerializeField] private Transform treeStumpPrefab; // persistent replacement candidate
     [SerializeField] private Transform stickPrefab;
 
     [Header("Byproduct Settings")]
@@ -41,9 +35,6 @@ public class MyTree : BaseResource, IMinenable
     [Header("Debug")]
     [SerializeField] private bool debugMode = true;
     [SerializeField] private bool verboseDebug = true;
-
-    // small guard to avoid double-destroy
-    private bool isBeingDestroyed = false;
 
     protected override void InitializeHealth()
     {
@@ -61,52 +52,91 @@ public class MyTree : BaseResource, IMinenable
 
     protected override void OnResourceDestroyed()
     {
-        DebugLog($"OnResourceDestroyed called. isBeingDestroyed={isBeingDestroyed}, UniqueId='{UniqueId}', treeType={treeType}, instanceID={GetInstanceID()}");
+        DebugLog($"OnResourceDestroyed called. isBeingDestroyed={isBeingDestroyed}, isDestroyed={isDestroyed}, UniqueId='{UniqueId}', treeType={treeType}, instanceID={GetInstanceID()}");
 
-        if (isBeingDestroyed)
+        // Defensive early return: don't re-run if already destroying or destroyed.
+        // IMPORTANT: Do NOT set isBeingDestroyed here unconditionally; let the base method set it when
+        // calling RequestDestroyAndReplace (so manager flows happen correctly). Only set it for local-only fallback.
+        if (isBeingDestroyed || isDestroyed)
         {
-            Debug.LogWarning($"{gameObject.name}: OnResourceDestroyed called multiple times!");
+            Debug.LogWarning($"{gameObject.name}: OnResourceDestroyed called multiple times or already destroyed!");
             return;
         }
 
-        isBeingDestroyed = true;
         DebugLog($"{gameObject.name}: Tree destruction starting - Type: {treeType}");
 
-        // Persist the destroyed state in the manager BEFORE removing/spawning replacements.
-        // Note: ResourceInstanceOffline.ApplyState will be replacement-aware, so even if we persist
-        // before spawning the stump the replacement won't be immediately hidden.
-        if (!string.IsNullOrEmpty(UniqueId) && ResourceManagerOffline.Instance != null)
+        // Ensure we have an id for persistence flows
+        if (string.IsNullOrEmpty(UniqueId))
         {
+            GenerateUniqueIdIfMissing();
+            Debug.LogWarning($"{gameObject.name}: UniqueId missing — generated '{UniqueId}' for persistence.");
+        }
+
+        // Decide persistence path: if ResourceManager exists, use it; otherwise do local-only fallback.
+        var rm = FindFirstObjectByType<ResourceManager>();
+        bool rmPresent = rm != null;
+
+        // Spawn drops & non-stump byproducts first so they use the original transform/scale.
+        SpawnTreeComponentsImmediate(spawnStump: !rmPresent);
+
+        // If ResourceManager present -> request authoritative change and apply immediate visual feedback on this object.
+        if (rmPresent)
+        {
+            GameObject replacementPrefab = treeStumpPrefab != null ? treeStumpPrefab.gameObject : null;
+
+            // RequestDestroyAndReplace is implemented on the base; it will set isBeingDestroyed and route to manager.
             try
             {
-                ResourceManagerOffline.Instance.OnResourceStateChanged(UniqueId, true);
-                DebugLog($"{gameObject.name}: Called ResourceManagerOffline.OnResourceStateChanged('{UniqueId}', true)");
+                RequestDestroyAndReplace(replacementPrefab);
+                DebugLog($"{gameObject.name}: Requested destroy/replace via ResourceManager for UniqueId='{UniqueId}' (replacement={(replacementPrefab != null ? replacementPrefab.name : "<null>")})");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"{gameObject.name}: Exception while calling ResourceManagerOffline.OnResourceStateChanged: {ex}");
+                Debug.LogError($"{gameObject.name}: RequestDestroyAndReplace threw: {ex}");
             }
-        }
-        else
-        {
-            if (string.IsNullOrEmpty(UniqueId))
-                Debug.LogWarning($"{gameObject.name}: UniqueId missing — persistence may not work.");
-            if (ResourceManagerOffline.Instance == null)
-                Debug.LogWarning($"{gameObject.name}: ResourceManagerOffline.Instance is null — persistence may not work.");
+
+            // Immediate visual feedback: set destroyed replacement on the existing visual and apply chopped state.
+            try
+            {
+                var vis = GetComponent<ResourceInstanceVisual>() ?? gameObject.AddComponent<ResourceInstanceVisual>();
+                if (replacementPrefab != null)
+                {
+                    vis.SetDestroyedReplacementPrefab(replacementPrefab);
+                    vis.SetChoppedLocal(true);
+                    DebugLog($"{gameObject.name}: Applied visual replacement (no object destruction).");
+                }
+                else
+                {
+                    vis.SetChoppedLocal(true);
+                    DebugLog($"{gameObject.name}: Applied visual chopped state (no replacement prefab available).");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"{gameObject.name}: Failed to apply immediate visual via ResourceInstanceVisual: {ex}");
+            }
+
+            // Do NOT destroy this GameObject: ResourceManager is authoritative and will handle persistence + any instanced replacement policy.
+            return;
         }
 
-        // Spawn immediate replacements / drops
-        SpawnTreeComponentsImmediate();
+        // No ResourceManager present => local-only fallback: instantiate stump (preserve localScale & uniqueId) and destroy original.
+        // SpawnTreeComponentsImmediate already created the stump (spawnStump==true). Now mark being destroyed and remove this.
+        DebugLog($"{gameObject.name}: No ResourceManager found - performing local-only replacement and destroy.");
 
-        // Remove the original object from scene (use base class helper if available)
-        DebugLog($"{gameObject.name}: DestroyResource() about to be called.");
+        // Mark being destroyed to prevent re-entry (base would have done this if a manager existed).
+        isBeingDestroyed = true;
+
         DestroyResource();
     }
 
-    // Immediate spawn logic — spawns log + stump (or halves / sticks)
-    private void SpawnTreeComponentsImmediate()
+    /// <summary>
+    /// Immediate spawn logic — spawns log + stump (only when spawnStump==true) + halves/sticks.
+    /// When ResourceManager is present we call this with spawnStump=false (so manager handles persistent visuals).
+    /// </summary>
+    private void SpawnTreeComponentsImmediate(bool spawnStump)
     {
-        DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate start (treeType={treeType})");
+        DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate start (treeType={treeType}, spawnStump={spawnStump})");
 
         // spawn log (non-persistent drop)
         if (treeType == TreeType.Tree && treeLogPrefab != null)
@@ -119,12 +149,13 @@ public class MyTree : BaseResource, IMinenable
             );
             var logObj = Instantiate(treeLogPrefab, logPos, logRot);
             DebugLog($"Instantiated log prefab '{treeLogPrefab.name}' at {logPos} rot={logRot.eulerAngles} -> instanceID={logObj.GetInstanceID()}");
+            TryAddPhysicsTo(logObj.gameObject);
         }
 
-        // spawn stump (persistent replacement) if applicable
-        if (treeType == TreeType.Tree && treeStumpPrefab != null)
+        // spawn stump (persistent replacement) only if explicitly requested (no ResourceManager present)
+        if (spawnStump && treeType == TreeType.Tree && treeStumpPrefab != null)
         {
-            DebugLog($"Attempting to instantiate stump prefab '{treeStumpPrefab.name}' at pos={transform.position}, parent={(transform.parent != null ? transform.parent.name : "<null>")}");
+            DebugLog($"Instantiating local stump fallback '{treeStumpPrefab.name}' (local-only)");
             var stumpTransform = Instantiate(treeStumpPrefab, transform.position, transform.rotation, transform.parent);
 
             // Preserve localScale of the original tree so stump visually matches.
@@ -144,18 +175,18 @@ public class MyTree : BaseResource, IMinenable
             // assign uniqueId so loader recognizes this stump as the same record (chopped)
             try
             {
-                var inst = stumpGo.GetComponent<ResourceInstanceOffline>() ?? stumpGo.AddComponent<ResourceInstanceOffline>();
-                inst.uniqueId = UniqueId;
-                inst.isChopped = true;
-                // Treat the newly-created stump as a replacement so ApplyState won't hide it.
-                inst.ApplyState(treatAsReplacement: true);
-                DebugLog($"Assigned ResourceInstanceOffline(uniqueId='{UniqueId}', isChopped=true) and called ApplyState(treatAsReplacement:true)");
+                var vis = stumpGo.GetComponent<ResourceInstanceVisual>() ?? stumpGo.AddComponent<ResourceInstanceVisual>();
+                vis.SetUniqueId(UniqueId);
+                vis.isChopped = true;
+                vis.ApplyState(forceTreatAsReplacement: true);
+                DebugLog($"Assigned ResourceInstanceVisual(uniqueId='{UniqueId}', isChopped=true) and called ApplyState(treatAsReplacement:true)");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"{gameObject.name}: Exception while assigning ResourceInstanceOffline on stump: {ex}");
+                Debug.LogError($"{gameObject.name}: Exception while assigning ResourceInstanceVisual on stump: {ex}");
             }
 
+            // transfer BaseResource id if stump prefab has one
             var br = stumpGo.GetComponent<BaseResource>();
             if (br != null)
             {
@@ -197,6 +228,7 @@ public class MyTree : BaseResource, IMinenable
         {
             int minC = overrideMinDropCount >= 0 ? overrideMinDropCount : minDropCount;
             int maxC = overrideMaxDropCount >= 0 ? overrideMaxDropCount : maxDropCount;
+            if (minC > maxC) maxC = minC; // safety clamp
             int count = UnityEngine.Random.Range(minC, maxC + 1);
             DebugLog($"Spawning {count} sticks (min={minC} max={maxC})");
             for (int i = 0; i < count; i++)
@@ -204,6 +236,7 @@ public class MyTree : BaseResource, IMinenable
                 Vector3 offset = new Vector3(UnityEngine.Random.Range(-dropRadius, dropRadius), dropHeight, UnityEngine.Random.Range(-dropRadius, dropRadius));
                 var stick = Instantiate(stickPrefab, transform.position + offset, Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0));
                 DebugLog($"Instantiated stick {i} at {transform.position + offset} -> instanceID={stick.GetInstanceID()}");
+                TryAddPhysicsTo(stick.gameObject);
             }
         }
 
@@ -260,10 +293,8 @@ public class MyTree : BaseResource, IMinenable
             Debug.LogWarning($"{name}: stickPrefab not assigned!");
     }
 
-    // Public accessor to help other systems (ResourceInstanceOffline, ResourceManagerOffline) detect stump type
     public TreeType GetTreeType() => treeType;
 
-    // small helper to centralize debug output and avoid spamming Release builds
     private void DebugLog(string msg)
     {
         if (!debugMode) return;
