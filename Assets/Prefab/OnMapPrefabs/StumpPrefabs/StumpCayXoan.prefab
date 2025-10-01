@@ -69,6 +69,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5394407619354593339}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -6478741192571172639}
   m_SourcePrefab: {fileID: 100100000, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
 --- !u!1 &6907868166043829906 stripped
 GameObject:
@@ -87,15 +90,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  treeSize: 0
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
   treeType: 3
-  fxTreeDestroyed: {fileID: 0}
-  itemDrop: 5
-  particleSpawnPosition: {fileID: 0}
-  treeLog: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
-  treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStump: {fileID: 9190801894893699412}
+  treeSize: 0
+  treeLogPrefab: {fileID: 0}
+  treeLogHalfPrefab: {fileID: 0}
+  treeStumpPrefab: {fileID: 0}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!136 &5394407619354593339
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -119,6 +135,23 @@ CapsuleCollider:
   m_Height: 5.6801987
   m_Direction: 1
   m_Center: {x: 0.0000015497208, y: 0.31162083, z: -0.000004351139}
+--- !u!114 &-6478741192571172639
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6907868166043829906}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 2907262131
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!4 &9190801894893699412 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}

@@ -138,6 +138,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3213213092472956987}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -3247121773775613695}
   m_SourcePrefab: {fileID: 100100000, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
 --- !u!4 &4831145717909944171 stripped
 Transform:
@@ -167,24 +170,22 @@ MonoBehaviour:
   maxDropCount: 3
   dropRadius: 0.2
   dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
   treeType: 1
   treeSize: 2
   treeLogPrefab: {fileID: 4831145717909944171}
   treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
   treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  destructionFxPrefab: {fileID: 0}
-  particleSpawnPosition: {fileID: 0}
   halfLogSpacing: 1.2
-  useColliderBounds: 1
+  useColliderBoundsForLogLength: 1
   manualLogLength: 8
-  treeData:
-    position: {x: 0, y: 0, z: 0}
-    rotation: {x: 0, y: 0, z: 0, w: 0}
-    scale: {x: 0, y: 0, z: 0}
-    prefabIndex: 0
-    isCut: 0
-  spawner: {fileID: 0}
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!54 &1883712735772456090
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -235,3 +236,20 @@ CapsuleCollider:
   m_Height: 55.47296
   m_Direction: 1
   m_Center: {x: 0, y: 30.368473, z: -0.0000023841858}
+--- !u!114 &-3247121773775613695
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7159115580410048685}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 2904555828
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0

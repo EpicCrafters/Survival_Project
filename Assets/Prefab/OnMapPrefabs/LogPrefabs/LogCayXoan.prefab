@@ -237,6 +237,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6470522316935526281}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 133973184128388307}
   m_SourcePrefab: {fileID: 100100000, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
 --- !u!4 &496689655629043481 stripped
 Transform:
@@ -260,15 +263,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  treeSize: 1
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
   treeType: 1
-  fxTreeDestroyed: {fileID: 0}
-  itemDrop: 0
-  particleSpawnPosition: {fileID: 0}
-  treeLog: {fileID: 496689655629043481}
-  treeLogHalf: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStump: {fileID: 9190801894893699412, guid: 8042dffe65e713944a0931b5e0ffae8b, type: 3}
+  treeSize: 1
+  treeLogPrefab: {fileID: 0}
+  treeLogHalfPrefab: {fileID: 0}
+  treeStumpPrefab: {fileID: 0}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!54 &6602095077171950966
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -319,6 +335,23 @@ CapsuleCollider:
   m_Height: 35.45
   m_Direction: 1
   m_Center: {x: 1.1, y: 19.87, z: 0}
+--- !u!114 &133973184128388307
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2789272174467518687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 2912942792
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!1001 &7783397262670248902
 PrefabInstance:
   m_ObjectHideFlags: 0

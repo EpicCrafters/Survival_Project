@@ -1,83 +1,146 @@
 ﻿using UnityEngine;
 
-// MyRock kế thừa BaseResource và implement IMinenable
-// Quản lý các loại đá, từ đá nhỏ đến hòn đá lớn (Boulder)
+/// <summary>
+/// MyRock - simple breakable rock.
+/// - On death: spawn stone fragments + optional dust VFX, then request authoritative destroy via BaseResource.
+/// - Does not set isBeingDestroyed itself; RequestDestroyAndReplace will set that flag when appropriate.
+/// </summary>
 public class MyRock : BaseResource, IMinenable
 {
-    // Loại đá
     public enum RockType { SmallRock, MediumRock, LargeRock, Boulder }
 
     [Header("Rock Specific")]
-    [SerializeField] private RockType rockType = RockType.MediumRock; // Loại đá hiện tại
-    [SerializeField] private Transform stonePrefab;                   // Prefab các mảnh đá khi phá
+    [SerializeField] private RockType rockType = RockType.MediumRock; // current rock type
+    [SerializeField] private Transform stonePrefab;                   // prefab for stone fragments
 
     [Header("Rock Effects")]
-    [SerializeField] private Transform dustEffectPrefab;              // Hiệu ứng bụi khi phá đá
+    [SerializeField] private Transform dustEffectPrefab;              // dust VFX prefab
 
-    // Khởi tạo máu cho đá dựa trên loại
+    [Header("Fragment Settings (optional)")]
+    [SerializeField] private float fragmentUpForceMin = 0.6f;
+    [SerializeField] private float fragmentUpForceMax = 1.8f;
+    [SerializeField] private float fragmentScatterMin = 0.2f;
+    [SerializeField] private float fragmentScatterMax = 1.0f;
+    [SerializeField] private float fragmentTorqueMax = 1.0f;
+
     protected override void InitializeHealth()
     {
         int healthAmount = rockType switch
         {
-            RockType.SmallRock => 20,  // Đá nhỏ có ít máu
-            RockType.MediumRock => 30, // Đá vừa
-            RockType.LargeRock => 45,  // Đá lớn
-            RockType.Boulder => 60,    // Hòn đá to (khó phá)
+            RockType.SmallRock => 20,
+            RockType.MediumRock => 30,
+            RockType.LargeRock => 45,
+            RockType.Boulder => 60,
             _ => 30
         };
 
-        healthSystem = new HealthSystem(healthAmount); // Gán hệ thống máu
-        resourceType = ResourceType.Rock;             // Gán loại resource
+        healthSystem = new HealthSystem(healthAmount);
+        resourceType = ResourceType.Rock;
     }
 
-    // Hàm gọi khi đá bị phá hủy
+    /// <summary>
+    /// Called when the health system reports death.
+    /// Spawn immediate visual feedback then request authoritative destroy/replace via BaseResource.
+    /// </summary>
     protected override void OnResourceDestroyed()
     {
-        SpawnStones();       // Spawn mảnh đá rơi ra
-        SpawnDustEffect();   // Spawn hiệu ứng bụi
-        DestroyResource();   // Xóa object khỏi scene
-    }
-
-    // Spawn các mảnh đá rơi ra khi phá
-    private void SpawnStones()
-    {
-        int stoneCount = rockType switch
+        // Defensive early return: don't run twice if destruction already in progress
+        if (isBeingDestroyed || isDestroyed)
         {
-            RockType.SmallRock => Random.Range(1, 3),  // Đá nhỏ => 1-2 mảnh
-            RockType.MediumRock => Random.Range(2, 4), // Đá vừa => 2-3 mảnh
-            RockType.LargeRock => Random.Range(3, 6),  // Đá lớn => 3-5 mảnh
-            RockType.Boulder => Random.Range(5, 8),    // Boulder => 5-7 mảnh
-            _ => Random.Range(2, 4)
-        };
+            Debug.LogWarning($"{name}: OnResourceDestroyed called but already being destroyed/removed.");
+            return;
+        }
 
-        SpawnDrops(stonePrefab, stoneCount, transform.position); // Spawn các prefab đá
-    }
+        // 1) spawn fragments with simple physics
+        SpawnStonesWithPhysics();
 
-    // Spawn hiệu ứng bụi khi phá đá
-    private void SpawnDustEffect()
-    {
-        if (dustEffectPrefab != null)
+        // 2) spawn dust effect if assigned
+        SpawnDustEffect();
+
+        // 3) request manager-driven destroy/replace (if manager exists).
+        //    This lets ResourceManager handle persistence/networking.
+        try
         {
-            Instantiate(dustEffectPrefab, transform.position, Quaternion.identity);
+            RequestDestroyAndReplace(null); // no visual replacement prefab for rock by default
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"{name}: RequestDestroyAndReplace threw: {ex}. Falling back to local destroy.");
+            DestroyResource();
         }
     }
 
-    // Hàm xử lý khi đá nhận sát thương
+    /// <summary>
+    /// Spawns stone fragments and applies forces/torque for immediate visual feedback.
+    /// We instantiate each fragment individually so we can add Rigidbody impulses.
+    /// </summary>
+    private void SpawnStonesWithPhysics()
+    {
+        if (stonePrefab == null)
+        {
+            Debug.LogWarning($"{name}: stonePrefab not assigned - no fragments will be spawned.");
+            return;
+        }
+
+        int stoneCount = rockType switch
+        {
+            RockType.SmallRock => Random.Range(1, 3),   // 1-2
+            RockType.MediumRock => Random.Range(2, 4),  // 2-3
+            RockType.LargeRock => Random.Range(3, 6),   // 3-5
+            RockType.Boulder => Random.Range(5, 8),     // 5-7
+            _ => Random.Range(2, 4)
+        };
+
+        for (int i = 0; i < stoneCount; i++)
+        {
+            // random spawn offset around the rock using BaseResource's dropRadius / dropHeight if helpful
+            Vector3 offset = new Vector3(
+                Random.Range(-dropRadius, dropRadius),
+                dropHeight + Random.Range(0f, 0.3f),
+                Random.Range(-dropRadius, dropRadius)
+            );
+
+            Quaternion rot = Quaternion.Euler(
+                Random.Range(0f, 360f),
+                Random.Range(0f, 360f),
+                Random.Range(0f, 360f)
+            );
+
+            var frag = Instantiate(stonePrefab, transform.position + offset, rot);
+            if (frag == null) continue;
+
+            GameObject fragGo = frag.gameObject;
+
+            // Ensure it has a Rigidbody so physics applies
+            var rb = fragGo.GetComponent<Rigidbody>() ?? fragGo.AddComponent<Rigidbody>();
+
+            // Apply upward + scattered impulse and some torque
+            Vector3 upImpulse = Vector3.up * Random.Range(fragmentUpForceMin, fragmentUpForceMax);
+            Vector3 scatter = Random.insideUnitSphere * Random.Range(fragmentScatterMin, fragmentScatterMax);
+            rb.AddForce(upImpulse + scatter, ForceMode.Impulse);
+            rb.AddTorque(Random.insideUnitSphere * Random.Range(0.1f, fragmentTorqueMax), ForceMode.Impulse);
+        }
+    }
+
+    private void SpawnDustEffect()
+    {
+        if (dustEffectPrefab == null) return;
+        Instantiate(dustEffectPrefab, transform.position, transform.rotation);
+    }
+
     protected override void OnDamageReceived(int amount)
     {
         base.OnDamageReceived(amount);
-
-        // Có thể thêm feedback đặc thù cho đá ở đây
-        // Ví dụ: văng mảnh đá nhỏ, âm thanh nứt đá, v.v.
+        // optional: small rock-chunk spawn or crack sound/particles could go here
     }
 
-    // Kiểm tra các prefab đã được gán chưa
     protected override void ValidateComponents()
     {
         if (stonePrefab == null)
             Debug.LogWarning($"{name}: stonePrefab not assigned!");
+        if (dustEffectPrefab == null)
+            Debug.LogWarning($"{name}: dustEffectPrefab not assigned (optional).");
     }
 
-    // Trả về loại resource
     public override ResourceType GetResourceType() => ResourceType.Rock;
 }
