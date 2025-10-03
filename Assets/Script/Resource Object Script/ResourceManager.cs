@@ -38,55 +38,96 @@ public class ResourceStateChangeEvent
 [DisallowMultipleComponent]
 public class ResourceManager : MonoBehaviour
 {
-    // --- Singleton / service locator helpers ---
-    private static ResourceManager _instance;
-    private static readonly object _instanceLock = new object();
+    // NOTE: removed destructive singleton behavior to support multiple per-scene managers.
+    // Use per-scene registry and lookup helpers instead.
+
+    // --- Registry for multi-manager setups ---
+    private static readonly Dictionary<int, ResourceManager> managersBySceneHandle = new Dictionary<int, ResourceManager>();
+    private static readonly object managersBySceneLock = new object();
+
+    // Map uniqueId -> owning ResourceManager (global index for routing network requests)
+    private static readonly Dictionary<string, ResourceManager> managerByUniqueId = new Dictionary<string, ResourceManager>();
+    private static readonly object managerByUniqueIdLock = new object();
 
     /// <summary>
-    /// Public static accessor. Lazy-finds the manager if not already assigned.
-    /// Returns null if none exists (use GetOrCreateInstance to auto-create).
-    /// NOTE: call this from the main thread; Unity objects are not thread-safe.
+    /// Public static accessor. Returns any existing manager (first found) or null.
+    /// Kept for backwards compatibility; prefer manager lookup APIs below for correctness.
     /// </summary>
     public static ResourceManager Instance
     {
         get
         {
-            if (_instance == null)
+            // Try registry first
+            lock (managersBySceneLock)
             {
-                // Try to find an instance in the scene (costly but safe fallback)
-                _instance = FindObjectOfType<ResourceManager>();
-                if (_instance == null)
-                {
-                    Debug.LogWarning("[ResourceManager] Instance accessed but no ResourceManager present in scene.");
-                }
+                if (managersBySceneHandle.Count > 0)
+                    return managersBySceneHandle.Values.FirstOrDefault();
             }
-            return _instance;
+
+            // Fallback: try scene search
+            var found = FindObjectOfType<ResourceManager>();
+            if (found == null)
+            {
+                Debug.LogWarning("[ResourceManager] Instance accessed but no ResourceManager present in scene.");
+            }
+            return found;
         }
     }
 
     /// <summary>
     /// Ensure an instance exists. If none found, create a runtime one.
     /// Use only when you want an automatic manager (e.g. in small games / bootstrap).
+    /// This will create a standalone manager in the current active scene.
     /// </summary>
     public static ResourceManager GetOrCreateInstance(bool makePersistent = true)
     {
         var inst = Instance;
         if (inst != null) return inst;
 
-        lock (_instanceLock)
+        lock (managersBySceneLock)
         {
             inst = FindObjectOfType<ResourceManager>();
-            if (inst != null)
-            {
-                _instance = inst;
-                return _instance;
-            }
+            if (inst != null) return inst;
 
             var go = new GameObject("ResourceManager");
             if (makePersistent) DontDestroyOnLoad(go);
-            _instance = go.AddComponent<ResourceManager>();
+            inst = go.AddComponent<ResourceManager>();
             Debug.Log("[ResourceManager] Runtime-created ResourceManager instance.");
-            return _instance;
+            return inst;
+        }
+    }
+
+    // Expose helper to get manager by uniqueId
+    public static ResourceManager GetManagerForUniqueId(string uniqueId)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return null;
+        lock (managerByUniqueIdLock)
+        {
+            managerByUniqueId.TryGetValue(uniqueId, out var rm);
+            return rm;
+        }
+    }
+
+    public static ResourceManager GetManagerForGameObject(GameObject go)
+    {
+        if (go == null) return null;
+        return GetManagerForScene(go.scene);
+    }
+
+    public static ResourceManager GetManagerForScene(Scene s)
+    {
+        lock (managersBySceneLock)
+        {
+            managersBySceneHandle.TryGetValue(s.handle, out var rm);
+            return rm;
+        }
+    }
+
+    public static IEnumerable<ResourceManager> GetAllManagers()
+    {
+        lock (managersBySceneLock)
+        {
+            return managersBySceneHandle.Values.ToList();
         }
     }
 
@@ -135,7 +176,6 @@ public class ResourceManager : MonoBehaviour
     private readonly Dictionary<string, GameObject> instancesById = new Dictionary<string, GameObject>();
 
     // Map for runtime destroyed/stump replacement prefabs keyed by uniqueId.
-    // This lets external code supply a visual replacement for a specific resource at runtime.
     private readonly Dictionary<string, GameObject> destroyedReplacementPrefabMap = new Dictionary<string, GameObject>();
     private readonly object destroyedReplacementMapLock = new object();
 
@@ -176,18 +216,7 @@ public class ResourceManager : MonoBehaviour
 
     void Awake()
     {
-        // singleton registration (must be early)
-        if (_instance == null)
-        {
-            _instance = this;
-        }
-        else if (_instance != this)
-        {
-            Debug.LogWarning("[ResourceManager] Duplicate ResourceManager detected. Destroying duplicate.");
-            Destroy(this.gameObject);
-            return;
-        }
-
+        // Register this manager for its scene and proceed.
         mainThreadId = Thread.CurrentThread.ManagedThreadId;
         core = new ResourceManagerCore();
 
@@ -227,6 +256,21 @@ public class ResourceManager : MonoBehaviour
 
         // register runtime prefabs with Mirror early (best-effort)
         if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
+
+        // register this manager instance for its scene
+        try
+        {
+            int handle = this.gameObject.scene.handle;
+            lock (managersBySceneLock)
+            {
+                managersBySceneHandle[handle] = this;
+            }
+            LogV($"[ResourceManager] Registered manager '{name}' for scene '{this.gameObject.scene.name}' (handle={handle}).");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[ResourceManager] Failed to register manager for scene: {ex}");
+        }
     }
 
     void Start()
@@ -308,8 +352,28 @@ public class ResourceManager : MonoBehaviour
         try { network.OnChangeReceived -= HandleNetworkChange; network.OnSnapshotReceived -= HandleSnapshotReceived; } catch { }
         try { core.OnSpawnRequested -= SpawnRecordVisual; } catch { }
 
-        // clear singleton only if we are current instance
-        if (_instance == this) _instance = null;
+        // remove manager registry entry
+        try
+        {
+            int handle = this.gameObject.scene.handle;
+            lock (managersBySceneLock)
+            {
+                if (managersBySceneHandle.TryGetValue(handle, out var existing) && existing == this)
+                    managersBySceneHandle.Remove(handle);
+            }
+        }
+        catch { }
+
+        // remove any uniqueId -> this mappings owned by this manager
+        try
+        {
+            lock (managerByUniqueIdLock)
+            {
+                var keysToRemove = managerByUniqueId.Where(kv => kv.Value == this).Select(kv => kv.Key).ToList();
+                foreach (var k in keysToRemove) managerByUniqueId.Remove(k);
+            }
+        }
+        catch { }
     }
 
     #endregion
@@ -516,7 +580,7 @@ public class ResourceManager : MonoBehaviour
             try { network.RequestHostSave(); } catch (Exception ex) { Debug.LogWarning($"[ResourceManager] RequestHostSave failed: {ex}"); }
             return;
         }
-        
+
         var container = core.GetSnapshot();
         DrainMainThreadQueueImmediately();
         try
@@ -886,6 +950,16 @@ public class ResourceManager : MonoBehaviour
             }
             instancesById[uniqueId] = go;
         }
+
+        // register global ownership mapping so server can find the right manager by uniqueId
+        lock (managerByUniqueIdLock)
+        {
+            if (managerByUniqueId.TryGetValue(uniqueId, out var existingManager) && existingManager != this)
+            {
+                LogW($"[ResourceManager] uniqueId {uniqueId} already registered to manager '{existingManager.name}'. Overwriting to '{this.name}'.");
+            }
+            managerByUniqueId[uniqueId] = this;
+        }
     }
 
     // Overload used by SpawnRecordVisual (and existing call sites that pass ResourceInstanceVisual)
@@ -906,6 +980,11 @@ public class ResourceManager : MonoBehaviour
         lock (instancesById)
         {
             instancesById.Remove(uniqueId);
+        }
+
+        lock (managerByUniqueIdLock)
+        {
+            if (managerByUniqueId.TryGetValue(uniqueId, out var owner) && owner == this) managerByUniqueId.Remove(uniqueId);
         }
     }
 
