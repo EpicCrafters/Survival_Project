@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4261907004690067473}
   - component: {fileID: -2006452253060772740}
   - component: {fileID: 6925585722996701502}
+  - component: {fileID: 558189187012628973}
   m_Layer: 7
   m_Name: SmallRock
   m_TagString: Untagged
@@ -47,6 +48,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 595e24eea319e764189cdad81f2bbe21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   itemData: {fileID: 11400000, guid: 30f051a3db686c54bac6e422d2f8ca8c, type: 2}
 --- !u!65 &-2006452253060772740
 BoxCollider:
@@ -96,6 +100,23 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &558189187012628973
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 915257966390652907}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 686909697
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!1001 &1560670469904666187
 PrefabInstance:
   m_ObjectHideFlags: 0

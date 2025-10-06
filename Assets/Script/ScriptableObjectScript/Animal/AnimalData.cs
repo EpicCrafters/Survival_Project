@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [CreateAssetMenu()]
@@ -14,4 +15,8 @@ public class AnimalData : ScriptableObject
 
 
     public int idleCount;
+
+
+    [Header("Allowed States")]
+    public List<string> allowedStates = new List<string>();
 }

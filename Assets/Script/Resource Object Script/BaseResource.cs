@@ -87,7 +87,21 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         healthSystem.Damage(amount);
         OnDamageReceived(amount);
     }
+    public virtual void Damage(int amount, HitInfo hit)
+    {
+        if (isDestroyed || isBeingDestroyed || healthSystem == null) return;
 
+        healthSystem.Damage(amount);
+        OnDamageReceived(amount);
+
+        if (hit.point != Vector3.zero)
+        {
+            Debug.Log($"{gameObject.name} was hit at {hit.point}, took {amount} damage.");
+        }
+    }
+
+    public bool CanTriggerHitStop() => false; // Resources never trigger hit stop
+    public bool IsDead() => isDestroyed || (healthSystem != null && healthSystem.GetHealth() <= 0);
     /// <summary>
     /// Override to respond to damage events (e.g. play hit fx)
     /// </summary>

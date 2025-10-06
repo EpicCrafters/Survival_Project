@@ -59,6 +59,8 @@ public abstract class BaseAnimalAI : MonoBehaviour, IDamageable
 
     protected virtual void Start()
     {
+        if (healthBarUI != null)
+            healthBarUI.gameObject.SetActive(false);
         movement = GetComponent<AnimalMovement>();
         animationHandler = GetComponent<AnimalAnimator>();
         attackHandler = GetComponent<AnimalCombat>();
@@ -255,7 +257,8 @@ public abstract class BaseAnimalAI : MonoBehaviour, IDamageable
                 break;
         }
     }
-
+    public bool CanTriggerHitStop() => true; // Animals can trigger hit stop
+    public bool IsDead() => isDead || (healthSystem != null && healthSystem.GetHealth() <= 0);
     // Nhận sát thương
     public virtual void Damage(int amount)
     {
@@ -267,7 +270,10 @@ public abstract class BaseAnimalAI : MonoBehaviour, IDamageable
         stateBeforeHit = currentState;
         ChangeState(AnimalState.Hit);
     }
+    public void Damage(int amount, HitInfo hit)
+    {
 
+    }
     // Coroutine xử lý hit animation
     protected IEnumerator HitRoutine(float duration)
     {

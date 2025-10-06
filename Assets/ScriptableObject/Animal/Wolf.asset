@@ -20,3 +20,11 @@ MonoBehaviour:
   sighRange: 0
   canAttack: 1
   idleCount: 3
+  allowedStates:
+  - NormalState
+  - IdleState
+  - WanderState
+  - CombatState
+  - ChaseState
+  - AttackState
+  - RecoveryState

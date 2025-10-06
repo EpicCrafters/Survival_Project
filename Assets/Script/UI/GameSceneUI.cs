@@ -2,21 +2,23 @@ using UnityEngine;
 
 public class GameSceneUI : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-
-    [SerializeField] private Player player;
+    private Player player; // no longer [SerializeField]
     [SerializeField] private GameObject mainInventory;
+
     void Start()
     {
-       
         Hide();
     }
 
-    // Update is called once per frame
     void Update()
     {
+        if (player == null) return; // wait until player is assigned
         ShowInventory();
-        
+    }
+
+    public void SetPlayer(Player newPlayer)
+    {
+        player = newPlayer;
     }
 
     private void ShowInventory()
@@ -34,12 +36,11 @@ public class GameSceneUI : MonoBehaviour
 
     private void Show()
     {
-       
         mainInventory.SetActive(true);
     }
+
     private void Hide()
     {
-        
         mainInventory.SetActive(false);
     }
 }

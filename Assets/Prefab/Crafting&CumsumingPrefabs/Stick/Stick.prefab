@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 5054815120728687318}
   - component: {fileID: 5945051446908967118}
   - component: {fileID: 5134766343260045317}
+  - component: {fileID: 2409165816099146986}
   m_Layer: 7
   m_Name: Stick
   m_TagString: Untagged
@@ -70,6 +71,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 595e24eea319e764189cdad81f2bbe21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   itemData: {fileID: 11400000, guid: 6ea3ff16cdacd6c4188f6d68e98b049a, type: 2}
 --- !u!54 &5134766343260045317
 Rigidbody:
@@ -98,6 +102,23 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &2409165816099146986
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 235764449273442991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 3812822945
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!1001 &4788539678376128495
 PrefabInstance:
   m_ObjectHideFlags: 0

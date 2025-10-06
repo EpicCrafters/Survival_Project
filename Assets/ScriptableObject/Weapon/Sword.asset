@@ -12,10 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
   m_Name: Sword
   m_EditorClassIdentifier: 
+  id: 4
   itemName: Sword
   image: {fileID: 0}
   type: 0
-  worldPrefab: {fileID: 7311507267931744905, guid: 0fe8c4ad20ce8b946a61d68e14e204e0, type: 3}
+  worldPrefab: {fileID: 2803313211207175936, guid: 6b7e58a4bec11094b9b0e644c3d8160c, type: 3}
   itemPlace: 0
   snapToGrid: 1
   gridSize: 2
@@ -25,8 +26,6 @@ MonoBehaviour:
     range: 0
     combos:
     - animation: {fileID: -4791504522942941401, guid: 9636b926dc9bfa142a4cbc16ded814ab, type: 3}
-      damage: 20
-      cooldown: 6
   tool:
     toolType: 0
     damage: 0

@@ -75,6 +75,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3785947550028996800}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 9115077137782985949}
   m_SourcePrefab: {fileID: 100100000, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
 --- !u!1 &345173154147767209 stripped
 GameObject:
@@ -93,15 +96,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  treeSize: 0
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
   treeType: 2
-  fxTreeDestroyed: {fileID: 0}
-  itemDrop: 5
-  particleSpawnPosition: {fileID: 0}
-  treeLog: {fileID: 7140914831569588382, guid: 23dd6a38a0a8b984dbbcac46ac39991b, type: 3}
-  treeLogHalf: {fileID: 2637888889986962543}
-  treeStump: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
+  treeSize: 0
+  treeLogPrefab: {fileID: 0}
+  treeLogHalfPrefab: {fileID: 0}
+  treeStumpPrefab: {fileID: 0}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!114 &-2646021796204957693
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -114,6 +130,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 595e24eea319e764189cdad81f2bbe21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   itemData: {fileID: 11400000, guid: 99e6af84a3590e54f8b2b53ec101d073, type: 2}
 --- !u!136 &8819278414460323226
 CapsuleCollider:
@@ -165,6 +184,23 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &9115077137782985949
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 345173154147767209}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 3922332106
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!4 &2637888889986962543 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}

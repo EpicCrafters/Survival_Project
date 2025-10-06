@@ -17,9 +17,8 @@ public class InventoryManager : MonoBehaviour
     [SerializeField] private GameObject inventoryItemPrefab; // Prefab itemData để hiển thị trong slot
     [SerializeField] private GameInput gameInput; // Script nhận input từ người chơi
     //test
-    [SerializeField] private ItemData stick;
-    [SerializeField] private ItemData stone;
-    //[SerializeField] private ItemData slot3;
+    [SerializeField] public ItemData stick;
+    [SerializeField] public ItemData stone;
     //[SerializeField] private ItemData stair;
     //[SerializeField] private ItemData camfire;
     //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
@@ -40,36 +39,57 @@ public class InventoryManager : MonoBehaviour
     {
         ChangeHotbarSlot(IndexSlotBar); // Chọn ô đầu tiên của hotbar
         //AddItem(camfire);
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 1; i++)
         {
             AddItem(stick);
             AddItem(stone);
-            //AddItem(slot3);
+
         }
         //AddItem(stair);
         //if (sortButton != null)
         //    sortButton.onClick.AddListener(SortItems); // Gắn sự kiện bấm nút sắp xếp
     }
-
-    private void OnEnable()
+    public void SetPlayerHolding(PlayerHoldingItem holding)
     {
-        // Gắn sự kiện cuộn chuột và phím số khi bật UI
+        playerHolding = holding;
+    }
+
+    public void SetGameInput(GameInput input)
+    {
+        if (gameInput != null)
+        {
+            // Unsubscribe old one if needed
+            gameInput.OnScroll -= HandleScroll;
+            gameInput.OnNumberKeyPressed -= HandleNumberKey;
+        }
+
+        gameInput = input;
+
         if (gameInput != null)
         {
             gameInput.OnScroll += HandleScroll;
             gameInput.OnNumberKeyPressed += HandleNumberKey;
         }
     }
+    //private void OnEnable()
+    //{
+    //    // Gắn sự kiện cuộn chuột và phím số khi bật UI
+    //    if (gameInput != null)
+    //    {
+    //        gameInput.OnScroll += HandleScroll;
+    //        gameInput.OnNumberKeyPressed += HandleNumberKey;
+    //    }
+    //}
 
-    private void OnDisable()
-    {
-        // Gỡ sự kiện khi tắt UI
-        if (gameInput != null)
-        {
-            gameInput.OnScroll -= HandleScroll;
-            gameInput.OnNumberKeyPressed -= HandleNumberKey;
-        }
-    }
+    //private void OnDisable()
+    //{
+    //    // Gỡ sự kiện khi tắt UI
+    //    if (gameInput != null)
+    //    {
+    //        gameInput.OnScroll -= HandleScroll;
+    //        gameInput.OnNumberKeyPressed -= HandleNumberKey;
+    //    }
+    //}
 
     // Thêm vật phẩm vào kho
     public bool AddItem(ItemData itemData)
@@ -142,41 +162,57 @@ public class InventoryManager : MonoBehaviour
         InventoryItem inventoryItem = newItemGO.GetComponent<InventoryItem>();
         inventoryItem.InitialiseItem(item);
 
-
         for (int i = 0; i < hotbarSlots.Length; i++)
         {
             if (slot == hotbarSlots[i] && i == selectedHotbarIndex)
             {
-                playerHolding.HoldingItem(item);
+                if (playerHolding != null)   // ✅ Null check
+                {
+                    playerHolding.HoldingItem(item);
+                }
                 break;
             }
         }
     }
 
+
+
     // Đổi slot đang chọn trong hotbar
-    public void ChangeHotbarSlot(int index)
+    // In InventoryManager.cs, update the ChangeHotbarSlot method:
+
+    public void ChangeHotbarSlot(int index, bool forceRefresh = false)
     {
         if (hotbarSlots == null || index < 0 || index >= hotbarSlots.Length)
             return;
 
-        if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
-            hotbarSlots[selectedHotbarIndex].Deselect();
+        // Only deselect if switching to a new slot
+        if (selectedHotbarIndex != index)
+        {
+            if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
+                hotbarSlots[selectedHotbarIndex].Deselect();
 
-        hotbarSlots[index].Select();
-        selectedHotbarIndex = index;
+            hotbarSlots[index].Select();
+            selectedHotbarIndex = index;
+        }
 
+        // Always update held item
         InventoryItem selectedItem = hotbarSlots[index].GetComponentInChildren<InventoryItem>();
-        if (selectedItem != null)
+        if (playerHolding != null)
         {
-            playerHolding.HoldingItem(selectedItem.item);
+            if (selectedItem != null)
+            {
+                // ✅ FIXED: Always call HoldingItem, even if it's the same item
+                playerHolding.HoldingItem(selectedItem.item);
+            }
+            else
+            {
+                playerHolding.Clear();
+            }
         }
-        else
-        {
-            playerHolding.Clear();
-        }
-
-
     }
+
+
+
 
     // Cuộn qua các ô hotbar bằng chuột
     private void ScrollSlot(int direction)
@@ -208,7 +244,7 @@ public class InventoryManager : MonoBehaviour
         if (index >= 0 && index < hotbarSlots.Length)
         {
             IndexSlotBar = index;
-            ChangeHotbarSlot(IndexSlotBar);
+            ChangeHotbarSlot(IndexSlotBar, true); // force refresh
         }
     }
 

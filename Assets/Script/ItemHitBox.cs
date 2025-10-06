@@ -5,104 +5,86 @@ public class ItemHitBox : MonoBehaviour
 {
     public Collider hitbox;
     private ItemData itemData;
-
-    private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();// Lưu các đối tượng đã trúng trong 1 đòn đánh
+    private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();
 
     private void Awake()
     {
-
-
-
-        if (hitbox != null)
-        {
-            hitbox.enabled = false;
-
-        }
-
+        if (hitbox != null) hitbox.enabled = false;
     }
 
-    public void SetItemData(ItemData data) // Gán dữ liệu vật phẩm cho hitbox
-    {
-        itemData = data;
-    }
+    public void SetItemData(ItemData data) => itemData = data;
 
     public void EnableHitbox()
     {
-
-        //Debug.Log(" EnableHitbox called on " + gameObject.name);
         if (hitbox != null)
         {
-            //Debug.Log(" Enabling hitbox: " + hitbox.name);
             hitbox.enabled = true;
+            hitbox.isTrigger = true;
         }
-        else
-        {
-            Debug.LogWarning(" No hitbox assigned in ItemHitBox!");
-        }
+        alreadyHit.Clear();
     }
 
     public void DisableHitbox()
     {
-
-        alreadyHit.Clear();// Xoá danh sách đối tượng bi danh trung
-        //Debug.Log(" DisableHitbox called on " + gameObject.name);
         if (hitbox != null)
         {
-            //Debug.Log(" Disabling hitbox: " + hitbox.name);
             hitbox.enabled = false;
+            hitbox.isTrigger = false;
         }
-        else
-        {
-            Debug.LogWarning(" No hitbox assigned in ItemHitBox!");
-        }
+        alreadyHit.Clear();
     }
-
 
     private void OnTriggerEnter(Collider other)
     {
-        //Debug.Log("Hit something: " + other.gameObject.name);
-
-        if (alreadyHit.Contains(other.gameObject)) return;// đã bị đánh trúng trong cùng 1 lần chém 
-        alreadyHit.Add(other.gameObject); // Đánh dấu đã trúng
-
+        if (alreadyHit.Contains(other.gameObject)) return;
+        alreadyHit.Add(other.gameObject);
 
         if (itemData == null) return;
+        if (!other.TryGetComponent<IDamageable>(out var target)) return;
 
+        int dmg = 0;
         if (itemData.type == ItemType.Tool)
         {
-            IMinenable minable = other.GetComponent<IMinenable>();
-            if (minable != null)
+            if (other.TryGetComponent<IMinenable>(out var minable))
             {
-                ToolType heldTool = itemData.tool.toolType;
-                ResourceType resourceType = minable.GetResourceType();
-                // Kiểm tra công cụ có đúng với tài nguyên 
-                if (IsToolValidForResource(heldTool, resourceType))
-                {
-                    if (other.TryGetComponent<IDamageable>(out var target))
-                    {
-                        target.Damage(itemData.tool.damage);
-                        Debug.Log($"Tool damaged {other.gameObject.name} for {itemData.tool.damage}");
-                    }
-                }
-                return; 
+                if (IsToolValidForResource(itemData.tool.toolType, minable.GetResourceType()))
+                    dmg = itemData.tool.damage;
             }
         }
-
-        if (itemData.type == ItemType.Weapon)
+        else if (itemData.type == ItemType.Weapon)
         {
-            if (other.TryGetComponent<IDamageable>(out var target))
+            dmg = itemData.weapon.damage;
+        }
+
+        if (dmg > 0)
+        {
+            Vector3 hitPoint = other.ClosestPoint(transform.position);
+            Vector3 hitNormal = (other.transform.position - transform.position).normalized;
+
+            HitInfo hit = new HitInfo(hitPoint, hitNormal, transform.forward, gameObject, itemData);
+
+            // Apply damage
+            target.Damage(dmg, hit);
+
+            // ✅ Only trigger hit stop if target allows it
+            if (target.CanTriggerHitStop())
             {
-                target.Damage(itemData.weapon.damage);
-                Debug.Log($"Weapon damaged {other.gameObject.name} for {itemData.weapon.damage}");
+                var hitStop = GetComponentInParent<LocalHitStop>();
+                if (hitStop != null)
+                {
+                    // Optional: only do hit stop if the hit killed the target
+                    if (target.IsDead())
+                        hitStop.DoHitStop(0.08f);
+                    //else
+                    //    hitStop.DoHitStop(0.08f);
+                }
             }
         }
     }
 
-    private bool IsToolValidForResource(ToolType tool, ResourceType resource) // kiểm tra xem công cụ có đúng với loại tài nguyên 
+    private bool IsToolValidForResource(ToolType tool, ResourceType resource)
     {
-        // Example logic: customize as needed
         return (tool == ToolType.Axe && resource == ResourceType.Tree)
-            || (tool == ToolType.Pickaxe && resource == ResourceType.Rock)
-            ;
+            || (tool == ToolType.Pickaxe && resource == ResourceType.Rock);
     }
 }

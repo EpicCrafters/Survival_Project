@@ -1,13 +1,16 @@
+using Mirror;
 using UnityEngine;
 
-public class Item : MonoBehaviour, IPickupAble
+public class Item : NetworkBehaviour, IPickupAble
 {
     public ItemData itemData;
     private Transform target; // the player's transform
     private float flySpeed = 10f;
     private float destroyDistance = 0.5f;
 
-    public void Pickup()
+
+    [Server]
+    public void Pickup(NetworkIdentity picker)
     {
         //// Find the player or set target externally if needed
         //GameObject player = GameObject.FindWithTag("Player");
@@ -19,8 +22,8 @@ public class Item : MonoBehaviour, IPickupAble
         //else
         //{
         //    Debug.LogWarning("Player not found, destroying item immediately.");
-            Destroy(gameObject);
-        
+        NetworkServer.Destroy(gameObject);
+
     }
 
     //private System.Collections.IEnumerator FlyToPlayer()

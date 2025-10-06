@@ -1,11 +1,12 @@
-﻿using UnityEngine;
+﻿using Mirror;
+using UnityEngine;
 
-public class PlayerCombat : MonoBehaviour
+public class PlayerCombat : NetworkBehaviour
 {
     [Header("References")]
     [SerializeField] private GameInput gameInput;
     [SerializeField] private PlayerAnimator playerAnimator;
-    [SerializeField] private WeaponAnimatorHandler weaponHandler; // gives us current weapon data
+    [SerializeField] private WeaponAnimatorHandler weaponHandler;
 
     private bool isAttacking = false;
     private bool isReadyToAttack = true;
@@ -14,13 +15,29 @@ public class PlayerCombat : MonoBehaviour
     private bool canCombo = false;
     private bool queuedAttack = false;
 
-    private void Awake()
+    public override void OnStartLocalPlayer()
     {
-        if (gameInput != null)
-            gameInput.OnAttack += HandleAttackInput;
-    }
+        base.OnStartLocalPlayer();
 
-    private void OnDestroy()
+        // Grab the GameInput only for this player
+        gameInput = GetComponentInChildren<GameInput>(true);
+
+        if (gameInput != null)
+        {
+            gameInput.gameObject.SetActive(true);
+            gameInput.OnAttack += HandleAttackInput;
+            Debug.Log($"[{name}] LocalPlayer input enabled.");
+
+            // Let inventory know this player's input
+            
+        }
+    }
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+        Debug.Log($"OnStartClient: name={gameObject.name} netId={netId} owner={isLocalPlayer} animator={playerAnimator?.gameObject.name}");
+    }
+    public override void OnStopLocalPlayer()
     {
         if (gameInput != null)
             gameInput.OnAttack -= HandleAttackInput;
@@ -28,39 +45,33 @@ public class PlayerCombat : MonoBehaviour
 
     private void HandleAttackInput(object sender, System.EventArgs e)
     {
-        if (isReadyToAttack)
-        {
-            DoAttack();
-        }
-        else if (canCombo)
-        {
-            queuedAttack = true; // player clicked early, remember it
-        }
+        if (!isLocalPlayer) return;
+        if (!isReadyToAttack) return;
+        CmdDoAttack();
+
+
+
+
     }
 
-    private void DoAttack()
+    // ------------------ Mirror Networking ------------------
+
+    [Command]
+    private void CmdDoAttack()
     {
-        if (weaponHandler.CurrentWeapon == null)
-            return;
 
-        int maxCombo = weaponHandler.CurrentWeapon.weapon.combos.Length;
-
-        // reset if we go over max combo
-        if (comboStep >= maxCombo)
-            comboStep = 0;
-
-        comboStep++;
-
-        //isAttacking = true;
-        //isReadyToAttack = false;
-
-        Debug.Log($"Playing Combo {comboStep}/{maxCombo} for {weaponHandler.CurrentWeapon.itemName}");
-        playerAnimator.TriggerAttack();
-       
-        // ^ pass comboStep so animator knows which animation to play
+        RpcPlayAttack();
     }
 
-    // Called from animation event 
+    [ClientRpc]
+    private void RpcPlayAttack()
+    {
+
+        playerAnimator.TriggerAttack();
+    }
+
+    // ------------------ Animation event callbacks ------------------
+
     public void OpenComboWindow()
     {
         canCombo = true;
@@ -68,17 +79,16 @@ public class PlayerCombat : MonoBehaviour
         if (queuedAttack)
         {
             queuedAttack = false;
-            DoAttack(); // immediately continue combo
+            if (isLocalPlayer)
+            {
+                Debug.Log($"[{name}] Queued attack executed.");
+                CmdDoAttack(); // send queued attack to server
+            }
         }
     }
 
-    // Called from animation event 
-    public void CloseComboWindow()
-    {
-        canCombo = false;
-    }
+    public void CloseComboWindow() => canCombo = false;
 
-    // Called at end of last combo animation
     public void EndCombo()
     {
         comboStep = 0;
@@ -86,11 +96,7 @@ public class PlayerCombat : MonoBehaviour
         isReadyToAttack = true;
         canCombo = false;
         queuedAttack = false;
-    }
 
-
-    public int CurrentCombo()
-    {
-        return comboStep;
+        Debug.Log($"[{name}] Combo ended.");
     }
 }

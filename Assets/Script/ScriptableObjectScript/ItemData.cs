@@ -42,8 +42,7 @@ public enum BuildingPartType
 public class ComboData
 {
     public AnimationClip animation;
-    public int damage;
-    public float cooldown;
+   
 }
 
 [System.Serializable]
@@ -80,7 +79,7 @@ public class ResourceStats
 {
     public bool stackable;
     public int maxStack = 10;
-    
+
 }
 [System.Serializable]
 public class BuildingStats
@@ -97,6 +96,8 @@ public class BuildingStats
 public class ItemData : ScriptableObject
 {
     [Header("Basic Info")]
+
+    public int id;
     public string itemName;
     public Sprite image;
     public ItemType type;
@@ -127,7 +128,7 @@ public class ItemData : ScriptableObject
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
-
+            UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("id"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("itemName"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("image"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("worldPrefab"));

@@ -1,8 +1,9 @@
-﻿using TMPro;
+﻿using Mirror;
+using TMPro;
 using UnityEngine;
 
 // Quản lý tương tác player với vật phẩm, công trình, cây/đá
-public class PlayerInteract : MonoBehaviour
+public class PlayerInteract : NetworkBehaviour
 {
     private InventoryManager inventoryManager;
     private PlayerHoldingItem playerHoldingItem;
@@ -34,18 +35,45 @@ public class PlayerInteract : MonoBehaviour
 
     private void Start()
     {
+
+
+
+
         inventoryManager = InventoryManager.instance;
         playerHoldingItem = GetComponent<PlayerHoldingItem>();
+        if (interactionRayOrigin == null)
+        {
+            Camera cam = Camera.main;
+            if (cam != null)
+                interactionRayOrigin = cam.transform;
+            else
+                Debug.LogError("No Main Camera found! Please tag your camera as MainCamera.");
+        }
+        // Auto-find GameInput
+        if (gameInput == null)
+            gameInput = FindObjectOfType<GameInput>();
 
-        // Đăng ký sự kiện input
         if (gameInput != null)
         {
             gameInput.OnInteractStarted += OnInteractStarted;
             gameInput.OnInteractFinished += OnInteractFinished;
             gameInput.OnInteract += OnInteractPressed;
         }
+        else
+        {
+            Debug.LogError("GameInput not found in scene!");
+        }
 
-        // Tạo layer mask
+
+        if (uiManager == null)
+            uiManager = FindObjectOfType<UIManager>();
+
+        if (uiManager == null)
+            Debug.LogError("UIManager not found in scene!");
+
+
+
+
         int pickupableLayer = LayerMask.NameToLayer("Pickupable");
         int interactableLayer = LayerMask.NameToLayer("Interactable");
         int mineableLayer = LayerMask.NameToLayer("Mineable");
@@ -53,11 +81,16 @@ public class PlayerInteract : MonoBehaviour
 
         interactableLayers = (1 << pickupableLayer) | (1 << interactableLayer) |
                              (1 << mineableLayer) | (1 << bothLayer);
+
         currentRayDistance = interactRay;
     }
 
+
     private void Update()
     {
+
+        if (!isLocalPlayer) return;
+
         PerformRaycast();
 
         // Cập nhật fill nếu đang mining
@@ -70,9 +103,9 @@ public class PlayerInteract : MonoBehaviour
         }
     }
 
-    // -------------------------
+
     // Xử lý nhấn nút tương tác
-    // -------------------------
+
     private void OnInteractPressed(object sender, System.EventArgs e)
     {
         if (isReadyToPickup) TryPickupCurrentItem();
@@ -88,16 +121,28 @@ public class PlayerInteract : MonoBehaviour
     {
         if (isReadyToMine)
             isHoldingInteract = true;
+
+        if (TryGetComponent<PlayerAnimator>(out var animator))
+        {
+            if (animator.isLocalPlayer)
+                animator.CmdSetMining(true);
+        }
     }
 
     private void OnInteractFinished(object sender, System.EventArgs e)
     {
         isHoldingInteract = false;
+
+        if (TryGetComponent<PlayerAnimator>(out var animator))
+        {
+            if (animator.isLocalPlayer)
+                animator.CmdSetMining(false);
+        }
     }
 
-    // -------------------------
+
     // Raycast để kiểm tra object phía trước
-    // -------------------------
+
     private void PerformRaycast()
     {
         if (interactionRayOrigin == null || rayStartPoint == null) return;
@@ -133,9 +178,9 @@ public class PlayerInteract : MonoBehaviour
         ClearInteractionState();
     }
 
-    // -------------------------
+
     // Kiểm tra nhặt vật phẩm
-    // -------------------------
+
     private bool TrySetPickupable(RaycastHit hit)
     {
         if (hit.collider.TryGetComponent(out IPickupAble pickup))
@@ -152,9 +197,9 @@ public class PlayerInteract : MonoBehaviour
         return false;
     }
 
-    // -------------------------
+
     // Kiểm tra tương tác object
-    // -------------------------
+
     private bool TrySetInteractable(RaycastHit hit)
     {
         if (hit.collider.TryGetComponent(out Iinteractable interactable))
@@ -174,9 +219,9 @@ public class PlayerInteract : MonoBehaviour
         return false;
     }
 
-    // -------------------------
+
     // Kiểm tra mining (cây/đá)
-    // -------------------------
+
     private bool TrySetMineable(RaycastHit hit)
     {
         if (!hit.collider.TryGetComponent(out IMinenable minenable)) return false;
@@ -219,9 +264,9 @@ public class PlayerInteract : MonoBehaviour
         return true;
     }
 
-    // -------------------------
+
     // Nhặt vật phẩm
-    // -------------------------
+
     private void TryPickupCurrentItem()
     {
         if (currentPickup == null) return;
@@ -231,7 +276,7 @@ public class PlayerInteract : MonoBehaviour
             bool added = inventoryManager?.AddItem(itemComponent.itemData) ?? false;
             if (added)
             {
-                currentPickup.Pickup();
+                CmdPickupItem(itemComponent.netIdentity);
                 ClearInteractionState();
             }
             else
@@ -241,9 +286,16 @@ public class PlayerInteract : MonoBehaviour
         }
     }
 
-    // -------------------------
+    [Command]
+    private void CmdPickupItem(NetworkIdentity itemNetId)
+    {
+        if (itemNetId != null && itemNetId.TryGetComponent<IPickupAble>(out var pickup))
+        {
+            pickup.Pickup(connectionToClient.identity);
+        }
+    }
     // Reset trạng thái tương tác
-    // -------------------------
+
     private void ClearInteractionState()
     {
         uiManager.HideInteractUI();
@@ -265,9 +317,9 @@ public class PlayerInteract : MonoBehaviour
         currentInteractable = null;
     }
 
-    // -------------------------
+
     // Getter trạng thái
-    // -------------------------
+
     public bool IsMining() => isHoldingInteract;
     public bool IsTree() => isTree;
     public bool IsRock() => isRock;
