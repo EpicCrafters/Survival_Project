@@ -36,7 +36,7 @@ public class ResourceStateChangeEvent
 }
 
 [DisallowMultipleComponent]
-public class ResourceManager : MonoBehaviour
+public class ResourceManager : MonoBehaviour,ISaveable
 {
     // NOTE: removed destructive singleton behavior to support multiple per-scene managers.
     // Use per-scene registry and lookup helpers instead.
@@ -206,8 +206,8 @@ public class ResourceManager : MonoBehaviour
     private bool runtimePrefabsRegisteredWithMirror = false;
 
     // small helpers
-    void LogV(string s) { if (verboseLogs) Debug.Log(s); }
-    void LogW(string s) { if (verboseLogs) Debug.LogWarning(s); }
+    void LogV(string s) { /*if (verboseLogs) Debug.Log(s);*/ }
+    void LogW(string s) { /*if (verboseLogs) Debug.LogWarning(s);*/ }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void OnDomainReload() { /* no-op placeholder in this file */ }
@@ -1086,5 +1086,18 @@ public class ResourceManager : MonoBehaviour
             }
         }
     }
+    public bool HasUnsavedChanges => hasUnsavedChanges;
+    public string SaveableName => gameObject.name;
+    public string SceneName => gameObject.scene.name;
 
+    private void OnEnable()
+    {
+        SaveManager.Instance?.Register(this);
+        // hoặc nếu bạn muốn đảm bảo register sau Awake của SaveManager, có thể Start() check
+    }
+
+    private void OnDisable()
+    {
+        SaveManager.Instance?.Unregister(this);
+    }
 }

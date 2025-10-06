@@ -1,14 +1,10 @@
+﻿// PersistenceSceneManager.cs
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Robust PersistenceSceneManager � finds all loaded ResourceManager instances across loaded scenes (including additive),
-/// logs exactly what it found, and calls SaveNow() on each one. Attach in your persistence scene and wire OnSaveButtonPressed()
-/// to the Save button's OnClick.
-/// </summary>
 public class PersistenceSceneManager : MonoBehaviour
 {
     [Header("Behavior")]
@@ -19,8 +15,12 @@ public class PersistenceSceneManager : MonoBehaviour
     [Header("Logging")]
     public bool verbose = true;
 
+    [Header("Fallback options")]
+    [Tooltip("Nếu true sẽ fallback quét scene để tìm ISaveable khi SaveManager không tồn tại hoặc không có bản ghi.")]
+    public bool allowFallbackScan = true;
+
     /// <summary>
-    /// Called by the UI Button (OnClick). Kicks off the save process.
+    /// Gọi từ UI button. Orchestrator chính.
     /// </summary>
     public void OnSaveButtonPressed()
     {
@@ -40,142 +40,147 @@ public class PersistenceSceneManager : MonoBehaviour
 
     public void SaveAllImmediate()
     {
-        var managers = FindLoadedResourceManagers();
-        if (managers == null || managers.Count == 0)
+        var saveables = GatherSaveables();
+        if (saveables == null || saveables.Count == 0)
         {
-            Debug.LogWarning("[PersistenceSceneManager] SaveAllImmediate: no ResourceManager instances found to save.");
+            Debug.LogWarning("[PersistenceSceneManager] SaveAllImmediate: no ISaveable instances found.");
             return;
         }
 
-        if (verbose) Debug.Log($"[PersistenceSceneManager] SaveAllImmediate: saving {managers.Count} ResourceManager(s).");
-        foreach (var rm in managers)
+        if (verbose) Debug.Log($"[PersistenceSceneManager] SaveAllImmediate: saving {saveables.Count} ISaveable(s).");
+        foreach (var s in saveables)
         {
-            TrySaveManager(rm);
+            TrySave(s);
         }
+
         if (verbose) Debug.Log("[PersistenceSceneManager] SaveAllImmediate: completed.");
     }
 
-    public IEnumerator SaveAllCoroutine()
+    private IEnumerator SaveAllCoroutine()
     {
-        var managers = FindLoadedResourceManagers();
-        if (managers == null || managers.Count == 0)
+        var saveables = GatherSaveables();
+        if (saveables == null || saveables.Count == 0)
         {
-            Debug.LogWarning("[PersistenceSceneManager] SaveAllCoroutine: no ResourceManager instances found to save.");
+            Debug.LogWarning("[PersistenceSceneManager] SaveAllCoroutine: no ISaveable instances found.");
             yield break;
         }
 
-        if (verbose) Debug.Log($"[PersistenceSceneManager] SaveAllCoroutine: saving {managers.Count} ResourceManager(s) (staggered).");
+        if (verbose) Debug.Log($"[PersistenceSceneManager] SaveAllCoroutine: saving {saveables.Count} ISaveable(s) (staggered).");
 
-        foreach (var rm in managers)
+        foreach (var s in saveables)
         {
-            TrySaveManager(rm);
+            TrySave(s);
 
             if (useDelayBetween)
                 yield return new WaitForSecondsRealtime(Mathf.Max(0f, delayBetweenSeconds));
             else
-                yield return null;
+                yield return null; // spread across frames
         }
 
         if (verbose) Debug.Log("[PersistenceSceneManager] SaveAllCoroutine: completed.");
     }
 
-    // --------- robust finder ----------
+    // ---------- core helpers ----------
+
     /// <summary>
-    /// Reliable search across all currently loaded scenes.
-    /// - Walks every loaded scene and looks for active ResourceManager components in root objects & their children.
-    /// - Returns unique set (no duplicates).
+    /// Gather list of ISaveable to save.
+    /// Priority:
+    /// 1) SaveManager.Instance.GetSaveables() (if exists and non-empty)
+    /// 2) Fallback: scan all MonoBehaviours (include inactive) and pick those implementing ISaveable
+    /// Returns a de-duplicated list.
     /// </summary>
-    private List<ResourceManager> FindLoadedResourceManagers()
+    private List<ISaveable> GatherSaveables()
     {
-        var results = new List<ResourceManager>();
+        var results = new List<ISaveable>();
+
+        // 1) Try registry first
+        if (SaveManager.Instance != null)
+        {
+            try
+            {
+                var reg = SaveManager.Instance.GetSaveables();
+                if (reg != null && reg.Count > 0)
+                {
+                    foreach (var s in reg)
+                        if (s != null && !results.Contains(s))
+                            results.Add(s);
+
+                    if (verbose) Debug.Log($"[PersistenceSceneManager] GatherSaveables: found {results.Count} via SaveManager registry.");
+                    return results;
+                }
+                else
+                {
+                    if (verbose) Debug.Log("[PersistenceSceneManager] GatherSaveables: SaveManager found but registry empty.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PersistenceSceneManager] Error reading SaveManager registry: {ex}");
+            }
+        }
+        else
+        {
+            if (verbose) Debug.Log("[PersistenceSceneManager] GatherSaveables: SaveManager.Instance is null.");
+        }
+
+        // 2) Fallback scan (only if allowed)
+        if (!allowFallbackScan)
+        {
+            if (verbose) Debug.Log("[PersistenceSceneManager] Fallback scan disabled.");
+            return results;
+        }
 
         try
         {
-            int sceneCount = SceneManager.sceneCount;
-            if (verbose) Debug.Log($"[PersistenceSceneManager] Searching {sceneCount} loaded scene(s) for ResourceManager...");
-
-            for (int i = 0; i < sceneCount; i++)
-            {
-                var s = SceneManager.GetSceneAt(i);
-                if (!s.isLoaded)
-                {
-                    if (verbose) Debug.Log($"[PersistenceSceneManager] Scene at index {i} not loaded (skip).");
-                    continue;
-                }
-
-                var roots = s.GetRootGameObjects();
-                if (roots == null || roots.Length == 0)
-                {
-                    if (verbose) Debug.Log($"[PersistenceSceneManager] Scene '{s.name}' has no root objects.");
-                    continue;
-                }
-
-                foreach (var root in roots)
-                {
-                    if (root == null) continue;
-                    // find ResourceManager in this root (including inactive children)
-                    var rm = root.GetComponentInChildren<ResourceManager>(includeInactive: true);
-                    if (rm != null)
-                    {
-                        if (!results.Contains(rm)) results.Add(rm);
-                        if (verbose) Debug.Log($"[PersistenceSceneManager] Found ResourceManager '{rm.name}' in scene '{s.name}'.");
-                    }
-                }
-            }
-
-            // final fallback: if still empty, try FindObjectsOfType (covers unusual cases)
-            if (results.Count == 0)
-            {
 #if UNITY_2020_1_OR_NEWER
-                var all = FindObjectsOfType<ResourceManager>(includeInactive: true);
+            var monos = FindObjectsOfType<MonoBehaviour>(true); // include inactive
 #else
-                var all = FindObjectsOfType<ResourceManager>();
+            var monos = Resources.FindObjectsOfTypeAll<MonoBehaviour>(); // older Unity fallback
 #endif
-                foreach (var a in all)
-                {
-                    if (a == null) continue;
-                    if (!results.Contains(a)) results.Add(a);
-                    if (verbose) Debug.Log($"[PersistenceSceneManager] (Fallback) Found ResourceManager '{a.name}' via FindObjectsOfType.");
-                }
+            foreach (var m in monos)
+            {
+                if (m == null) continue;
+                if (m is ISaveable s && s != null && !results.Contains(s))
+                    results.Add(s);
             }
+
+            if (verbose) Debug.Log($"[PersistenceSceneManager] GatherSaveables: fallback scan found {results.Count} ISaveable(s).");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[PersistenceSceneManager] Exception while searching for ResourceManagers: {ex}");
+            Debug.LogError($"[PersistenceSceneManager] Exception during fallback scan: {ex}");
         }
 
         return results;
     }
 
-    // --------- saving helper ----------
-    private void TrySaveManager(ResourceManager rm)
+    private void TrySave(ISaveable s)
     {
-        if (rm == null) return;
+        if (s == null) return;
 
         try
         {
-            if (verbose) Debug.Log($"[PersistenceSceneManager] Saving ResourceManager '{rm.name}' (role={rm.role}) ...");
-            rm.SaveNow();
+            if (verbose) Debug.Log($"[PersistenceSceneManager] Saving '{s.SaveableName}' (scene={s.SceneName}) ...");
+            s.SaveNow();
 
-            if (rm.hasUnsavedChanges)
-                Debug.LogWarning($"[PersistenceSceneManager] ResourceManager '{rm.name}' still has unsaved changes after SaveNow().");
-            else
-                if (verbose) Debug.Log($"[PersistenceSceneManager] ResourceManager '{rm.name}' saved successfully.");
+            if (s.HasUnsavedChanges)
+                Debug.LogWarning($"[PersistenceSceneManager] '{s.SaveableName}' vẫn còn unsaved changes sau SaveNow().");
+            else if (verbose)
+                Debug.Log($"[PersistenceSceneManager] '{s.SaveableName}' saved successfully.");
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[PersistenceSceneManager] Exception while saving ResourceManager '{rm.name}': {ex}");
+            Debug.LogError($"[PersistenceSceneManager] Exception while saving '{s.SaveableName}': {ex}");
         }
     }
 
-    // ---------- Editor / debug convenience ----------
 #if UNITY_EDITOR
-    [ContextMenu("Debug: Print Found ResourceManagers")]
-    private void Editor_PrintFoundManagers()
+    [ContextMenu("Debug: Print Found ISaveables")]
+    private void Editor_PrintFoundSaveables()
     {
-        var managers = FindLoadedResourceManagers();
-        Debug.Log($"[PersistenceSceneManager] Editor_PrintFoundManagers: found {managers.Count}");
-        foreach (var m in managers) Debug.Log($" - {m.name} (role={m.role}) in scene '{m.gameObject.scene.name}'");
+        var list = GatherSaveables();
+        Debug.Log($"[PersistenceSceneManager] Editor_PrintFoundSaveables: found {list.Count}");
+        foreach (var s in list) Debug.Log($" - {s.SaveableName} (scene={s.SceneName})");
     }
 #endif
 }

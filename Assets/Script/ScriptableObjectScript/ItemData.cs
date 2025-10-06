@@ -1,4 +1,4 @@
-using JetBrains.Annotations;
+﻿using JetBrains.Annotations;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -84,12 +84,16 @@ public class ResourceStats
 [System.Serializable]
 public class BuildingStats
 {
+    public string id;
     public BuildingPartType partType;
     public bool stackable;
     public int maxStack = 5;
     public bool snapToGridEdge;
     public List<ItemData> ignorObject;
     public LayerMask groundMask;
+    public int verticalOffset = 0;
+    public float thickness = 0.2f;            // chiều dày world units (dùng nếu muốn)
+    public Vector3 placementAnchorOffset;     // local offset (child pivot) để align prefab với slot
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]

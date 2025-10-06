@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
   m_Name: Foundation
   m_EditorClassIdentifier: 
+  id: 0
   itemName: 
   image: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   type: 4
@@ -23,6 +24,7 @@ MonoBehaviour:
     weaponType: 0
     damage: 0
     range: 0
+    combos: []
   tool:
     toolType: 0
     damage: 0
@@ -33,6 +35,7 @@ MonoBehaviour:
     stackable: 0
     maxStack: 10
   building:
+    id: 1
     partType: 0
     stackable: 1
     maxStack: 5
@@ -41,3 +44,6 @@ MonoBehaviour:
     groundMask:
       serializedVersion: 2
       m_Bits: 2112
+    verticalOffset: 0
+    thickness: 0.2
+    placementAnchorOffset: {x: 0, y: 0, z: 0}
