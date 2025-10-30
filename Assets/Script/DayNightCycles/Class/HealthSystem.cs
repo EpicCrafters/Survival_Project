@@ -39,4 +39,12 @@ public class HealthSystem
 
         OnHealthChanged?.Invoke(health, healthMax);
     }
+
+    public void SetHealth(int newHealth)
+    {
+        health = Math.Clamp(newHealth, 0, healthMax);
+        OnHealthChanged?.Invoke(health, healthMax);
+        if (health == 0)
+            OnDead?.Invoke();
+    }
 }

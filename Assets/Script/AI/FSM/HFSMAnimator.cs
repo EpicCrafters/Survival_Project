@@ -1,11 +1,11 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Mirror;
 
 [RequireComponent(typeof(Animator))]
 public class HFSMAnimator : NetworkBehaviour
 {
     public HFSMController controller;
-    private Animator animator;
+    public Animator animator;
 
     [Header("Settings")]
     public float blendSpeed = 2f;
@@ -23,28 +23,30 @@ public class HFSMAnimator : NetworkBehaviour
     private float currentBlendValue;
     private float targetBlendValue;
 
+    // Track disabled state
+    private bool isAnimatorManuallyDisabled = false;
+
     private void Awake()
     {
         animator = GetComponent<Animator>();
-
     }
 
-    private void Update()
+    // ✅ ĐƯỢC GỌI TỪ AIEntity.TickAI()
+    public void UpdateAnimation()
     {
+        // Don't update if animator is disabled
+        if (animator == null || !animator.enabled || isAnimatorManuallyDisabled)
+            return;
+
         // Smooth blend for locomotion (runs on all clients)
         currentBlendValue = Mathf.Lerp(currentBlendValue, targetBlendValue, Time.deltaTime * blendSpeed);
 
         if (isServer)
         {
-            syncedMoveState = currentBlendValue;
+            syncedMoveState = targetBlendValue;
         }
 
         animator.SetFloat("MoveState", currentBlendValue);
-    }
-
-    public void UpdateAnimation()
-    {
-        // This is called from states, already server-only
     }
 
     // -------------------------
@@ -52,15 +54,22 @@ public class HFSMAnimator : NetworkBehaviour
     // -------------------------
     public void PlayIdleAnimation()
     {
+        if (animator == null || !animator.enabled) return;
+
         if (isServer)
         {
             syncedIsMoving = false;
             int r = Random.Range(1, controller.animalData.idleCount + 1);
             syncedIdleVariant = r;
+
+            if (isClient)
+            {
+                animator.SetBool("isMoving", false);
+                animator.SetInteger("IdleVariant", r);
+            }
         }
         else
         {
-            // Apply locally if not server
             animator.SetBool("isMoving", false);
             int r = Random.Range(1, controller.animalData.idleCount + 1);
             animator.SetInteger("IdleVariant", r);
@@ -69,6 +78,8 @@ public class HFSMAnimator : NetworkBehaviour
 
     public void PlayWanderAnimation()
     {
+        if (animator == null || !animator.enabled) return;
+
         if (isServer)
         {
             syncedIsMoving = true;
@@ -83,6 +94,8 @@ public class HFSMAnimator : NetworkBehaviour
 
     public void PlayChaseAnimation()
     {
+        if (animator == null || !animator.enabled) return;
+
         if (isServer)
         {
             syncedIsMoving = true;
@@ -100,6 +113,8 @@ public class HFSMAnimator : NetworkBehaviour
     // -------------------------
     public void PlayAttackAnimation()
     {
+        if (animator == null || !animator.enabled) return;
+
         if (isServer)
         {
             syncedIsMoving = false;
@@ -114,6 +129,8 @@ public class HFSMAnimator : NetworkBehaviour
 
     public void PlayHitAnimation()
     {
+        if (animator == null || !animator.enabled) return;
+
         if (isServer)
         {
             RpcPlayHitAnimation();
@@ -123,11 +140,73 @@ public class HFSMAnimator : NetworkBehaviour
             animator.SetTrigger("Hit");
         }
     }
+    //Ragdoll setting
+    public void DisableAnimatorForRagdoll()
+    {
+        if (animator!=null) {
+            animator.enabled = false;
+        }
+    }
 
+    // -------------------------
+    // 💤 SLEEP/WAKE CONTROL - SIMPLIFIED (NO DISABLE)
+    // -------------------------
     public void DisableAnimator()
     {
+        // Don't actually disable - just mark as sleeping
+        isAnimatorManuallyDisabled = true;
+
+        // Set to idle/frozen state
         if (animator != null)
-            animator.enabled = false;
+        {
+            animator.SetBool("isMoving", false);
+            animator.SetFloat("MoveState", 0f);
+            targetBlendValue = 0f;
+            currentBlendValue = 0f;
+        }
+
+        Debug.Log($"[HFSMAnimator] 💤 Animator sleeping (but still enabled) for {gameObject.name}");
+    }
+
+    public void EnableAnimator()
+    {
+        // Just mark as awake - animator stays enabled
+        isAnimatorManuallyDisabled = false;
+
+        // Force re-sync animation state
+        if (animator != null)
+        {
+            ResyncAnimationState();
+        }
+
+        Debug.Log($"[HFSMAnimator] ⏰ Animator awake for {gameObject.name}");
+    }
+
+    /// <summary>
+    /// Force re-sync all animation parameters after waking up
+    /// </summary>
+    private void ResyncAnimationState()
+    {
+        if (animator == null || !animator.enabled) return;
+
+        Debug.Log($"[HFSMAnimator] 🔄 Resyncing state - isMoving: {syncedIsMoving}, MoveState: {syncedMoveState}, IdleVariant: {syncedIdleVariant}");
+
+        // Re-apply all synced parameters
+        animator.SetBool("isMoving", syncedIsMoving);
+        animator.SetInteger("IdleVariant", syncedIdleVariant);
+        animator.SetFloat("MoveState", syncedMoveState);
+
+        // Update target blend value
+        targetBlendValue = syncedMoveState;
+        currentBlendValue = syncedMoveState;
+
+        // Force an immediate animation update
+        if (animator.enabled)
+        {
+            animator.Update(0f);
+        }
+
+        Debug.Log($"[HFSMAnimator] ✅ State resynced successfully");
     }
 
     // -------------------------
@@ -140,12 +219,14 @@ public class HFSMAnimator : NetworkBehaviour
 
     private void OnIsMovingChanged(bool oldValue, bool newValue)
     {
-        animator.SetBool("isMoving", newValue);
+        if (animator != null && animator.enabled)
+            animator.SetBool("isMoving", newValue);
     }
 
     private void OnIdleVariantChanged(int oldValue, int newValue)
     {
-        animator.SetInteger("IdleVariant", newValue);
+        if (animator != null && animator.enabled)
+            animator.SetInteger("IdleVariant", newValue);
     }
 
     // -------------------------
@@ -154,13 +235,44 @@ public class HFSMAnimator : NetworkBehaviour
     [ClientRpc]
     private void RpcPlayAttackAnimation()
     {
-        animator.SetBool("isMoving", false);
-        animator.SetTrigger("Attack");
+        if (animator != null && animator.enabled)
+        {
+            animator.SetBool("isMoving", false);
+            animator.SetTrigger("Attack");
+        }
     }
 
     [ClientRpc]
     private void RpcPlayHitAnimation()
     {
-        animator.SetTrigger("Hit");
+        if (animator != null && animator.enabled)
+        {
+            animator.SetTrigger("Hit");
+        }
+    }
+
+    // -------------------------
+    // Debug Helper
+    // -------------------------
+    [ContextMenu("Print Animator State")]
+    private void PrintAnimatorState()
+    {
+        if (animator != null)
+        {
+            Debug.Log($"=== ANIMATOR STATE: {gameObject.name} ===");
+            Debug.Log($"Enabled: {animator.enabled}");
+            Debug.Log($"Manually Disabled: {isAnimatorManuallyDisabled}");
+            Debug.Log($"IsMoving: {syncedIsMoving}");
+            Debug.Log($"MoveState: {syncedMoveState}");
+            Debug.Log($"Current Blend: {currentBlendValue}");
+            Debug.Log($"Target Blend: {targetBlendValue}");
+
+            if (animator.enabled)
+            {
+                var stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+                Debug.Log($"Current Animation State: {stateInfo.shortNameHash}");
+                Debug.Log($"Normalized Time: {stateInfo.normalizedTime}");
+            }
+        }
     }
 }

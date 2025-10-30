@@ -13,6 +13,7 @@ public class PlayerAnimator : NetworkBehaviour
     private const string IS_MINING = "isMining";
     private const string IS_HOLDING = "isHolding";
     private const string COMBO_STEP = "ComboStep";
+    private const string IS_WEAPON = "isWeapon";
 
     private const string IS_TREE = "isTree";
     private const string IS_ROCK = "isRock";
@@ -72,6 +73,7 @@ public class PlayerAnimator : NetworkBehaviour
         animator.SetBool(IS_GROUNDED, player.IsGrounded());
         animator.SetBool(IS_SPRINTING, player.IsSprinting());
 
+
         if (playerInteract != null)
         {
             CmdSetMining(playerInteract.IsMining());
@@ -79,8 +81,10 @@ public class PlayerAnimator : NetworkBehaviour
             animator.SetBool(IS_TREE, playerInteract.IsTree());
         }
 
-        if (playerholdingItem != null)
+        if (playerholdingItem != null) {
             animator.SetBool(IS_HOLDING, playerholdingItem.IsHolding());
+            animator.SetBool(IS_WEAPON,playerholdingItem.IsAWeapon());
+                }
 
         //if (playerCombat != null)
         //    animator.SetInteger(COMBO_STEP, playerCombat.CurrentCombo());

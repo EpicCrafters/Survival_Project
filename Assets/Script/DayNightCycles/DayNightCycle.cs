@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Mirror;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -104,19 +105,21 @@ public class DayNightCycle : MonoBehaviour
 
     private void Update()
     {
-        if (!pause)
-        {
-            UpdateTimeScale();
-            UpdateTime();
-            UpdateClock();
-        }
+
+            if (!pause)
+            {
+                UpdateTimeScale();
+                UpdateTime();
+                UpdateClock();
+            }
 
 
-        AdjustSunRotation();
-        SunIntensity();
-        AdjustSunColor();
-        UpdateLighting();
-        UpdateModules(); //will update modules each frame
+            AdjustSunRotation();
+            SunIntensity();
+            AdjustSunColor();
+            UpdateLighting();
+            UpdateModules(); //will update modules each frame
+        
     }
 
 

@@ -1,7 +1,7 @@
 
 using UnityEngine;
 
-public enum TargetCategory { Player, Structure, Enemy, Neutral }
+public enum TargetCategory { Player, Structure, Enemy, Neutral,Predator }
 
 public interface IDetectable
 {

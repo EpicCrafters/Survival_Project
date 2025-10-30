@@ -6,40 +6,42 @@ using static BaseAnimalAI;
 
 public class HFSMController : NetworkBehaviour, IDamageable
 {
-    
-    // References
-   
+    // ==========================================================
+    // 🔹 THAM CHIẾU & THÀNH PHẦN
+    // ==========================================================
     [Header("Animator")]
     public HFSMAnimator animator;
 
     [Header("Animal Data")]
     public AnimalData animalData;
-    private AIRagdoll aIRagdoll;
 
     [Header("NavMesh Agent")]
-    [HideInInspector] public NavMeshAgent agent;
+    public NavMeshAgent agent;
 
     [Header("Ragdoll")]
     [SerializeField] private Transform ragdollRootBone;
-    public Rigidbody baseRigidbody;
+    public Rigidbody baseRigidbody; // Root rigidbody (KHÔNG phải ragdoll)
+    private AIRagdoll aIRagdoll;
+    private List<Rigidbody> ragdollRigidbodies = new List<Rigidbody>(); // Chỉ chứa ragdoll bones
 
     [Header("Hurt Box")]
     public Collider hurtBox;
 
-    [Header("Effects")]
+    [Header("Hiệu ứng va chạm")]
     public GameObject hitEffectPrefab;
 
-    [Header("Health")]
+    [Header("Thanh máu (UI)")]
     public HealthBarUI healthBarUI;
     [HideInInspector] public HealthSystem healthSystem;
 
-    [Header("Runtime")]
+    [Header("Trạng thái runtime")]
     public IDetectable currentTarget;
+    public bool enemySpotted;
     public State CurrentState { get; private set; }
 
-  
-    // AI Settings
-   
+    // ==========================================================
+    //  CÀI ĐẶT HÀNH VI AI
+    // ==========================================================
     [Header("AI Settings")]
     public bool isPredator = false;
     public bool isDead = false;
@@ -48,81 +50,123 @@ public class HFSMController : NetworkBehaviour, IDamageable
     public float attackRange = 5f;
     public float facingAngleThreshold = 12f;
     public float rotationSpeed = 10f;
-    
 
     private HashSet<string> allowedStates;
 
-   
-    // Network Sync
-  
-    [SyncVar(hook = nameof(OnHealthChanged))]
-    private int syncedHealth;
+    // ==========================================================
+    //  ĐỒNG BỘ MẠNG (Mirror SyncVars)
+    // ==========================================================
+    [SyncVar(hook = nameof(OnHealthChanged))] private int syncedHealth;
+    [SyncVar(hook = nameof(OnStateChanged))] private string syncedStateName;
+    [SyncVar] public bool syncedIsDead = false;
 
-    [SyncVar(hook = nameof(OnStateChanged))]
-    private string syncedStateName;
+    // ==========================================================
+    //  QUẢN LÝ DANH TÍNH & TRẠNG THÁI
+    // ==========================================================
+    public string poolKey;
+    public bool isSleeping = false;
+    public bool pooled = true;
+    [HideInInspector] public string uniqueId;
 
-    [SyncVar]
-    private bool syncedIsDead = false;
+    private bool wasFirstSpawn = false;
 
-   
-    // Unity Callbacks
-  
-    private void Awake()
+    // ==========================================================
+    //  KHỞI TẠO & CẤU HÌNH THÀNH PHẦN
+    // ==========================================================
+    private void Awake() => InitializeComponents();
+
+    private void InitializeComponents()
     {
-        // Khởi tạo hệ thống máu
-        healthSystem = new HealthSystem(animalData.maxHealth);
+        animator?.EnableAnimator();
 
-        // Lấy component ragdoll & NavMeshAgent
-        aIRagdoll = GetComponent<AIRagdoll>();
-        agent = GetComponent<NavMeshAgent>();
-        if (agent != null) agent.speed = moveSpeed;
-        baseRigidbody.isKinematic = true;
-        baseRigidbody.useGravity = true;
-        
-        // Tắt ragdoll lúc bắt đầu
-        aIRagdoll.SetRagdoll(false);
+        if (healthSystem == null || healthSystem.GetHealth() <= 0)
+            healthSystem = new HealthSystem(animalData.maxHealth);
 
-        // Lấy danh sách trạng thái được phép từ AnimalData
-        allowedStates = new HashSet<string>(animalData.allowedStates);
+        aIRagdoll ??= GetComponent<AIRagdoll>();
+        agent ??= GetComponent<NavMeshAgent>();
+
+        if (agent != null)
+        {
+            agent.speed = moveSpeed;
+            agent.enabled = true;
+        }
+
+        if (baseRigidbody != null)
+        {
+            baseRigidbody.isKinematic = true;
+            baseRigidbody.useGravity = true;
+        }
+
+        aIRagdoll?.SetRagdoll(false);
+
+        // Cache tất cả ragdoll rigidbodies (BỎ QUA baseRigidbody)
+        if (ragdollRootBone != null && ragdollRigidbodies.Count == 0)
+        {
+            Rigidbody[] allRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
+
+            foreach (var rb in allRigidbodies)
+            {
+                // Chỉ thêm ragdoll bones, KHÔNG thêm baseRigidbody
+                if (rb != baseRigidbody && rb != null)
+                {
+                    ragdollRigidbodies.Add(rb);
+                }
+            }
+
+            Debug.Log($"[{name}] Cached {ragdollRigidbodies.Count} ragdoll bones (excluding base rigidbody)");
+        }
+
+        allowedStates ??= new HashSet<string>(animalData.allowedStates);
     }
 
+    // ==========================================================
+    //  VÒNG ĐỜI NETWORK
+    // ==========================================================
     public override void OnStartServer()
     {
         base.OnStartServer();
 
-        // Chỉ server đăng ký event khi chết
-        healthSystem.OnDead += Die;
+        if (string.IsNullOrEmpty(uniqueId))
+        {
+            uniqueId = System.Guid.NewGuid().ToString();
+            wasFirstSpawn = true;
+            Debug.Log($"[HFSMController] Generated uniqueId: {uniqueId}");
+        }
 
-        // Cấu hình health bar cho server
+        // Subscribe với wrapper method không có tham số
+        healthSystem.OnDead += OnHealthSystemDead;
+
         if (healthBarUI != null)
             healthBarUI.SetHealthSystem(healthSystem);
 
-        // Đồng bộ máu ban đầu
         syncedHealth = animalData.maxHealth;
+    }
+
+    // Wrapper method để match với Action delegate
+    private void OnHealthSystemDead()
+    {
+        Die(); // Gọi Die() không có HitInfo
     }
 
     public override void OnStartClient()
     {
         base.OnStartClient();
 
-        // Chỉ client thuần mới setup health bar
         if (!isServer)
         {
-            if (healthBarUI != null)
-                healthBarUI.SetHealthSystem(healthSystem);
-
-            // Đồng bộ máu ban đầu
+            healthBarUI?.SetHealthSystem(healthSystem);
             UpdateClientHealth(syncedHealth);
         }
+
         if (syncedIsDead)
-        {
             HandleClientDeath();
-        }
     }
 
+    // ==========================================================
+    //  KHỞI ĐỘNG / CẬP NHẬT
+    // ==========================================================
     private void Start()
     {
-        // Chỉ server chạy AI logic
         if (!isServer) return;
 
         if (CanRunState(typeof(NormalState)))
@@ -131,44 +175,21 @@ public class HFSMController : NetworkBehaviour, IDamageable
             Debug.LogWarning($"{animalData.animalName} has no NormalState allowed!");
     }
 
-    private void Update()
-    {
-        // Chỉ server chạy AI logic
-        if (!isServer) return;
-        if (syncedIsDead) return;
-
-        ScanForTargets();
-        CurrentState?.Update();
-    }
-
-    
     private void FixedUpdate()
     {
         if (isDead && ragdollRootBone != null && baseRigidbody != null)
         {
-            // Compute target position (keep root height if you don’t want full drop)
             Vector3 targetPos = ragdollRootBone.position;
-
-            // Smooth follow using MovePosition
             Vector3 newPos = Vector3.Lerp(baseRigidbody.position, targetPos, Time.fixedDeltaTime * 10f);
             baseRigidbody.MovePosition(newPos);
 
-            // (Optional) Only rotate around Y to keep orientation reasonable
             Quaternion targetRot = Quaternion.Euler(0, ragdollRootBone.rotation.eulerAngles.y, 0);
             baseRigidbody.MoveRotation(Quaternion.Slerp(baseRigidbody.rotation, targetRot, Time.fixedDeltaTime * 10f));
         }
-        //if (isDead && ragdollRootBone != null && !baseRigidbody.isKinematic)
-        //{
-        //    // Use physics movement instead of transform teleport
-        //    Vector3 targetPos = ragdollRootBone.position;
-        //    baseRigidbody.MovePosition(Vector3.Lerp(baseRigidbody.position, targetPos, Time.fixedDeltaTime * 15f));
-
-        //    Quaternion targetRot = ragdollRootBone.rotation;
-        //    baseRigidbody.MoveRotation(Quaternion.Slerp(baseRigidbody.rotation, targetRot, Time.fixedDeltaTime * 10f));
-        //}
     }
+
     // ==========================================================
-    // AI State Management
+    //  QUẢN LÝ STATE CỦA AI
     // ==========================================================
     public void ChangeState(State newState)
     {
@@ -182,7 +203,6 @@ public class HFSMController : NetworkBehaviour, IDamageable
         CurrentState = newState;
         CurrentState.OnEnter();
 
-        // Đồng bộ trạng thái cho client
         if (isServer)
             syncedStateName = newState.GetType().Name;
     }
@@ -190,26 +210,24 @@ public class HFSMController : NetworkBehaviour, IDamageable
     public bool CanRunState(System.Type stateType) => allowedStates.Contains(stateType.Name);
 
     // ==========================================================
-    // Target & Detection
+    // PHÁT HIỆN MỤC TIÊU
     // ==========================================================
-    private void ScanForTargets()
+    public void ScanForTargets()
     {
+        TargetCategory[] detect = isPredator
+            ? new[] { TargetCategory.Player, TargetCategory.Enemy }
+            : new[] { TargetCategory.Player };
+
         currentTarget = DetectionUtility.FindBestTargetByInterface(
-            transform, detectionRadius, isPredator,
-            new[] { TargetCategory.Player, TargetCategory.Enemy },
-            new[] { TargetCategory.Enemy }
-        );
+            transform, detectionRadius, isPredator, detect, detect);
+
+        enemySpotted = currentTarget != null;
     }
 
     public bool HasTarget() => currentTarget != null;
     public Transform GetTargetTransform() => (currentTarget as MonoBehaviour)?.transform;
-
     public bool IsCloseToTarget(float extra = 0f)
-    {
-        if (!HasTarget()) return false;
-        return Vector3.Distance(transform.position, GetTargetTransform().position) <= attackRange + extra;
-    }
-
+        => HasTarget() && Vector3.Distance(transform.position, GetTargetTransform().position) <= attackRange + extra;
     public bool IsFacingTarget(float angle = -1f)
     {
         if (!HasTarget()) return false;
@@ -219,30 +237,32 @@ public class HFSMController : NetworkBehaviour, IDamageable
         return Vector3.Angle(transform.forward, dir) <= angle;
     }
 
-   
-    // Damage / Hit
+    // ==========================================================
+    //  NHẬN SÁT THƯƠNG & CHẾT
+    // ==========================================================
     
     public void Damage(int amount, HitInfo hit)
     {
         if (!isServer) return;
 
-        // Trừ máu
+        // Kiểm tra xem cú đánh này có giết chết AI không
+        int healthAfterDamage = healthSystem.GetHealth() - amount;
+        bool willDie = healthAfterDamage <= 0;
+
         healthSystem.Damage(amount);
         syncedHealth = healthSystem.GetHealth();
 
         Debug.Log($"{name} took {amount} damage at {hit.point}");
 
-        // Spawn hiệu ứng hit trên client
         RpcSpawnHitEffect(hit.point, hit.normal);
 
-        // Nếu chết
         if (healthSystem.GetHealth() <= 0)
         {
-            Die();
+            // CHỈ apply knockback nếu chết do damage (không phải do OnDead event)
+            Die(hit); // Truyền HitInfo để apply knockback
             return;
         }
 
-        // Nếu còn sống → phản ứng hit
         RpcPlayHitAnimation();
 
         if (CurrentState is CombatState combat)
@@ -251,38 +271,34 @@ public class HFSMController : NetworkBehaviour, IDamageable
             ChangeState(new RecoveryState(this, 2f));
     }
 
-    public bool CanTriggerHitStop() => true;
-    public bool IsDead() => syncedIsDead;
-
-   
-    // Death Logic
-    
-    protected virtual void Die()
+    protected virtual void Die(HitInfo? hit = null)
     {
         if (!isServer) return;
 
         isDead = true;
         syncedIsDead = true;
-        Debug.Log($"{name} died!");
+
+        Debug.Log($"{name} died! HasHitInfo={hit.HasValue}");
+
         baseRigidbody.isKinematic = false;
         baseRigidbody.useGravity = false;
         hurtBox.isTrigger = true;
+
         if (agent != null && agent.enabled)
-        {
-            agent.enabled = false; 
-        }
+            agent.enabled = false;
 
         CurrentState = null;
 
-        // Gọi client RPC để hiển thị ragdoll, tắt animator, health bar
+        
         RpcDie();
     }
 
-   
+    public bool CanTriggerHitStop() => true;
+    public bool IsDead() => syncedIsDead;
 
-  
-    // Network Callbacks
-  
+    // ==========================================================
+    //  NETWORK CALLBACKS
+    // ==========================================================
     private void OnHealthChanged(int oldHealth, int newHealth)
     {
         if (!isServer)
@@ -292,51 +308,251 @@ public class HFSMController : NetworkBehaviour, IDamageable
     private void UpdateClientHealth(int currentHealth)
     {
         int currentHealthValue = healthSystem.GetHealth();
-        int difference = currentHealthValue - currentHealth;
+        int diff = currentHealthValue - currentHealth;
 
-        if (difference > 0)
-            healthSystem.Damage(difference); // Trừ máu trên client
-        else if (difference < 0)
-            healthSystem.Heal(-difference); // Hồi máu trên client
+        if (diff > 0) healthSystem.Damage(diff);
+        else if (diff < 0) healthSystem.Heal(-diff);
     }
 
     private void OnStateChanged(string oldState, string newState)
     {
-        if (isServer) return; // Server không cần xử lý
+        if (isServer) return;
         Debug.Log($"[Client] State changed to: {newState}");
     }
-    private void HandleClientDeath()
+
+    public void HandleClientDeath()
     {
-        if (healthBarUI != null)
-            healthBarUI.gameObject.SetActive(false);
-        if (animator != null)
-            animator.DisableAnimator();
-        if (agent != null)
-            agent.enabled = false;
-        if (aIRagdoll != null)
-            aIRagdoll.SetRagdoll(true);
+        healthBarUI?.gameObject.SetActive(false);
+        animator?.DisableAnimatorForRagdoll();
+        if (agent != null) agent.enabled = false;
+        aIRagdoll?.SetRagdoll(true);
     }
 
-
-    // Client RPCs
-
+    // ==========================================================
+    //  CLIENT RPCs
+    // ==========================================================
     [ClientRpc]
-    private void RpcSpawnHitEffect(Vector3 position, Vector3 normal)
+    private void RpcSpawnHitEffect(Vector3 pos, Vector3 normal)
     {
         if (hitEffectPrefab != null)
-            Instantiate(hitEffectPrefab, position, Quaternion.LookRotation(normal));
+            Instantiate(hitEffectPrefab, pos, Quaternion.LookRotation(normal));
     }
 
     [ClientRpc]
     private void RpcPlayHitAnimation()
-    {
-        if (animator != null)
-            animator.PlayHitAnimation();
-    }
+        => animator?.PlayHitAnimation();
 
     [ClientRpc]
-    private void RpcDie()
+    private void RpcDie() => HandleClientDeath();
+
+    // RPC mới: Apply knockback với custom settings từ weapon
+    [ClientRpc]
+    public void RpcApplyDeathKnockback(Vector3 hitPoint, Vector3 hitDirection, float horizontal,  float radius)
     {
-        HandleClientDeath();
+        // Tìm ragdoll bone gần nhất
+        Rigidbody closestBone = FindClosestRagdollBone(hitPoint, radius);
+
+        if (closestBone != null)
+        {
+            Vector3 forceDirection = hitDirection.normalized;
+            Vector3 horizontalForce = new Vector3(forceDirection.x, 0, forceDirection.z).normalized * horizontal;
+            //Vector3 upwardForce = Vector3.up * upward;
+            Vector3 totalForce = horizontalForce;//+ upwardForce;
+
+            closestBone.AddForceAtPosition(totalForce, hitPoint, ForceMode.Impulse);
+
+            Debug.Log($"[{name}] Applied knockback: H={horizontal},  Bone={closestBone.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[{name}] No ragdoll bone found!");
+        }
     }
+
+    // ==========================================================
+    //  TÌM RAGDOLL BONE GẦN NHẤT
+    // ==========================================================
+    private Rigidbody FindClosestRagdollBone(Vector3 hitPoint, float searchRadius = -1f)
+    {
+       
+
+        // Đảm bảo list đã được cache
+        if (ragdollRigidbodies.Count == 0)
+        {
+            if (ragdollRootBone != null)
+            {
+                Rigidbody[] allRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
+
+                foreach (var rb in allRigidbodies)
+                {
+                    if (rb != baseRigidbody && rb != null)
+                    {
+                        ragdollRigidbodies.Add(rb);
+                    }
+                }
+            }
+        }
+
+        if (ragdollRigidbodies.Count == 0)
+        {
+            Debug.LogWarning($"[{name}] No ragdoll rigidbodies found!");
+            return null;
+        }
+
+        Rigidbody closest = null;
+        float closestDistance = float.MaxValue;
+
+        // Tìm bone gần nhất trong bán kính
+        foreach (var rb in ragdollRigidbodies)
+        {
+            if (rb == null || rb == baseRigidbody) continue;
+
+            float distance = Vector3.Distance(rb.position, hitPoint);
+
+            if (distance < closestDistance && distance <= searchRadius)
+            {
+                closestDistance = distance;
+                closest = rb;
+            }
+        }
+
+        // Fallback: nếu không có bone nào trong radius, lấy bone gần nhất
+        if (closest == null)
+        {
+            foreach (var rb in ragdollRigidbodies)
+            {
+                if (rb == null || rb == baseRigidbody) continue;
+
+                float distance = Vector3.Distance(rb.position, hitPoint);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closest = rb;
+                }
+            }
+        }
+
+        if (closest != null)
+        {
+            Debug.Log($"🎯 [{name}] Closest bone hit: {closest.name} (distance {closestDistance:F2}m)");
+        }
+        else
+        {
+            Debug.LogWarning($"⚠️ [{name}] Could not find any ragdoll bone near hit point!");
+        }
+
+        return closest;
+    }
+
+    // ==========================================================
+    // NGỦ / THỨC
+    // ==========================================================
+    public void Sleep()
+    {
+        if (isSleeping) return;
+
+        isSleeping = true;
+        Debug.Log($"[HFSMController] {name} sleeping (id={uniqueId})");
+
+        if (isServer)
+        {
+            CurrentState?.OnExit();
+            CurrentState = null;
+        }
+
+        currentTarget = null;
+        enemySpotted = false;
+
+        if (agent != null && agent.enabled)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+            agent.enabled = false;
+        }
+
+        animator?.DisableAnimator();
+        enabled = false;
+    }
+
+    public void WakeUp()
+    {
+        if (!isSleeping) return;
+        isSleeping = false;
+
+        InitializeComponents();
+        enabled = true;
+
+        if (agent != null)
+        {
+            agent.enabled = true;
+
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
+                agent.Warp(hit.position);
+            else
+                agent.Warp(transform.position);
+
+            agent.isStopped = false;
+            agent.ResetPath();
+        }
+
+        animator?.EnableAnimator();
+
+        if (isServer)
+        {
+            CurrentState?.OnExit();
+            CurrentState = null;
+            if (CanRunState(typeof(NormalState)))
+                ChangeState(new NormalState(this));
+        }
+
+        Debug.Log($"[HFSMController] {name} woke up (id={uniqueId})");
+    }
+
+    // ==========================================================
+    // 💾 LƯU / TẢI DỮ LIỆU
+    // ==========================================================
+    public AILoadData GetSaveData() => new AILoadData
+    {
+        uniqueId = uniqueId,
+        poolKey = poolKey,
+        position = transform.position,
+        rotation = transform.rotation,
+        health = healthSystem.GetHealth(),
+        isDead = isDead,
+        lastSavedTime = Time.time
+    };
+
+    // ==========================================================
+    // ✅ TIỆN ÍCH
+    // ==========================================================
+    public void OnRespawn()
+    {
+        if (!gameObject.activeSelf) return;
+        InitializeComponents();
+        Debug.Log($"✅ {name} Reactivated (id={uniqueId})");
+        pooled = false;
+        aIRagdoll?.SetRagdoll(false);
+        animator?.EnableAnimator();
+
+        if (agent != null)
+        {
+            agent.enabled = true;
+            agent.Warp(transform.position);
+            agent.isStopped = false;
+        }
+
+        isDead = false;
+        isSleeping = false;
+        enabled = true;
+
+        if (isServer)
+        {
+            CurrentState?.OnExit();
+            CurrentState = null;
+            if (CanRunState(typeof(NormalState)))
+                ChangeState(new NormalState(this));
+        }
+    }
+
+    public bool IsFirstSpawn() => wasFirstSpawn;
 }

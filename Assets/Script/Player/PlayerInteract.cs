@@ -230,29 +230,39 @@ public class PlayerInteract : NetworkBehaviour
         isReadyToMine = false;
 
         ItemData heldItemData = null;
-        if (playerHoldingItem != null && playerHoldingItem.IsHolding())
+
+        if (playerHoldingItem != null)
         {
             GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
-            if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
-                heldItemData = heldItem.itemData;
+
+            if (heldObject != null)
+            {
+                if (heldObject.TryGetComponent<ItemHeld>(out var held))
+                    heldItemData = held.itemData;
+                else if (heldObject.TryGetComponent<Item>(out var item))
+                    heldItemData = item.itemData;
+            }
+            else if (playerHoldingItem.ItemData != null)
+            {
+                heldItemData = playerHoldingItem.ItemData;
+            }
         }
 
-        if (heldItemData == null || heldItemData.type != ItemType.Tool)
-            return false;
+        if (heldItemData == null) return false;
+        if (heldItemData.type != ItemType.Tool) return false;
 
         ToolType heldTool = heldItemData.tool.toolType;
         ResourceType resourceType = minenable.GetResourceType();
 
         bool valid = (resourceType == ResourceType.Tree && heldTool == ToolType.Axe) ||
                      (resourceType == ResourceType.Rock && heldTool == ToolType.Pickaxe);
+
         if (!valid) return false;
 
         isReadyToMine = true;
-
         isTree = resourceType == ResourceType.Tree;
         isRock = resourceType == ResourceType.Rock;
 
-        // Hiển thị health bar screen UI
         if (isTree && hit.collider.TryGetComponent(out MyTree tree))
             uiManager.healthBar.SetTarget(tree.GetHealthSystem());
         else if (isRock && hit.collider.TryGetComponent(out MyRock rock))
@@ -263,6 +273,7 @@ public class PlayerInteract : NetworkBehaviour
 
         return true;
     }
+
 
 
     // Nhặt vật phẩm
@@ -283,6 +294,11 @@ public class PlayerInteract : NetworkBehaviour
             {
                 Debug.Log("Inventory đầy!");
             }
+        }
+        else
+        {
+            // Trường hợp hiếm: world pickup không có Item component (không nên), log để debug
+            Debug.LogWarning("[TryPickupCurrentItem] currentPickup has no Item component.");
         }
     }
 

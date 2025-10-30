@@ -4,7 +4,7 @@ using UnityEngine;
 public class ItemDatabase : MonoBehaviour
 {
     public static ItemDatabase Instance;
-
+    
     [SerializeField] private List<ItemData> allItems = new List<ItemData>();
     private Dictionary<int, ItemData> itemDict = new Dictionary<int, ItemData>();
 

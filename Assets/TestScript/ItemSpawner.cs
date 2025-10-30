@@ -5,6 +5,7 @@ public class ItemSpawner : NetworkBehaviour
 {
     [SerializeField] private GameObject itemPrefab; // Prefab đã gắn NetworkIdentity
     [SerializeField] private Transform spawnPoint;
+    public int amountToSpawn;
 
     [Server]
     public void SpawnItem()
@@ -28,7 +29,11 @@ public class ItemSpawner : NetworkBehaviour
         }
 
         if (isServer)
-            SpawnItem();
+
+            for (int i = 0; i < amountToSpawn; i++)
+            {
+                SpawnItem();
+            }
         else
             Debug.LogWarning("Chỉ server/host mới được spawn item!");
     }

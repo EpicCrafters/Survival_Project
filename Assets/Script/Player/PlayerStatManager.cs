@@ -1,7 +1,8 @@
 ﻿using UnityEngine;
+using Mirror;
 using System;
 
-public class PlayerStatManager : MonoBehaviour, IDamageable
+public class PlayerStatManager : NetworkBehaviour, IDamageable
 {
     [Header("Test")]
     public int damageTest;
@@ -11,6 +12,12 @@ public class PlayerStatManager : MonoBehaviour, IDamageable
     [SerializeField] private int maxHealth = 100;
     private HealthSystem healthSystem;
 
+    [SyncVar(hook = nameof(OnHealthSync))]
+    private int currentHealth;
+    public int CurrentHealth => currentHealth;
+    public int MaxHealth => maxHealth;
+    [Header("Hiệu ứng va chạm")]
+    public GameObject hitEffectPrefab;
     [Header("Stamina")]
     [SerializeField] private int maxStamina = 100;
     [SerializeField] private float staminaRestoreRate = 5f;
@@ -20,36 +27,52 @@ public class PlayerStatManager : MonoBehaviour, IDamageable
     [SerializeField] private int maxHunger = 100;
     private float currentHunger;
 
+    [Header("References")]
+    [Tooltip("Assign the player's main hurtbox (trigger collider).")]
+    public Collider hurtbox;
+
     private bool isDead = false;
-
-    // Properties
-    public int CurrentHealth => healthSystem.GetHealth();
-    public int MaxHealth => maxHealth;
-    public float CurrentStamina => currentStamina;
-    public float MaxStamina => maxStamina;
-    public float CurrentHunger => currentHunger;
+   
+    public float CurrentStamina => currentStamina; 
+    public float MaxStamina => maxStamina; 
+    public float CurrentHunger => currentHunger; 
     public float MaxHunger => maxHunger;
-
     // Events
+
     public event Action<int, int> OnHealthChanged;
     public event Action<float, float> OnStaminaChanged;
     public event Action<float, float> OnHungerChanged;
 
-    private void Start()
+    private void Awake()
+    {
+        if (hurtbox == null)
+        {
+            hurtbox = GetComponentInParent<Collider>();
+            if (hurtbox != null)
+                hurtbox.isTrigger = true;
+        }
+
+        if (hurtbox != null && !hurtbox.isTrigger)
+            hurtbox.isTrigger = true;
+    }
+
+    public override void OnStartServer()
     {
         healthSystem = new HealthSystem(maxHealth);
-        healthSystem.OnDead += Die;
-        healthSystem.OnHealthChanged += (current, max) => OnHealthChanged?.Invoke(current, max);
+        currentHealth = maxHealth;
+        healthSystem.OnDead += DieServer;
+    }
 
-        currentStamina = maxStamina;
-        currentHunger = maxHunger;
-
-        if (UIManager.Instance != null)
+    public override void OnStartClient()
+    {
+        if (UIManager.Instance != null && isLocalPlayer)
             UIManager.Instance.HookPlayer(this);
     }
 
     private void Update()
     {
+        if (!isLocalPlayer) return;
+
         if (currentStamina < maxStamina)
         {
             currentStamina += staminaRestoreRate * Time.deltaTime;
@@ -60,64 +83,74 @@ public class PlayerStatManager : MonoBehaviour, IDamageable
     // ==========================================================
     // IDamageable
     // ==========================================================
+    [Server]
     public void Damage(int amount)
     {
-        // fallback: no hit info
         Damage(amount, new HitInfo(Vector3.zero, Vector3.zero, Vector3.zero, null, null));
     }
 
+    [Server]
     public void Damage(int amount, HitInfo hit)
     {
         if (isDead) return;
 
-        healthSystem.Damage(amount);
-        Debug.Log($"Player took {amount} damage at {hit.point}");
-
-        // TODO: Add player hit effect (blood flash, screen shake, etc.)
-        // Example: UIManager.Instance?.ShowDamageEffect(hit.point);
-
-        if (healthSystem.GetHealth() <= 0)
+        currentHealth = Mathf.Max(0, currentHealth - amount);
+        OnHealthSync(currentHealth, currentHealth);
+        RpcSpawnHitEffect(hit.point, hit.normal);
+        if (currentHealth <= 0)
         {
-            Die();
-            return;
+            DieServer();
         }
-
-        // Player hit reaction
-        // Example: play hurt animation
-        // animator?.SetTrigger("Hurt");
-
-        // If you want player hit stop when damaged:
-        // GetComponent<HitStop>()?.DoHitStop(0.1f);
     }
-
-    public bool CanTriggerHitStop() => false; // Player usually shouldn't cause hit stop when hit
-    public bool IsDead() => isDead;
-
-    // ==========================================================
-    // Heal
-    // ==========================================================
+    [ClientRpc]
+    private void RpcSpawnHitEffect(Vector3 pos, Vector3 normal)
+    {
+        if (hitEffectPrefab != null)
+            Instantiate(hitEffectPrefab, pos, Quaternion.LookRotation(normal));
+    }
+    [Server]
     public void Heal(int amount)
     {
         if (isDead) return;
-        healthSystem.Heal(amount);
-        Debug.Log($"Player healed {amount}");
+        currentHealth = Mathf.Min(maxHealth, currentHealth + amount);
+        OnHealthSync(currentHealth, currentHealth);
     }
 
-    // ==========================================================
-    // Death
-    // ==========================================================
-    private void Die()
+    [Server]
+    private void DieServer()
     {
         if (isDead) return;
         isDead = true;
-        Debug.Log("Player đã chết!");
-        // Trigger death animation, game over UI, etc.
+        RpcDie();
     }
 
-    // Debug test buttons
+    [ClientRpc]
+    private void RpcDie()
+    {
+        Debug.Log($"{gameObject.name} đã chết!");
+        // Play death animation or ragdoll
+    }
+
+    private void OnHealthSync(int oldValue, int newValue)
+    {
+        OnHealthChanged?.Invoke(newValue, maxHealth);
+    }
+
+    public bool CanTriggerHitStop() => false;
+    public bool IsDead() => isDead;
+
+    // Debug buttons (for host only)
     [ContextMenu("Damage Test")]
-    private void DamageTestBtn() => Damage(damageTest);
+    private void DamageTestBtn()
+    {
+        if (isServer)
+            Damage(damageTest);
+    }
 
     [ContextMenu("Heal Test")]
-    private void HealTestBtn() => Heal(healTest);
+    private void HealTestBtn()
+    {
+        if (isServer)
+            Heal(healTest);
+    }
 }

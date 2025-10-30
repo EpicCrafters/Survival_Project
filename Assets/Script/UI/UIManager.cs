@@ -4,31 +4,31 @@ using TMPro;
 
 public class UIManager : MonoBehaviour
 {
-    // Singleton: Đảm bảo trong game chỉ có 1 UIManager tồn tại
     public static UIManager Instance { get; private set; }
 
     [Header("Player HUD")]
-    [SerializeField] private Image healthFill;          // Thanh máu chính 
-    [SerializeField] private Image healthDamageFill;    // Thanh máu phụ 
-    [SerializeField] private float healthDelaySpeed = 1.5f; // Tốc độ thanh trắng tụt xuống (mượt hơn)
+    [SerializeField] private Image healthFill;
+    [SerializeField] private Image healthDamageFill;
+    [SerializeField] private float healthDelaySpeed = 1.5f;
 
-    [SerializeField] private Image staminaFill;   // Thanh stamina (thể lực)
-    [SerializeField] private Image hungerFill;    // Thanh đói
+    [SerializeField] private Image staminaFill;
+    [SerializeField] private Image hungerFill;
 
     [Header("Interact UI")]
-    [SerializeField] private TextMeshProUGUI eWord; // Hiển thị chữ "E" hoặc thông báo khi có thể tương tác
+    [SerializeField] private TextMeshProUGUI eWord;
 
     [Header("Target Health Bar (Screen UI)")]
-    [SerializeField] private GameObject HealthBar; // GameObject chứa thanh máu của mục tiêu (kẻ địch, công trình,...)
-    [SerializeField] private Image fillImage;      // Hình ảnh thanh máu của mục tiêu
+    [SerializeField] private GameObject HealthBar;
+    [SerializeField] private Image fillImage;
 
     public HealthBarUI healthBar { get; private set; }
 
-    private float targetHealthFill; // Lưu tỉ lệ máu hiện tại của player (0-1)
+    private float targetHealthFill;
+    private PlayerStatManager hookedPlayer;
 
     private void Awake()
     {
-        // Singleton setup: Nếu đã có UIManager thì huỷ cái mới
+        // Singleton
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -36,97 +36,100 @@ public class UIManager : MonoBehaviour
         }
         Instance = this;
 
-        // Khởi tạo hệ thống thanh máu cho mục tiêu
         healthBar = new HealthBarUI(HealthBar, fillImage);
     }
 
-    // Gắn player vào UI để lắng nghe sự kiện thay đổi stat
+    // Called by PlayerStatManager (local player only)
     public void HookPlayer(PlayerStatManager player)
     {
-        player.OnHealthChanged += UpdateHealthUI;   // Khi máu thay đổi → gọi UpdateHealthUI
-        player.OnStaminaChanged += UpdateStaminaUI; // Khi stamina thay đổi → gọi UpdateStaminaUI
-        player.OnHungerChanged += UpdateHungerUI;   // Khi hunger thay đổi → gọi UpdateHungerUI
+        if (player == null) return;
 
-         UpdateHealthUI(player.CurrentHealth, player.MaxHealth);
-    UpdateStaminaUI(player.CurrentStamina, player.MaxStamina);
-    UpdateHungerUI(player.CurrentHunger, player.MaxHunger);
+        // Unhook previous player if any (useful when respawning)
+        UnhookPlayer();
+
+        hookedPlayer = player;
+        player.OnHealthChanged += UpdateHealthUI;
+        player.OnStaminaChanged += UpdateStaminaUI;
+        player.OnHungerChanged += UpdateHungerUI;
+
+        // Initialize UI values immediately
+        UpdateHealthUI(player.CurrentHealth, player.MaxHealth);
+        UpdateStaminaUI(player.CurrentStamina, player.MaxStamina);
+        UpdateHungerUI(player.CurrentHunger, player.MaxHunger);
+
         if (healthDamageFill != null && healthDamageFill.fillAmount == 0f)
-            healthDamageFill.fillAmount = targetHealthFill; // Chỉ khởi tạo lúc đầu game
+            healthDamageFill.fillAmount = targetHealthFill;
     }
 
-    // Cập nhật thanh máu player
+    public void UnhookPlayer()
+    {
+        if (hookedPlayer == null) return;
+
+        hookedPlayer.OnHealthChanged -= UpdateHealthUI;
+        hookedPlayer.OnStaminaChanged -= UpdateStaminaUI;
+        hookedPlayer.OnHungerChanged -= UpdateHungerUI;
+        hookedPlayer = null;
+    }
+
+    // ==========================================================
+    // Player HUD
+    // ==========================================================
     private void UpdateHealthUI(int current, int max)
     {
         targetHealthFill = Mathf.Clamp01((float)current / max);
-
         if (healthFill != null)
-            healthFill.fillAmount = targetHealthFill; // Cập nhật thanh đỏ ngay lập tức
-
-      
-       
+            healthFill.fillAmount = targetHealthFill;
     }
 
     private void LateUpdate()
     {
         if (healthDamageFill == null) return;
 
-        // Điều khiển hiệu ứng thanh máu trắng tụt xuống chậm hơn thanh đỏ
+        // Smooth delayed white bar
         if (healthDamageFill.fillAmount > targetHealthFill)
         {
-            // Khi bị mất máu → thanh trắng tụt dần xuống thanh đỏ 
             healthDamageFill.fillAmount = Mathf.MoveTowards(
                 healthDamageFill.fillAmount,
                 targetHealthFill,
-               healthDelaySpeed * Time.deltaTime
+                healthDelaySpeed * Time.deltaTime
             );
         }
         else if (healthDamageFill.fillAmount < targetHealthFill)
         {
-            // Khi hồi máu → thanh trắng nhảy lên ngay bằng thanh đỏ 
             healthDamageFill.fillAmount = targetHealthFill;
         }
     }
 
-    // Cập nhật thanh stamina
     private void UpdateStaminaUI(float current, float max)
     {
         if (staminaFill != null)
             staminaFill.fillAmount = Mathf.Clamp01(current / max);
     }
 
-    // Cập nhật thanh hunger
     private void UpdateHungerUI(float current, float max)
     {
         if (hungerFill != null)
             hungerFill.fillAmount = Mathf.Clamp01(current / max);
     }
 
-    // Hiển thị chữ "E" khi có thể tương tác
-    public void ShowInteractUI()
-    {
-        if (eWord != null)
-            eWord.gameObject.SetActive(true);
-    }
-
-    // Ẩn chữ "E" khi không còn vật để tương tác
-    public void HideInteractUI()
-    {
-        if (eWord != null)
-            eWord.gameObject.SetActive(false);
-    }
-
-    // Đổi nội dung chữ "E" → ví dụ "Nhấn E để nhặt"
+    // ==========================================================
+    // Interaction UI
+    // ==========================================================
+    public void ShowInteractUI() => eWord?.gameObject.SetActive(true);
+    public void HideInteractUI() => eWord?.gameObject.SetActive(false);
     public void ChangeInteractText(string newText)
     {
         if (eWord != null)
             eWord.text = newText;
     }
 
-    // Lớp con để quản lý thanh máu của mục tiêu 
+    // ==========================================================
+    // Target Health Bar
+    // ==========================================================
     public class HealthBarUI
     {
-        private GameObject healthBarObject; // Thanh máu mục tiêu
-        private Image fillImage;            // Hình ảnh thanh máu mục tiêu
+        private GameObject healthBarObject;
+        private Image fillImage;
 
         public HealthBarUI(GameObject healthBarObject, Image fillImage)
         {
@@ -134,20 +137,17 @@ public class UIManager : MonoBehaviour
             this.fillImage = fillImage;
         }
 
-        // Hiển thị thanh máu của mục tiêu và cập nhật giá trị
         public void SetTarget(HealthSystem healthSystem)
         {
             if (healthBarObject != null) healthBarObject.SetActive(true);
             Update(healthSystem);
         }
 
-        // Ẩn thanh máu khi không có mục tiêu
         public void ClearTarget()
         {
             if (healthBarObject != null) healthBarObject.SetActive(false);
         }
 
-        // Cập nhật tỉ lệ máu của mục tiêu
         public void Update(HealthSystem healthSystem)
         {
             if (healthSystem != null && fillImage != null)
