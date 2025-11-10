@@ -69,9 +69,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1542809642168262749}
-    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 2791164022588635399}
   m_SourcePrefab: {fileID: 100100000, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
 --- !u!4 &1316277131615651523 stripped
 Transform:
@@ -133,23 +130,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 9.97
   m_Center: {x: 0.81, y: -1.1, z: 0}
---- !u!114 &2791164022588635399
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3609001560468488453}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sceneId: 0
-  _assetId: 229013950
-  serverOnly: 0
-  visibility: 0
-  hasSpawned: 0
 --- !u!1001 &5589016350062195159
 PrefabInstance:
   m_ObjectHideFlags: 0

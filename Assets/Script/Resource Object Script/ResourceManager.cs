@@ -12,6 +12,64 @@ using System.Linq;
 using UnityEditor;
 #endif
 
+/// <summary>
+/// Lightweight runtime snapshot of a resource (for network/page sending).
+/// Purpose: small, stable JSON shape clients can consume. DOES NOT replace SpawnRecord.
+/// </summary>
+[Serializable]
+public class ResourceState
+{
+    public string uniqueId;
+    public string prefabGuid;      // optional, helps client resolve prefab if needed
+    public Vector3 position;
+    public Quaternion rotation;
+    public Vector3 scale;
+    public bool isChopped;
+
+    public ResourceState() { }
+
+    // Construct from your authoritative SpawnRecord
+    public ResourceState(SpawnRecord r)
+    {
+        if (r == null) return;
+        uniqueId = r.uniqueId;
+        prefabGuid = r.prefabGuid;
+        position = r.position;
+        rotation = r.rotation;
+        scale = r.scale;
+        isChopped = r.isChopped;
+    }
+
+    // Optional: convert back to SpawnRecord (fills minimal fields)
+    public SpawnRecord ToSpawnRecord()
+    {
+        return new SpawnRecord
+        {
+            uniqueId = uniqueId,
+            prefabGuid = prefabGuid,
+            prefabPath = null,              // not included in snapshot by design
+            sceneName = null,              // snapshot may omit scene/chunk; fill if needed
+            groundId = null,
+            position = position,
+            rotation = rotation,
+            scale = scale,
+            isChopped = isChopped
+        };
+    }
+}
+
+/// <summary>
+/// One page of resource snapshots. Serialize with JsonUtility and send via TargetRpc.
+/// </summary>
+[Serializable]
+public class ResourcePage
+{
+    public int pageIndex;
+    public bool isLast;
+    public List<ResourceState> resources = new List<ResourceState>();
+}
+
+
 public enum ResourceManagerRole { Standalone, Host, Client }
 public enum ResourceChangeSource { Local, Network, ClientRequest, Preload, Unknown }
 
@@ -36,7 +94,7 @@ public class ResourceStateChangeEvent
 }
 
 [DisallowMultipleComponent]
-public class ResourceManager : MonoBehaviour,ISaveable
+public class ResourceManager : MonoBehaviour, ISaveable
 {
     // NOTE: removed destructive singleton behavior to support multiple per-scene managers.
     // Use per-scene registry and lookup helpers instead.
@@ -153,6 +211,10 @@ public class ResourceManager : MonoBehaviour,ISaveable
     public bool manualSaveOnly = true;
     public bool enableAutoSave = false;
     public float autoSaveIntervalSeconds = 300f;
+
+    [Header("Network Paging")]
+    [Tooltip("How many resource states per snapshot page when sending initial state to a client.")]
+    public int snapshotPageSize = 64;
 
     [Header("Client-side performance tuning")]
     [Tooltip("Max milliseconds per frame to spend instantiating objects from a large snapshot on clients (0 disables).")]
@@ -566,6 +628,64 @@ public class ResourceManager : MonoBehaviour,ISaveable
 
         SetDirty(false);
         LogV($"[ResourceManager] Snapshot received (records={core.recordsById.Count})");
+    }
+
+    // --- ADDED: Server-side helper to send initial state pages to a client connection ---
+    // server-side: call from relay or NetworkManager
+    // server-side: call from relay or NetworkManager
+    // inside ResourceManager class
+    // Convenience overload: keep existing callers working
+    public void SendInitialStateTo(NetworkConnectionToClient conn, NetworkSnapshotRelay relay, string filterSceneName = null)
+    {
+        if (conn == null || relay == null)
+        {
+            Debug.LogWarning("[ResourceManager] SendInitialStateTo called with null conn or relay.");
+            return;
+        }
+
+        // Build DTO list from SpawnRecord collection, filter by sceneName if provided
+        var list = new List<ResourceState>();
+        try
+        {
+            foreach (var kv in core.recordsById)
+            {
+                var r = kv.Value;
+                if (!string.IsNullOrEmpty(filterSceneName))
+                {
+                    if (!string.Equals(r.sceneName, filterSceneName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
+                list.Add(new ResourceState(r));
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ResourceManager] Error building resource list for snapshot: {ex}");
+            var emptyErr = new ResourcePage { pageIndex = 0, isLast = true, resources = new List<ResourceState>() };
+            relay.Target_SendSnapshotPage(conn, JsonUtility.ToJson(emptyErr));
+            relay.Target_FinishSnapshot(conn);
+            return;
+        }
+
+        // === CHANGED SECTION: send everything in one JSON ===
+        var fullPage = new ResourcePage
+        {
+            pageIndex = 0,
+            isLast = true,
+            resources = list
+        };
+
+        string json = JsonUtility.ToJson(fullPage);
+
+        try
+        {
+            relay.Target_SendSnapshotPage(conn, json);
+            relay.Target_FinishSnapshot(conn);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[ResourceManager] Failed to send snapshot: {ex}");
+        }
     }
 
     #endregion

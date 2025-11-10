@@ -1,5 +1,8 @@
 using System;
-using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Text;
+using System.Collections;
 using UnityEngine;
 using Mirror;
 
@@ -8,65 +11,59 @@ using Mirror;
 /// - Place exactly one instance in the bootstrap/persistence scene (with NetworkIdentity).
 /// - Clients call CmdRequestChange / CmdRequestSnapshot / CmdRequestHostSave.
 /// - Server applies changes to the appropriate ResourceManager(s) and replies to clients via TargetRpc / ClientRpc.
-/// - RpcReceiveChange / RpcReceiveSnapshot broadcast to clients and will use NetworkMessageBus to deliver to local adapters.
+/// - This version sends snapshots in byte[] chunks to avoid Mirror's string size limit,
+///   and delays sends when connection isn't ready yet.
 /// </summary>
 [RequireComponent(typeof(NetworkIdentity))]
 public class ResourceManagerRouter : NetworkBehaviour
 {
-    // ========== Client -> Server Commands ==========
+    // SAFE chunk size in bytes (lowered to be safer for testing).
+    private const int SAFE_MAX_CHUNK_SIZE = 50000; // 50 KB
 
-    // Client requests server snapshot for a particular manager scene or "global" (could be extended with scene id)
-    // sender is the client connection who called the cmd; we'll send the snapshot back via TargetReceiveSnapshot.
+    // snapshot id generator
+    private int nextSnapshotId = 1;
+
+    // ================= Commands (Client -> Server) =================
+
     [Command(requiresAuthority = false)]
     public void CmdRequestSnapshot(NetworkConnectionToClient sender = null)
     {
         if (!isServer) return;
 
-        // Example: combine snapshots from all managers or choose a specific one.
-        // Here we return a combined snapshot per-manager by serializing each manager's snapshot as JSON array (simple approach).
         try
         {
             var managers = ResourceManager.GetAllManagers();
-            // For simplicity return the first non-null manager snapshot (you can aggregate as needed).
             foreach (var rm in managers)
             {
                 if (rm == null) continue;
                 var snap = rm.core.GetSnapshot();
                 string json = JsonUtility.ToJson(snap);
-                TargetReceiveSnapshot(sender, json);
+                byte[] payload = Encoding.UTF8.GetBytes(json);
+                Debug.Log($"[Router] CmdRequestSnapshot: built payload len={payload.Length} for conn={sender?.connectionId}");
+                SendSnapshotChunked(sender, payload, compressed: false);
                 return;
             }
-            // no manager available
-            TargetReceiveSnapshot(sender, "");
+            Debug.Log("[Router] CmdRequestSnapshot: no manager snapshot found, sending empty payload.");
+            SendSnapshotChunked(sender, new byte[0], compressed: false);
         }
         catch (Exception ex)
         {
             Debug.LogError($"[Router] CmdRequestSnapshot failed: {ex}");
-            TargetReceiveSnapshot(sender, "");
+            SendSnapshotChunked(sender, new byte[0], compressed: false);
         }
     }
 
-    // Client requests a state change for a uniqueId (e.g. chop)
     [Command(requiresAuthority = false)]
     public void CmdRequestChange(string uniqueId, bool isChopped, NetworkConnectionToClient sender = null)
     {
         if (!isServer) return;
-
         if (string.IsNullOrEmpty(uniqueId)) return;
 
-        // Find owning manager and apply change server-side (authoritative)
         var rm = ResourceManager.GetManagerForUniqueId(uniqueId);
         if (rm != null)
         {
-            // Optional: basic server-side validation could be performed here (distance, rate limit, etc.)
-            try
-            {
-                rm.RequestResourceStateChange(uniqueId, isChopped);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[Router] Failed to apply change to manager '{rm.name}' for id={uniqueId}: {ex}");
-            }
+            try { rm.RequestResourceStateChange(uniqueId, isChopped); }
+            catch (Exception ex) { Debug.LogWarning($"[Router] Failed to apply change to manager '{rm.name}' for id={uniqueId}: {ex}"); }
         }
         else
         {
@@ -74,12 +71,10 @@ public class ResourceManagerRouter : NetworkBehaviour
         }
     }
 
-    // Client requests host to save all managers (single RPC)
     [Command(requiresAuthority = false)]
     public void CmdRequestHostSave(NetworkConnectionToClient sender = null)
     {
         if (!isServer) return;
-
         foreach (var rm in ResourceManager.GetAllManagers())
         {
             try { rm.SaveNow(); }
@@ -87,19 +82,18 @@ public class ResourceManagerRouter : NetworkBehaviour
         }
     }
 
-    // ========== Server -> Client replies / broadcasts ==========
+    // ================= Server -> Client replies / broadcasts =================
 
-    // Send a snapshot JSON to a particular client
+    // Keep old small-payload TargetReceiveSnapshot for compatibility
     [TargetRpc]
     public void TargetReceiveSnapshot(NetworkConnection target, string json)
     {
-        // Will run on the targeted client.
-        // Use NetworkMessageBus to notify local adapter(s).
         if (string.IsNullOrEmpty(json))
         {
             NetworkMessageBus.RaiseSnapshotReceived(null);
             return;
         }
+
         try
         {
             var snap = JsonUtility.FromJson<SpawnRecordCollection>(json);
@@ -112,7 +106,14 @@ public class ResourceManagerRouter : NetworkBehaviour
         }
     }
 
-    // Broadcast a snapshot to all clients (server->all)
+    // CHUNKED TargetRpc: send a payload chunk to the target client.
+    [TargetRpc]
+    private void TargetReceiveSnapshotChunk(NetworkConnection target, int snapshotId, int index, int totalChunks, byte[] chunk, bool compressed)
+    {
+        // Runs on the client; forward to the local singleton to reassemble/process
+        ClientSnapshotReceiver.Instance?.OnReceiveChunk(snapshotId, index, totalChunks, chunk, compressed);
+    }
+
     [ClientRpc]
     public void RpcReceiveSnapshotAll(string json)
     {
@@ -130,7 +131,6 @@ public class ResourceManagerRouter : NetworkBehaviour
         }
     }
 
-    // Broadcast a single change to all clients (uniqueId, isChopped)
     [ClientRpc]
     public void RpcReceiveChange(string uniqueId, bool isChopped)
     {
@@ -138,8 +138,6 @@ public class ResourceManagerRouter : NetworkBehaviour
         NetworkMessageBus.RaiseChangeReceived(uniqueId, isChopped);
     }
 
-    // Convenience server-side helper for host code to call to broadcast a change to clients
-    // Call this from server/host code when you want to broadcast an update
     public void BroadcastChangeToClients(string uniqueId, bool isChopped)
     {
         if (!isServer) return;
@@ -147,7 +145,6 @@ public class ResourceManagerRouter : NetworkBehaviour
         catch (Exception ex) { Debug.LogWarning($"[Router] BroadcastChangeToClients failed: {ex}"); }
     }
 
-    // Convenience server-side helper to broadcast a snapshot to all clients
     public void BroadcastSnapshotToClients(SpawnRecordCollection container)
     {
         if (!isServer) return;
@@ -157,5 +154,90 @@ public class ResourceManagerRouter : NetworkBehaviour
             RpcReceiveSnapshotAll(json);
         }
         catch (Exception ex) { Debug.LogWarning($"[Router] BroadcastSnapshotToClients failed: {ex}"); }
+    }
+
+    // ===================== Chunk sending helpers =====================
+
+    /// <summary>
+    /// Splits payload into SAFE_MAX_CHUNK_SIZE blocks and sends each to the given client connection.
+    /// If connection isn't ready yet, queue the send via DelaySendWhenReady coroutine.
+    /// </summary>
+    public void SendSnapshotChunked(NetworkConnectionToClient conn, byte[] payload, bool compressed)
+    {
+        if (!isServer) return;
+        if (conn == null) return;
+
+        // ensure payload not null
+        if (payload == null) payload = new byte[0];
+
+        // If connection is not ready yet, delay sending until it's ready (avoid early RPCs)
+        if (!conn.isReady)
+        {
+            Debug.LogWarning($"[Router] Conn {conn.connectionId} not ready. Scheduling delayed snapshot send (len={payload.Length}).");
+            StartCoroutine(DelaySendWhenReady(conn, payload, compressed));
+            return;
+        }
+
+        int snapshotId = System.Threading.Interlocked.Increment(ref nextSnapshotId);
+
+        int maxChunk = SAFE_MAX_CHUNK_SIZE;
+        int totalChunks = (payload.Length + maxChunk - 1) / Math.Max(1, maxChunk);
+        if (totalChunks == 0) totalChunks = 1;
+
+        for (int i = 0; i < totalChunks; ++i)
+        {
+            int offset = i * maxChunk;
+            int len = Math.Min(maxChunk, Math.Max(0, payload.Length - offset));
+            byte[] chunk = new byte[len];
+            if (len > 0) Array.Copy(payload, offset, chunk, 0, len);
+
+            try
+            {
+                Debug.Log($"[Router] Sending snapshot chunk to conn={conn.connectionId} snapshotId={snapshotId} {i + 1}/{totalChunks} len={chunk.Length} compressed={compressed}");
+                TargetReceiveSnapshotChunk(conn, snapshotId, i, totalChunks, chunk, compressed);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Router] Exception sending chunk {i}/{totalChunks} to conn {conn.connectionId}: {ex}");
+            }
+        }
+    }
+
+    private IEnumerator DelaySendWhenReady(NetworkConnectionToClient conn, byte[] payload, bool compressed)
+    {
+        float timeout = 10f;
+        float elapsed = 0f;
+        while (elapsed < timeout)
+        {
+            if (conn == null)
+            {
+                Debug.LogWarning($"[Router] DelaySendWhenReady: conn became null, aborting.");
+                yield break;
+            }
+            if (conn.isReady) break;
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+        if (conn == null || !conn.isReady)
+        {
+            Debug.LogWarning($"[Router] Connection {conn?.connectionId ?? -1} not ready after wait; aborting snapshot send.");
+            yield break;
+        }
+        // send now
+        SendSnapshotChunked(conn, payload, compressed);
+    }
+
+    // OPTIONAL: compression helper (server-side) if you want to compress before sending.
+    private static byte[] CompressBytes(byte[] data)
+    {
+        if (data == null || data.Length == 0) return data;
+        using (var ms = new MemoryStream())
+        {
+            using (var gzip = new GZipStream(ms, CompressionMode.Compress))
+            {
+                gzip.Write(data, 0, data.Length);
+            }
+            return ms.ToArray();
+        }
     }
 }
