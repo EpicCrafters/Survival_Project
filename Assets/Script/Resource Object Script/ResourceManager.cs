@@ -189,6 +189,10 @@ public class ResourceManager : MonoBehaviour, ISaveable
         }
     }
 
+    // Add at top of ResourceManager
+    [Header("Debug (temporary)")]
+    public Material debugFallbackMaterial; // assign an Unlit/Color material compatible with your pipeline
+
     [Header("Role")]
     public ResourceManagerRole role = ResourceManagerRole.Standalone;
 
@@ -274,6 +278,9 @@ public class ResourceManager : MonoBehaviour, ISaveable
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void OnDomainReload() { /* no-op placeholder in this file */ }
 
+    [Header("Prefab Registry (ScriptableObject)")]
+    public ResourcePrefabDatabase resourcePrefabDatabase;
+
     #region Unity lifecycle
 
     void Awake()
@@ -309,6 +316,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
         }
 
         // wire core events
+        Debug.Log($"[ResourceManager] Awake instanceID={this.GetInstanceID()}");
         core.OnSpawnRequested += SpawnRecordVisual;
         core.OnRecordChangedRaw += (id, state) => SetDirty(true);
 
@@ -335,12 +343,45 @@ public class ResourceManager : MonoBehaviour, ISaveable
         }
     }
 
-    void Start()
+    // Replace the existing void Start() with this coroutine Start()
+    IEnumerator Start()
     {
-        // register runtime prefabs again (if Mirror wasn't ready at Awake)
+        // Re-attempt Mirror registration in case Mirror wasn't ready in Awake.
         if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
 
-        // auto-load for Host/Standalone: persistence loads snapshot and we spawn
+        // Small, deterministic wait loop to avoid startup races in builds.
+        // Wait until either:
+        //  - runtimePrefabMap has entries (we have runtime prefabs)
+        //  - runtimePrefabsRegisteredWithMirror == true (registration finished)
+        //  - or until Mirror registration is not recommended (no network support)
+        // Timeout after a bounded number of frames to avoid hanging startup.
+        int maxFramesToWait = 30; // ~0.5s at 60fps — adjust if you need shorter/longer
+        int waited = 0;
+        while (waited < maxFramesToWait)
+        {
+            bool havePrefabs = (runtimePrefabMap != null && runtimePrefabMap.Count > 0);
+            bool registrationDone = runtimePrefabsRegisteredWithMirror; // internal guard set by TryRegisterRuntimePrefabsWithMirror
+            bool skipMirror = !useMirrorRegistrationRecommended();
+
+            if (havePrefabs || registrationDone || skipMirror) break;
+
+            // re-try registration once per frame in case Mirror finishes up
+            if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
+
+            waited++;
+            yield return null;
+        }
+
+        if (waited >= maxFramesToWait)
+        {
+            Debug.LogWarning($"[ResourceManager] Start: waited {maxFramesToWait} frames for prefab/registration readiness and timed out. runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror}");
+        }
+        else
+        {
+            Debug.Log($"[ResourceManager] Start: readiness achieved after {waited} frames. runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror}");
+        }
+
+        // Now proceed with the existing load/spawn logic (unchanged, just delayed)
         if (!deferLoadUntilManualStart && (role == ResourceManagerRole.Standalone || role == ResourceManagerRole.Host))
         {
             try
@@ -351,6 +392,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 // Host/Standalone: spawn synchronously (fast local spawn)
                 // Clients are throttled in HandleSnapshotReceived
                 core.RequestSpawnAll();
+                Debug.Log($"[RM Start BEFORE RequestSpawnAll] runtimePrefabs count={(runtimePrefabs != null ? runtimePrefabs.Count : 0)} runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror} instanceID={this.GetInstanceID()}");
 
                 // If host and Mirror active, spawn network Identities now (if any)
                 if (role == ResourceManagerRole.Host && useMirrorRegistrationRecommended() && NetworkServer.active)
@@ -386,6 +428,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
         if (enableAutoSave && !manualSaveOnly && role != ResourceManagerRole.Client)
             autoSaveCoroutine = StartCoroutine(AutoSaveCoroutine());
     }
+
 
     void Update()
     {
@@ -772,6 +815,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
 
     void SpawnRecordVisual(SpawnRecord r)
     {
+        //Debug.Log($"[SpawnRecordVisual START] uniqueId={r.uniqueId} prefabPath='{r.prefabPath}'");
         if (r == null) return;
 
         // Prevent duplicate spawn attempts for same id
@@ -794,8 +838,11 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 $"spawnParentScene={(spawnParent ? spawnParent.gameObject.scene.name : "<null>")} resourceManagerScene={gameObject.scene.name}");
 
             GameObject prefab = ResolvePrefabFromRecord(r);
-            if (prefab == null) LogW($"Prefab missing for record {r.uniqueId}");
-
+            if (prefab == null) { LogW($"Prefab missing for record {r.uniqueId}"); }
+            else
+            {
+                LogV($"Prefab EXIST!!? {r.uniqueId}");
+            }
             bool recordIsLocalToParent = recordsAreLocalSpace && exporterReference == null && spawnParent != null;
             bool recordIsLocalToExporter = recordsAreLocalSpace && exporterReference != null;
 
@@ -822,6 +869,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 if (recordIsLocalToParent)
                 {
                     go = Instantiate(prefab, spawnParent);
+                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     go.transform.localPosition = r.position;
                     go.transform.localRotation = r.rotation;
                     go.transform.localScale = r.scale;
@@ -829,6 +877,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 else
                 {
                     go = Instantiate(prefab, desiredWorldPos, desiredWorldRot);
+                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     go.transform.localScale = desiredWorldScale;
                     if (spawnParent != null)
                     {
@@ -843,6 +892,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 if (recordIsLocalToParent)
                 {
                     var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     cube.name = $"MISSING_PREFAB_{r.uniqueId}";
                     cube.transform.SetParent(spawnParent, false);
                     cube.transform.localPosition = r.position;
@@ -855,6 +905,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 else
                 {
                     go = CreateMissingPrefabPlaceholder(r.uniqueId, desiredWorldPos, desiredWorldRot, desiredWorldScale);
+                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     if (spawnParent != null)
                     {
                         SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
@@ -923,7 +974,18 @@ public class ResourceManager : MonoBehaviour, ISaveable
 
     protected virtual GameObject ResolvePrefabFromRecord(SpawnRecord r)
     {
-#if UNITY_EDITOR
+        if (r == null) return null;
+        // 1. ScriptableObject registry lookup
+        if (resourcePrefabDatabase != null)
+        {
+            var prefab = resourcePrefabDatabase.GetPrefab(r.prefabPath);
+            //prefab = null;
+            if (prefab != null) { return prefab; }
+            //else Debug.LogError("Prefab NULL from getting from prefabPath");
+        }
+
+/*#if UNITY_EDITOR
+        // 2. Editor-only AssetDatabase lookup
         string path = null;
         if (!string.IsNullOrEmpty(r.prefabGuid))
         {
@@ -933,27 +995,29 @@ public class ResourceManager : MonoBehaviour, ISaveable
         if (!string.IsNullOrEmpty(path))
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (prefab == null && verboseLogs) Debug.LogWarning($"[ResourceManager] Could not load prefab at path '{path}' for record {r.uniqueId}");
+            if (prefab == null && verboseLogs)
+                Debug.LogWarning($"[ResourceManager] Could not load prefab at path '{path}' for record {r.uniqueId}");
             return prefab;
         }
-#endif
-        if (r == null) return null;
+#endif*/
 
-        // try runtime map by name
+        // 3. Runtime-prefabs map
         if (!string.IsNullOrEmpty(r.prefabPath) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabPath, out var p1))
             return p1;
         if (!string.IsNullOrEmpty(r.prefabGuid) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabGuid, out var p2))
             return p2;
 
-        // try by path using Resources
+        // 4. Resources folder fallback
         if (!string.IsNullOrEmpty(r.prefabPath))
         {
             var loaded = Resources.Load<GameObject>(r.prefabPath);
             if (loaded != null) return loaded;
         }
 
+        // 5. Nothing found
         return null;
     }
+
 
     GameObject CreateMissingPrefabPlaceholder(string uniqueId, Vector3 worldPos, Quaternion worldRot, Vector3 worldScale)
     {
@@ -1206,6 +1270,111 @@ public class ResourceManager : MonoBehaviour, ISaveable
             }
         }
     }
+
+    // Replace or call this after you instantiate / create placeholder
+    void DebugLogSpawnedObject(GameObject spawned, SpawnRecord record, bool createdAsPlaceholder)
+    {
+        if (spawned == null)
+        {
+            Debug.LogError($"ResourceManager DEBUG: Spawn returned NULL for record {record?.uniqueId}. createdAsPlaceholder={createdAsPlaceholder}");
+            return;
+        }
+
+        // Basic identity
+        string id = record != null ? record.uniqueId : "<no-record>";
+        Debug.Log($"ResourceManager DEBUG: Spawned GameObject name='{spawned.name}' for record={id} placeholder={createdAsPlaceholder}");
+
+        // Check if it's a primitive cube (fast heuristic)
+        var mf = spawned.GetComponent<MeshFilter>();
+        bool isPrimitiveCube = false;
+        if (mf != null && mf.sharedMesh != null && mf.sharedMesh.name.ToLower().Contains("cube"))
+        {
+            isPrimitiveCube = true;
+        }
+        Debug.Log($" - Has MeshFilter: {(mf != null ? "yes" : "no")}, Mesh name: {(mf != null && mf.sharedMesh != null ? mf.sharedMesh.name : "<null>")}, primitiveCube={isPrimitiveCube}");
+
+        // MeshRenderer / SkinnedMeshRenderer
+        var mr = spawned.GetComponent<MeshRenderer>();
+        var smr = spawned.GetComponent<UnityEngine.SkinnedMeshRenderer>();
+        if (mr != null)
+        {
+            Debug.Log($" - MeshRenderer found. materials count = {mr.sharedMaterials?.Length ?? 0}");
+            for (int i = 0; i < (mr.sharedMaterials?.Length ?? 0); ++i)
+            {
+                var mat = mr.sharedMaterials[i];
+                Debug.Log($"   - Material[{i}] = {(mat != null ? mat.name : "<null>")}");
+                if (mat != null && mat.shader != null)
+                {
+                    Debug.Log($"     - shader = {mat.shader.name}, isSupported = {mat.shader.isSupported}");
+                }
+                else Debug.Log($"     - shader = <null>");
+            }
+        }
+        else if (smr != null)
+        {
+            Debug.Log($" - SkinnedMeshRenderer found. materials count = {smr.sharedMaterials?.Length ?? 0}");
+            for (int i = 0; i < (smr.sharedMaterials?.Length ?? 0); ++i)
+            {
+                var mat = smr.sharedMaterials[i];
+                Debug.Log($"   - Material[{i}] = {(mat != null ? mat.name : "<null>")}");
+                if (mat != null && mat.shader != null)
+                {
+                    Debug.Log($"     - shader = {mat.shader.name}, isSupported = {mat.shader.isSupported}");
+                }
+                else Debug.Log($"     - shader = <null>");
+            }
+        }
+        else
+        {
+            Debug.Log($" - No MeshRenderer / SkinnedMeshRenderer on root. Checking children...");
+            foreach (var r in spawned.GetComponentsInChildren<Renderer>(true))
+            {
+                Debug.Log($"   Child renderer: name='{r.gameObject.name}' type={r.GetType().Name} materials={(r.sharedMaterials?.Length ?? 0)}");
+                for (int i = 0; i < (r.sharedMaterials?.Length ?? 0); ++i)
+                {
+                    var mat = r.sharedMaterials[i];
+                    Debug.Log($"     - Material[{i}] = {(mat != null ? mat.name : "<null>")}");
+                    if (mat != null && mat.shader != null) Debug.Log($"       shader={mat.shader.name}, isSupported={mat.shader.isSupported}");
+                    else Debug.Log($"       shader=<null>");
+                }
+            }
+        }
+
+        // If this *is* a primitive cube OR materials are null/unsupported, apply debugFallbackMaterial (to avoid magenta)
+        bool materialsProblem = false;
+        // consider materialsProblem true if any renderer has a null material or shader.isSupported == false
+        foreach (var r in spawned.GetComponentsInChildren<Renderer>(true))
+        {
+            var mats = r.sharedMaterials;
+            if (mats == null || mats.Length == 0) { materialsProblem = true; break; }
+            foreach (var m in mats)
+            {
+                if (m == null) { materialsProblem = true; break; }
+                if (m.shader == null || !m.shader.isSupported) { materialsProblem = true; break; }
+            }
+            if (materialsProblem) break;
+        }
+
+        if (isPrimitiveCube || materialsProblem)
+        {
+            Debug.LogWarning($"ResourceManager DEBUG: Spawned object appears to be a placeholder or has material/shader problems. isCube={isPrimitiveCube} materialsProblem={materialsProblem}");
+            if (debugFallbackMaterial != null)
+            {
+                foreach (var r in spawned.GetComponentsInChildren<Renderer>(true))
+                {
+                    // Use sharedMaterial so Unity includes the asset in builds and you don't create instance GC churn.
+                    var arr = r.sharedMaterials;
+                    for (int i = 0; i < arr.Length; ++i) arr[i] = debugFallbackMaterial;
+                    r.sharedMaterials = arr;
+                }
+                Debug.Log("ResourceManager DEBUG: Applied debugFallbackMaterial to spawned object to avoid magenta.");
+            }
+        }
+
+        // Extra: log active scene and ResourceManager instance id to ensure you are looking at the right manager
+        Debug.Log($"ResourceManager DEBUG: activeScene='{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}' ResourceManager.instanceID={this.GetInstanceID()}");
+    }
+
     public bool HasUnsavedChanges => hasUnsavedChanges;
     public string SaveableName => gameObject.name;
     public string SceneName => gameObject.scene.name;

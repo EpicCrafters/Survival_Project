@@ -45,6 +45,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4369004dfd6ee7409b7bcc8d6b2a5c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugFallbackMaterial: {fileID: 0}
   role: 1
   spawnJsonAsset: {fileID: 4900000, guid: a7b4df0fa7530804a9a4fe1cf43ccfaf, type: 3}
   spawnJsonPath: Assets/Script/JSON/ground2_spawn_data.json
@@ -62,6 +63,7 @@ MonoBehaviour:
   batchSpawnThreshold: 200
   verboseLogs: 1
   runtimePrefabs: []
+  resourcePrefabDatabase: {fileID: 11400000, guid: 56ba8670a3b793a42bb4840a460c23b9, type: 2}
 --- !u!114 &3271843480271103900
 MonoBehaviour:
   m_ObjectHideFlags: 0

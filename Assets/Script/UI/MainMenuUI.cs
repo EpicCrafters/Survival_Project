@@ -78,6 +78,8 @@ public class MainMenuUI : MonoBehaviour
         {
             Debug.LogWarning("[Menu] NetworkManager already active. Entering gameplay UI.");
             EnterGameplayUI();
+            var p = FindObjectOfType<PlayerFreezeUntilReady>();
+            if (p != null) p.ForceActivate();
             return;
         }
 
@@ -113,6 +115,8 @@ public class MainMenuUI : MonoBehaviour
         yield return StartCoroutine(LoadMultipleScenesAdditive(environmentSceneNames));
 
         EnterGameplayUI();
+        var p = FindObjectOfType<PlayerFreezeUntilReady>();
+        if (p != null) p.ForceActivate();
     }
 
     private void OnClientClicked()
@@ -128,6 +132,8 @@ public class MainMenuUI : MonoBehaviour
         {
             Debug.LogWarning("[Menu] This instance is running as server/host. Use StartHost instead of StartClient.");
             EnterGameplayUI();
+            var p = FindObjectOfType<PlayerFreezeUntilReady>();
+            if (p != null) p.ForceActivate();
             return;
         }
 
@@ -196,10 +202,14 @@ public class MainMenuUI : MonoBehaviour
                 }
 
                 EnterGameplayUI();
+                var p = FindObjectOfType<PlayerFreezeUntilReady>();
+                if (p != null) p.ForceActivate();
             }
             else
             {
                 EnterGameplayUI();
+                var p = FindObjectOfType<PlayerFreezeUntilReady>();
+                if (p != null) p.ForceActivate();
             }
         }
         else

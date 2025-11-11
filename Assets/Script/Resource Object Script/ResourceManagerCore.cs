@@ -24,12 +24,19 @@ public class ResourceManagerCore
     {
         recordsById.Clear();
         if (snapshot == null) return;
+
+        //Debug.Log($"[Core] LoadSnapshot: records incoming = {snapshot.records?.Count ?? 0}"); // << add
+
         foreach (var r in snapshot.records) recordsById[r.uniqueId] = r;
+
+        //Debug.Log($"[Core] LoadSnapshot: recordsById now = {recordsById.Count}"); // << add
     }
 
     public void RequestSpawnAll()
     {
+        //Debug.Log($"[Core] RequestSpawnAll: recordsById count = {recordsById.Count}"); // << add
         foreach (var r in recordsById.Values) OnSpawnRequested?.Invoke(r);
+        Debug.Log("[Core] RequestSpawnAll: finished invoking OnSpawnRequested"); // optional
     }
 
     public bool TryGetRecord(string uniqueId, out SpawnRecord rec) => recordsById.TryGetValue(uniqueId, out rec);

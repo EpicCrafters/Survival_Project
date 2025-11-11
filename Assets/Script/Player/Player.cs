@@ -117,6 +117,8 @@ public class Player : NetworkBehaviour
 
         // Di chuyển nhân vật
         MovePlayer();
+
+        //Debug.LogError(transform.position);
     }
 
     private void CheckSlope()
