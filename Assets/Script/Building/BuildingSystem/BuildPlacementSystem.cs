@@ -97,8 +97,8 @@ public class BuildPlacementSystem : MonoBehaviour
             outRotY = 0f;
         }
 
-        int targetLayer = iy + obj.building.verticalOffset;
-        outPosition.y = origin.y + targetLayer * buildManager.cellHeight;
+        //int targetLayer = iy + obj.building.verticalOffset;
+        //outPosition.y = origin.y + targetLayer * buildManager.cellHeight;
     }
 
     // tìm anchor gần nhất (ưu tiên BuildClusterRef, fallback BuildtObject cũ)

@@ -16,7 +16,8 @@ MonoBehaviour:
   itemName: Axe
   image: {fileID: 21300000, guid: 47356a31a5fdcba43ae1b1dac9cafc32, type: 3}
   type: 1
-  worldPrefab: {fileID: 5717276217548651798, guid: c52157211403cdd4da6e7985623161df, type: 3}
+  worldPrefab: {fileID: 5717276217548651798, guid: c35bffcdb12a2434d9712d40bb39541f, type: 3}
+  heldPrefab: {fileID: 5717276217548651798, guid: c52157211403cdd4da6e7985623161df, type: 3}
   itemPlace: 0
   snapToGrid: 1
   gridSize: 2
@@ -25,9 +26,19 @@ MonoBehaviour:
     damage: 0
     range: 0
     combos: []
+    knockback:
+      horizontalForce: 800
+      upwardForce: 200
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   tool:
     toolType: 2
     damage: 15
+    knockback:
+      horizontalForce: 20
+      upwardForce: 2
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   consumable:
     healAmount: 0
     fillAmount: 0

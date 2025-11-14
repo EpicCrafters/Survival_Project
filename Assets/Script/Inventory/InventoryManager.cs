@@ -19,6 +19,7 @@ public class InventoryManager : MonoBehaviour
     //test
     [SerializeField] public ItemData stick;
     [SerializeField] public ItemData stone;
+    [SerializeField] public ItemData axe;
     //[SerializeField] private ItemData stair;
     //[SerializeField] private ItemData camfire;
     //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
@@ -45,6 +46,7 @@ public class InventoryManager : MonoBehaviour
             AddItem(stone);
 
         }
+        AddItem(axe);
         //AddItem(stair);
         //if (sortButton != null)
         //    sortButton.onClick.AddListener(SortItems); // Gắn sự kiện bấm nút sắp xếp

@@ -1,193 +1,222 @@
-﻿using NUnit.Framework.Interfaces;
+﻿using Mirror;
 using UnityEngine;
 
-public class PlayerHoldingItem : MonoBehaviour
+public class PlayerHoldingItem : NetworkBehaviour
 {
-    [SerializeField] private Transform holdingPoint; // Vị trí để hiển thị vật phẩm đang cầm
+    [Header("References")]
+    [SerializeField] public Transform holdingPoint;
     [SerializeField] private ItemPlacer itemPlacer;
-    [SerializeField] private BuildManager buildManager;
+    [SerializeField] private WeaponAnimatorHandler weaponHandler;
 
-    private GameObject currentHoldingItem; // GameObject hiện đang cầm
-    [SerializeField] private GameObject hammerPrefab; // Prefab cây búa mặc định khi cầm building part
-
-    [SerializeField] private bool isHolding; // Trạng thái có đang cầm hay không
-    public ItemData ItemData;
+    private GameObject currentHoldingItem;
+    private bool isHolding;
+    private bool isWeapon;
+    public ItemData ItemData { get; private set; }
     public bool buildingType = false;
-    // Hàm gọi khi muốn cầm một vật phẩm mới
 
-    private void Start()
-    {
-        buildManager = GetComponentInChildren<BuildManager>();
-    }
+    [SyncVar(hook = nameof(OnItemChanged))]
+    private int currentItemId = 0;
+
+    // ===========================================================
+    // Called when player wants to hold an item
     public void HoldingItem(ItemData itemData)
     {
+        if (!isLocalPlayer) return;
 
-        Clear(); //  Xóa vật phẩm đang cầm cũ nếu có
+        int newItemId = (itemData == null) ? 0 : itemData.id;
 
-        if (itemData != null && itemData.worldPrefab != null)
+        // If already holding the same item, skip
+        if (currentItemId == newItemId && currentHoldingItem != null)
+            return;
+
+        // Update locally first for responsiveness
+        UpdateHeldItem(newItemId);
+
+        // Send to server to sync with other clients
+        CmdSetHeldItem(newItemId);
+    }
+
+    // ===========================================================
+    [Command]
+    private void CmdSetHeldItem(int itemId)
+    {
+        
+        currentItemId = itemId;
+    }
+
+    // ===========================================================
+    // Hook called when SyncVar changes (runs on ALL clients)
+    private void OnItemChanged(int oldId, int newId)
+    {
+        
+
+        // Local player already updated in HoldingItem(), skip to avoid double processing
+        if (isLocalPlayer)
         {
-            ItemData = itemData;
-            isHolding = true;
-
-            GameObject prefabToHold = itemData.worldPrefab;
-
-            // Nếu là BuildingPart thì thay thế model trên tay bằng cây búa
-            if (itemData.type == ItemType.BuildingPart)
-            {
-                prefabToHold = hammerPrefab;
-            }
-
-            // Tạo prefab trên tay
-            currentHoldingItem = Instantiate(prefabToHold, holdingPoint);
-            currentHoldingItem.transform.localPosition = Vector3.zero;
-            currentHoldingItem.transform.localRotation = Quaternion.identity;
-
-            // Gán dữ liệu item
-            Item item = currentHoldingItem.GetComponent<Item>();
-            if (item == null)
-                item = currentHoldingItem.GetComponentInParent<Item>();
-            if (item == null)
-                item = currentHoldingItem.GetComponentInChildren<Item>();
-
-            if (item != null)
-            {
-                item.itemData = itemData;
-            }
-            else
-            {
-                Debug.LogWarning("Held prefab thiếu component Item!");
-            }
-
-            //Tắt collider 
-            Collider col = currentHoldingItem.GetComponentInChildren<Collider>();
-            if (col != null)
-            {
-                col.enabled = false;
-            }
-
-            //Tắt vật lý 
-            Rigidbody rb = currentHoldingItem.GetComponent<Rigidbody>();
-            if (rb != null)
-            {
-                rb.isKinematic = true;
-                rb.useGravity = false;
-            }
-
-            // Gán dữ liệu cho HitBox nếu có
-            ItemHitBox hitbox = currentHoldingItem.GetComponentInChildren<ItemHitBox>();
-            if (hitbox != null)
-            {
-                hitbox.SetItemData(itemData);
-            }
-
-            // Nếu item có thể đặt được => bật ghost preview
-            if (itemData.itemPlace)
-            {
-                if (itemData.type == ItemType.BuildingPart)
-                {
-                    //Debug.Log("Item là BuildingPart => tạm thời chưa bật ghost preview.");
-                    buildingType = true;
-                    buildManager.SetCurrentItem(itemData, this);
-                }
-                else
-                {
-                    buildingType = false;
-                    //Debug.Log("Bắt đầu đặt item (không phải BuildingPart).");
-                    itemPlacer.StartPlacing(ItemData, this);
-                }
-            }
-            if (itemData.type == ItemType.Tool)
-            {
-                buildingType = true;
-                buildManager.SetCurrentItem(itemData, this);
-            }
+            
+            return;
         }
-        else
+
+        // Update for remote clients
+        UpdateHeldItem(newId);
+    }
+
+    // ===========================================================
+    // Core method to update held item (used by both local and remote)
+    private void UpdateHeldItem(int itemId)
+    {
+       
+
+        // Clear current item
+        ClearHeldItem();
+
+        // Create new item if not empty
+        if (itemId != 0)
         {
-            Debug.LogWarning("ItemData hoặc prefab null!");
+            CreateHeldItem(itemId);
         }
     }
 
-
-    // Xóa vật phẩm đang cầm 
-    public void Clear()
+    // ===========================================================
+    // Create the held item visual
+    private void CreateHeldItem(int itemId)
     {
+        ItemData data = ItemDatabase.Get(itemId);
+        if (data == null)
+        {
+            
+            return;
+        }
+
+        GameObject prefab = data.heldPrefab ?? data.worldPrefab;
+        if (prefab == null)
+        {
+            
+            return;
+        }
+
+        GameObject newItem = Instantiate(prefab, holdingPoint);
+        newItem.transform.localPosition = Vector3.zero;
+        newItem.transform.localRotation = Quaternion.identity;
+        newItem.transform.localScale = Vector3.one;
+
+        currentHoldingItem = newItem;
+        ItemData = data;
+        isHolding = true;
+
+        // Attach ItemHeld component
+        var heldComp = newItem.GetComponent<ItemHeld>() ?? newItem.AddComponent<ItemHeld>();
+        heldComp.Init(data, this);
+
+        // Disable physics
+        if (newItem.TryGetComponent<Collider>(out var col))
+            col.enabled = false;
+
+        if (newItem.TryGetComponent<Rigidbody>(out var rb))
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+        }
+
+        // Set weapon animation ONLY for local player
+        if (data.type == ItemType.Weapon && isLocalPlayer)
+        {
+            isWeapon = true;
+            weaponHandler?.EquipWeapon(data);
+        }
+
+        
+    }
+
+    // ===========================================================
+    // Clear held item
+    private void ClearHeldItem()
+    {
+        
+
         if (currentHoldingItem != null)
         {
-            isHolding = false;
-            ItemData = null;
             Destroy(currentHoldingItem);
             currentHoldingItem = null;
-            if (itemPlacer != null)
-            {
-                if (buildingType == false)
-                {
-                    itemPlacer.CancelPlacing();  // Cancel ghost preview on clear
-                }
-                else
-                {
-                    buildManager.SetCurrentItem(null, this);
-                    buildManager.EndVisualisingObject();
-                }
-            }
-
         }
+
+        isHolding = false;
+        isWeapon = false;
+        ItemData = null;
+
+        // Cancel placement/building mode
+        if (itemPlacer != null)
+        {
+            if (!buildingType)
+                itemPlacer.CancelPlacing();
+            else
+            {
+               // BuildManager.Instance?.SetCurrentItem(null, this);
+                //BuildManager.Instance?.EndVisualisingObject();
+            }
+        }
+
+        buildingType = false;
     }
+
+    // ===========================================================
+    // Public Clear method (for backwards compatibility)
+    public void Clear()
+    {
+        if (!isLocalPlayer) return;
+
+        HoldingItem(null);
+    }
+
+    // ===========================================================
+    // Called when player places an item
     public void OnPlaced()
     {
+        if (ItemData == null) return;
 
+        // Remove item from inventory
         bool removed = InventoryManager.instance.RemoveItem(ItemData, 1);
-
         if (!removed)
         {
-            // Trường hợp không xóa được (ví dụ item đã hết trước đó)
             Clear();
             return;
         }
 
-        // Kiểm tra lại xem trong kho còn item này không
+        // Clear hand if no more items
         if (InventoryManager.instance.GetItemCount(ItemData) == 0)
-        {
-            // Nếu không còn thì clear item đang cầm
             Clear();
-        }
-
-    }
-    // Kiểm tra có đang cầm vật phẩm không
-    public bool IsHolding()
-    {
-        return isHolding;
     }
 
-    // Lấy GameObject vật phẩm đang cầm
-    public GameObject GetCurrentHeldObject()
-    {
-        return currentHoldingItem;
-    }
-
-    // Cập nhật vật phẩm đang cầm theo số lượng mới trong kho
+    // ===========================================================
+    // Refresh held item when inventory changes
     public void RefreshHoldingItem(ItemData itemData, int currentCount)
     {
+        if (!isLocalPlayer) return;
+
         if (currentCount <= 0 || itemData == null)
         {
-            Clear(); // Nếu không còn item thì xóa
+            Clear();
             return;
         }
 
         if (currentHoldingItem == null)
         {
-            HoldingItem(itemData); // Nếu chưa cầm thì tạo mới
+            HoldingItem(itemData);
         }
         else
         {
             Item heldItem = currentHoldingItem.GetComponent<Item>();
-            // Nếu vật phẩm khác với đang cầm thì đổi mới
             if (heldItem == null || heldItem.itemData != itemData)
             {
                 Clear();
                 HoldingItem(itemData);
             }
         }
-
     }
+
+    // ===========================================================
+    // Getters
+    public bool IsHolding() => isHolding;
+    public bool IsAWeapon() => isWeapon;
+    public GameObject GetCurrentHeldObject() => currentHoldingItem;
 }

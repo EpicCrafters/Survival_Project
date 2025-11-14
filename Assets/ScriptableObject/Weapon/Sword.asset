@@ -16,7 +16,8 @@ MonoBehaviour:
   itemName: Sword
   image: {fileID: 0}
   type: 0
-  worldPrefab: {fileID: 2803313211207175936, guid: 6b7e58a4bec11094b9b0e644c3d8160c, type: 3}
+  worldPrefab: {fileID: 2803313211207175936, guid: a3d79dff82343fc48aa33ccca7ef9f40, type: 3}
+  heldPrefab: {fileID: 2803313211207175936, guid: 6b7e58a4bec11094b9b0e644c3d8160c, type: 3}
   itemPlace: 0
   snapToGrid: 1
   gridSize: 2
@@ -26,9 +27,19 @@ MonoBehaviour:
     range: 0
     combos:
     - animation: {fileID: -4791504522942941401, guid: 9636b926dc9bfa142a4cbc16ded814ab, type: 3}
+    knockback:
+      horizontalForce: 20
+      upwardForce: 20
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   tool:
     toolType: 0
     damage: 0
+    knockback:
+      horizontalForce: 800
+      upwardForce: 200
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   consumable:
     healAmount: 0
     fillAmount: 0

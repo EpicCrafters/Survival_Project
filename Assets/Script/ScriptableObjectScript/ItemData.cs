@@ -1,48 +1,31 @@
-﻿using JetBrains.Annotations;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
-public enum ItemType
-{
-    Weapon,
-    Tool,
-    Consumable,
-    Resource,
-    BuildingPart
-}
-
-
-public enum WeaponType
-{
-    Sword,
-    Spear,
-    BattleAxe
-}
-
-public enum ToolType
-{
-    Hammer,
-    Pickaxe,
-    Axe
-}
-
-public enum BuildingPartType
-{
-    Foundation,
-    Wall,
-    Floor,
-    Roof,
-    Door,
-    Window
-}
-
-
+public enum ItemType { Weapon, Tool, Consumable, Resource, BuildingPart }
+public enum WeaponType { Sword, Spear, BattleAxe }
+public enum ToolType { Hammer, Pickaxe, Axe }
+public enum BuildingPartType { Foundation, Wall, Floor, Roof, Door, Window }
 
 [System.Serializable]
 public class ComboData
 {
     public AnimationClip animation;
-   
+}
+
+[System.Serializable]
+public class KnockbackSettings
+{
+    [Tooltip("Lực knockback ngang (forward force)")]
+    public float horizontalForce = 800f;
+
+    [Tooltip("Lực knockback hướng lên (upward force)")]
+    public float upwardForce = 200f;
+
+    [Tooltip("Bán kính tìm ragdoll bone gần hit point")]
+    public float boneSearchRadius = 1.5f;
+
+    [Tooltip("Có apply knockback khi giết chết không?")]
+    public bool enableKnockback = true;
 }
 
 [System.Serializable]
@@ -54,17 +37,19 @@ public class WeaponStats
 
     [Header("Combo Settings")]
     public ComboData[] combos;
+
+    [Header("Knockback Settings")]
+    public KnockbackSettings knockback = new KnockbackSettings();
 }
 
-
-
-
 [System.Serializable]
-
 public class ToolStats
 {
     public ToolType toolType;
     public int damage;
+
+    [Header("Knockback Settings")]
+    public KnockbackSettings knockback = new KnockbackSettings();
 }
 
 [System.Serializable]
@@ -79,33 +64,32 @@ public class ResourceStats
 {
     public bool stackable;
     public int maxStack = 10;
-
 }
+
 [System.Serializable]
 public class BuildingStats
 {
-    public string id;
     public BuildingPartType partType;
     public bool stackable;
     public int maxStack = 5;
     public bool snapToGridEdge;
     public List<ItemData> ignorObject;
     public LayerMask groundMask;
-    public int verticalOffset = 0;
-    public float thickness = 0.2f;            // chiều dày world units (dùng nếu muốn)
-    public Vector3 placementAnchorOffset;     // local offset (child pivot) để align prefab với slot
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]
 public class ItemData : ScriptableObject
 {
     [Header("Basic Info")]
-
     public int id;
     public string itemName;
     public Sprite image;
     public ItemType type;
-    public GameObject worldPrefab;
+
+    [Header("Prefabs")]
+    public GameObject worldPrefab; // ✅ For world pickups
+    public GameObject heldPrefab;  // ✅ For held visuals (in player hand)
+
     public bool itemPlace;
     public bool snapToGrid = true;
     public float gridSize = 2f;
@@ -125,6 +109,19 @@ public class ItemData : ScriptableObject
     [Header("Building")]
     public BuildingStats building;
 
+    // ✅ Helper method để lấy knockback settings
+    public KnockbackSettings GetKnockbackSettings()
+    {
+        if (type == ItemType.Weapon && weapon != null)
+            return weapon.knockback;
+
+        if (type == ItemType.Tool && tool != null)
+            return tool.knockback;
+
+        // Default knockback nếu không có settings
+        return new KnockbackSettings();
+    }
+
 #if UNITY_EDITOR
     [UnityEditor.CustomEditor(typeof(ItemData))]
     public class ItemDataEditor : UnityEditor.Editor
@@ -135,8 +132,12 @@ public class ItemData : ScriptableObject
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("id"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("itemName"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("image"));
-            UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("worldPrefab"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("type"));
+
+            UnityEditor.EditorGUILayout.Space();
+            UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("worldPrefab"));
+            UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("heldPrefab"));
+
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("itemPlace"));
 
             var itemTypeProp = serializedObject.FindProperty("type");

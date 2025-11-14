@@ -467,7 +467,6 @@ GameObject:
   - component: {fileID: 305676098862324490}
   - component: {fileID: 2139561651648103076}
   - component: {fileID: 1623772470423931365}
-  - component: {fileID: 4546783487305403673}
   - component: {fileID: 8932842802045510987}
   m_Layer: 9
   m_Name: Player
@@ -561,7 +560,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   syncDirection: 0
-  syncMode: 0
+  syncMode: 1
   syncInterval: 0
   playerSpeed: 0
   playerSpeedMin: 0
@@ -608,20 +607,6 @@ MonoBehaviour:
   raycastDistance: 1
   footIkOffset: {x: 0, y: 0.3, z: 0}
   smotthnessSpeed: 10
---- !u!114 &4546783487305403673
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 998426586775304662}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cdf08002eccc7ae48aeb02395e9339cb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  animator: {fileID: 1961983369148241218}
-  overrideController: {fileID: 22100000, guid: 45fe2306b23dcb14c9b049028354ab4b, type: 2}
 --- !u!114 &8932842802045510987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4282,12 +4267,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e8102c6f6e5af2d478486c702195401b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 1
+  syncInterval: 0
   holdingPoint: {fileID: 3240410374694254503}
   itemPlacer: {fileID: 6541186784447125656}
-  buildManager: {fileID: 5779177408304134375}
-  hammerPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
-  isHolding: 0
-  ItemData: {fileID: 0}
+  weaponHandler: {fileID: 8971317824985975248}
   buildingType: 0
 --- !u!114 &8377111500348481694
 MonoBehaviour:
@@ -4361,7 +4346,8 @@ MonoBehaviour:
   syncInterval: 0
   gameInput: {fileID: 5671251393491085693}
   playerAnimator: {fileID: 305676098862324490}
-  weaponHandler: {fileID: 4546783487305403673}
+  playerHoldingItem: {fileID: 1418801298050016171}
+  weaponHandler: {fileID: 8971317824985975248}
 --- !u!114 &8971317824985975248
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4425,8 +4411,6 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  characterController: {fileID: 4039622900495366456}
-  playerMovementScripts: []
 --- !u!1 &8925254841853047397
 GameObject:
   m_ObjectHideFlags: 0

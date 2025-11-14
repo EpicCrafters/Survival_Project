@@ -156,13 +156,27 @@ public class MyTree : BaseResource, IMinenable
         if (spawnStump && treeType == TreeType.Tree && treeStumpPrefab != null)
         {
             DebugLog($"Instantiating local stump fallback '{treeStumpPrefab.name}' (local-only)");
-            var stumpTransform = Instantiate(treeStumpPrefab, transform.position, transform.rotation, transform.parent);
+            var stumpTransform = Instantiate(treeStumpPrefab);
 
-            // Preserve localScale of the original tree so stump visually matches.
+            // Match world position & rotation first
+            stumpTransform.SetPositionAndRotation(transform.position, transform.rotation);
+
+            // Set the same parent, but preserve world transform to avoid skewing
+            stumpTransform.SetParent(transform.parent, worldPositionStays: true);
+
+            // Finally, copy the world-scale-equivalent of the original tree
             try
             {
-                stumpTransform.localScale = transform.localScale;
-                DebugLog($"Preserved localScale on stump: {stumpTransform.localScale}");
+                // Convert the original's world scale into what the stump's localScale should be
+                Vector3 worldScale = transform.lossyScale;
+                Vector3 parentScale = transform.parent ? transform.parent.lossyScale : Vector3.one;
+                stumpTransform.localScale = new Vector3(
+                    worldScale.x / parentScale.x,
+                    worldScale.y / parentScale.y,
+                    worldScale.z / parentScale.z
+                );
+
+                Debug.Log($"Preserved world scale on stump: {stumpTransform.localScale}");
             }
             catch (Exception ex)
             {

@@ -193,7 +193,7 @@ public class BuildingSaveManager : MonoBehaviour, ISaveable
     {
         var rec = new BuildRecord();
         rec.guid = b.guid;
-        rec.itemId = b.objectType != null ? b.objectType.building.id : (b.objectType?.worldPrefab?.name ?? "unknown");
+        //rec.itemId = b.objectType != null ? b.objectType.building.id : (b.objectType?.worldPrefab?.name ?? "unknown");
         rec.prefabName = b.objectType?.worldPrefab?.name ?? "unknown";
         rec.position = new SerializableVector3(b.transform.position);
         rec.rotation = new SerializableQuaternion(b.transform.rotation);
@@ -218,7 +218,7 @@ public class BuildingSaveManager : MonoBehaviour, ISaveable
         foreach (var it in itemCatalog)
         {
             if (it == null) continue;
-            if (it.building.id == id || it.name == id) return it;
+            //if (it.building.id == id || it.name == id) return it;
         }
         return null;
     }
