@@ -6,52 +6,49 @@ public class ItemHitBox : MonoBehaviour
 {
     [Header("Hitbox collider của vũ khí / công cụ")]
     public Collider hitbox;
+    // Collider dùng để kiểm tra va chạm khi vung vũ khí (chỉ bật khi swing)
 
-    // Tham chiếu tới script ItemHeld (chứa dữ liệu item hiện tại mà người chơi đang cầm)
-    private ItemHeld itemHeld;
-
-    // Dữ liệu của item (chứa damage, loại item, tool type...)
-    private ItemData itemData;
-
-    // Danh sách lưu lại những đối tượng đã bị đánh trong cùng một lần swing
-    // để tránh việc gây damage nhiều lần cho cùng 1 đối tượng trong 1 cú đánh.
+    private ItemHeld itemHeld;       // Script chứa thông tin item mà người chơi đang cầm
+    private ItemData itemData;       // Dữ liệu item (damage, loại tool, loại weapon...)
     private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();
+    // Dùng HashSet để lưu những đối tượng đã trúng trong 1 cú đánh → tránh đánh nhiều lần
 
-    // Tham chiếu đến script PlayerCombat (dùng để gửi lệnh CmdDealDamage lên server)
-    private PlayerCombat playerCombat;
+    private PlayerCombat playerCombat;  // Script xử lý damage (CmdDealDamage gửi lên server)
 
 
-    // Gọi khi object được tạo hoặc kích hoạt
+    // -----------------------------------------------------------
+    // Gọi khi object được tạo hoặc bật
+    // -----------------------------------------------------------
     private void Awake()
     {
-        // Đảm bảo collider tắt khi khởi tạo (tránh va chạm ngoài ý muốn)
+        // Luôn đảm bảo collider tắt khi khởi tạo
         if (hitbox != null) hitbox.enabled = false;
 
-        // Lấy component ItemHeld từ parent (vì thường HitBox nằm trong prefab của item)
+        // Hitbox nằm trong prefab của item nên lấy từ parent
         itemHeld = GetComponentInParent<ItemHeld>();
     }
 
 
     private void Start()
     {
-        // Tìm PlayerCombat trong parent hierarchy nếu chưa được set
+        // Tìm PlayerCombat ở parent nếu chưa được gán
         if (playerCombat == null)
             playerCombat = GetComponentInParent<PlayerCombat>();
 
-        // Báo lỗi nếu không tìm thấy (quan trọng vì sẽ không thể gửi damage lên server)
+        // Báo lỗi nếu không tìm thấy → rất quan trọng đối với Mirror
         if (playerCombat == null)
-            Debug.LogError($"[ItemHitBox] PlayerCombat not found in parent hierarchy of {gameObject.name}!");
+            Debug.LogError($"[ItemHitBox] Không tìm thấy PlayerCombat trong parent của {gameObject.name}");
     }
 
 
-    // Hàm này được gọi từ ItemHeld khi cầm item để gán PlayerCombat tương ứng
+    // Hàm được gọi từ ItemHeld để gán đúng PlayerCombat
     public void SetPlayerCombat(PlayerCombat combat)
     {
         playerCombat = combat;
     }
 
 
-    // Cập nhật lại dữ liệu của item (dùng khi itemHeld thay đổi)
+    // Cập nhật dữ liệu item mỗi khi swing (phòng trường hợp đổi item khi đang cầm)
     private void UpdateItemData()
     {
         if (itemHeld != null)
@@ -59,7 +56,9 @@ public class ItemHitBox : MonoBehaviour
     }
 
 
-    // Bật collider hitbox để bắt đầu kiểm tra va chạm (gọi khi swing bắt đầu)
+    // -----------------------------------------------------------
+    // Bật hitbox – gọi khi animation bắt đầu vung
+    // -----------------------------------------------------------
     public void EnableHitbox()
     {
         UpdateItemData();
@@ -67,15 +66,15 @@ public class ItemHitBox : MonoBehaviour
         if (hitbox != null)
         {
             hitbox.enabled = true;
-            hitbox.isTrigger = true; // dùng trigger để không va chạm vật lý thật
+            hitbox.isTrigger = true;   // trigger để không tạo va chạm vật lý thật
         }
 
-        // Xóa danh sách đối tượng đã trúng trước đó
+        // Reset danh sách đã trúng
         alreadyHit.Clear();
     }
 
 
-    // Tắt hitbox sau khi kết thúc swing
+    // Tắt hitbox – gọi khi animation kết thúc
     public void DisableHitbox()
     {
         if (hitbox != null)
@@ -88,121 +87,146 @@ public class ItemHitBox : MonoBehaviour
     }
 
 
-    // Khi collider của vũ khí chạm vào collider khác
+    // -----------------------------------------------------------
+    // Xử lý logic khi hitbox va chạm với vật thể khác
+    // -----------------------------------------------------------
     private void OnTriggerEnter(Collider other)
     {
-        // Đảm bảo itemData đã được cập nhật
         UpdateItemData();
 
         if (itemData == null)
         {
-            Debug.LogWarning($"[ItemHitBox] itemData is null");
+            Debug.LogWarning("[ItemHitBox] itemData bị null, có thể do itemHeld chưa gán.");
             return;
         }
 
-        // Nếu đối tượng này đã bị đánh trong cú đánh này => bỏ qua
+        // --- Ngăn đánh trúng một đối tượng nhiều lần trong cùng một swing ---
         if (alreadyHit.Contains(other.gameObject)) return;
         alreadyHit.Add(other.gameObject);
 
+        Debug.Log($"[ItemHitBox] Va chạm: {other.name}, Tag: {other.tag}, Layer: {LayerMask.LayerToName(other.gameObject.layer)}");
 
-        // Tìm interface IDamageable để xác định có thể nhận sát thương không
+        // Tìm IDamageable trên đối tượng bị đánh
         IDamageable target = other.GetComponent<IDamageable>();
         if (target == null)
             target = other.GetComponentInParent<IDamageable>();
 
-        // Nếu không có interface => bỏ qua
-        if (target == null) return;
+        if (target == null)
+        {
+            Debug.Log($"[ItemHitBox] Không tìm thấy IDamageable trên {other.name}");
+            return;
+        }
+
+        int dmg = 0; // damage sẽ được tính theo item loại Tool hoặc Weapon
 
 
-        // -------------------------------------------
-        // Tính toán sát thương dựa vào loại item
-        // -------------------------------------------
-        int dmg = 0;
-
+        // -----------------------------------------------------------
+        // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…)
+        // -----------------------------------------------------------
         if (itemData.type == ItemType.Tool)
         {
-            // Nếu là Tool (cuốc, rìu...) thì kiểm tra có khai thác được không
+            // Kiểm tra object có phải là tài nguyên khai thác được (cây, đá...)
             if (other.TryGetComponent<IMinenable>(out var minable))
             {
-                // Nếu loại tool phù hợp với resource (vd: rìu -> cây, pickaxe -> đá)
+                // Kiểm tra ToolType có phù hợp ResourceType hay không
                 if (IsToolValidForResource(itemData.tool.toolType, minable.GetResourceType()))
+                {
                     dmg = itemData.tool.damage;
+                    Debug.Log($"[ItemHitBox] Tool hợp lệ → gây damage {dmg}");
+                }
+                else
+                {
+                    Debug.Log($"[ItemHitBox] Tool không phù hợp với loại tài nguyên!");
+                    return;
+                }
+            }
+            else
+            {
+                Debug.Log($"[ItemHitBox] Object {other.name} KHÔNG phải tài nguyên khai thác");
+                return;
             }
         }
+
+        // -----------------------------------------------------------
+        // TRƯỜNG HỢP 2: ITEM LÀ WEAPON (Kiếm, Gậy…)
+        // -----------------------------------------------------------
         else if (itemData.type == ItemType.Weapon)
         {
-            // Nếu là vũ khí (kiếm, gậy...) thì lấy damage từ dữ liệu weapon
             dmg = itemData.weapon.damage;
+            Debug.Log($"[ItemHitBox] Weapon gây damage {dmg}");
         }
 
-        // Nếu damage = 0 => bỏ qua (vũ khí không hợp lệ)
-        if (dmg <= 0) return;
-
-
-        // -------------------------------------------
-        // Tìm NetworkIdentity của target để gửi lên server
-        // -------------------------------------------
-        NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
-        if (targetNetId == null)
-            targetNetId = other.GetComponentInParent<NetworkIdentity>();
-
-        if (targetNetId == null)
+        // Nếu damage bằng 0 → coi như không hợp lệ
+        if (dmg <= 0)
         {
-            Debug.LogWarning($"[ItemHitBox] No NetworkIdentity found on {other.name}");
+            Debug.LogWarning($"[ItemHitBox] Damage = 0 cho item {itemData.itemName}");
             return;
         }
 
 
-        // -------------------------------------------
-        // Xác định vị trí và hướng va chạm
-        // -------------------------------------------
+        // -----------------------------------------------------------
+        // LẤY NETWORK IDENTITY để server biết target nào bị đánh
+        // -----------------------------------------------------------
+        NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
+        if (targetNetId == null)
+            targetNetId = other.GetComponentInParent<NetworkIdentity>();
+
+
+        // Lấy thông tin vị trí va chạm để gởi qua server (để knockback chính xác)
         Vector3 hitPoint = other.ClosestPoint(transform.position);
         Vector3 hitNormal = (other.transform.position - transform.position).normalized;
-
-        // Lấy thông tin knockback từ ItemData (nếu có)
         KnockbackSettings knockback = itemData.GetKnockbackSettings();
 
 
-        // -------------------------------------------
-        // Gửi lệnh xử lý damage lên server qua PlayerCombat
-        // -------------------------------------------
+        // -----------------------------------------------------------
+        // Gửi damage lên server qua PlayerCombat
+        // -----------------------------------------------------------
         if (playerCombat != null)
         {
-            playerCombat.CmdDealDamage(
-                targetNetId.netId,                // ID mạng của mục tiêu
-                dmg,                              // lượng damage
-                hitPoint,                         // vị trí trúng
-                hitNormal,                        // hướng va chạm
-                itemData.id,                      // ID item (để xác định loại vũ khí)
-                knockback.horizontalForce,        // lực knockback
-                knockback.boneSearchRadius,       // bán kính tìm bone để tác động vật lý
-                knockback.enableKnockback         // có bật knockback hay không
-            );
+            if (targetNetId != null)
+            {
+                // SERVER OBJECT → dùng CMD để sync cho tất cả client
+                playerCombat.CmdDealDamage(
+                    targetNetId.netId,
+                    dmg,
+                    hitPoint,
+                    hitNormal,
+                    itemData.id,
+                    knockback.horizontalForce,
+                    knockback.boneSearchRadius,
+                    knockback.enableKnockback
+                );
 
-            Debug.Log($"[ItemHitBox] Sent damage command: {dmg} to {other.name} with knockback={knockback.enableKnockback}");
+                Debug.Log($"[ItemHitBox] Gửi CmdDealDamage: {dmg} đến netId={targetNetId.netId}");
+            }
+            else
+            {
+                // LOCAL OBJECT (cây, đá) → client xử lý trực tiếp
+                Debug.Log($"[ItemHitBox] Không có NetworkIdentity → gây damage local");
+                target.Damage(dmg);
+            }
         }
         else
         {
-            Debug.LogError($"[ItemHitBox] PlayerCombat not found on parent!");
+            Debug.LogError("[ItemHitBox] playerCombat bị null!");
         }
 
 
-        // -------------------------------------------
-        // Hiệu ứng hit stop (dừng nhẹ camera khi đánh trúng)
-        // Chỉ xử lý ở client cho cảm giác impact tốt hơn
-        // -------------------------------------------
+        // -----------------------------------------------------------
+        // HIT STOP EFFECT – hiệu ứng game feel khi đánh trúng
+        // -----------------------------------------------------------
         if (target.CanTriggerHitStop())
         {
             var hitStop = GetComponentInParent<LocalHitStop>();
-
-            // Nếu có hitStop và mục tiêu đã chết thì thực hiện hiệu ứng
             if (hitStop != null && target.IsDead())
                 hitStop.DoHitStop(0.08f);
         }
     }
 
 
-    // Hàm phụ: kiểm tra loại công cụ có phù hợp loại tài nguyên không
+    // -----------------------------------------------------------
+    // Kiểm tra loại công cụ có phù hợp loại tài nguyên không
+    // -----------------------------------------------------------
     private bool IsToolValidForResource(ToolType tool, ResourceType resource)
     {
         return (tool == ToolType.Axe && resource == ResourceType.Tree)

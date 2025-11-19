@@ -17,7 +17,7 @@ public class PlayerSetup : NetworkBehaviour
         // Cache components
         player = GetComponent<Player>();
         holdingItem = GetComponent<PlayerHoldingItem>();
-
+        player.enabled = true;
 
 
         

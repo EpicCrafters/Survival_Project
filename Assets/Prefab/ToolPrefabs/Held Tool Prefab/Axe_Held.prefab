@@ -109,6 +109,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5821756132212881220}
   - component: {fileID: 262507361817361984}
+  - component: {fileID: 3395048611997593655}
   m_Layer: 7
   m_Name: Axe_Held
   m_TagString: Untagged
@@ -147,6 +148,33 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   itemData: {fileID: 11400000, guid: 90052163b35ca314fbf09332d29e5170, type: 2}
   owner: {fileID: 0}
+--- !u!54 &3395048611997593655
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5717276217548651798}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1001 &3475075964263176074
 PrefabInstance:
   m_ObjectHideFlags: 0

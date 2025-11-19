@@ -222,6 +222,9 @@ public class PlayerInteract : NetworkBehaviour
 
     // Kiểm tra mining (cây/đá)
 
+    // Replace your TrySetMineable method with this version
+    // This fixes the tool detection by getting ItemData from PlayerHoldingItem.ItemData
+
     private bool TrySetMineable(RaycastHit hit)
     {
         if (!hit.collider.TryGetComponent(out IMinenable minenable)) return false;
@@ -229,14 +232,23 @@ public class PlayerInteract : NetworkBehaviour
         rayColor = Color.red;
         isReadyToMine = false;
 
+        // FIX: Get ItemData directly from PlayerHoldingItem instead of from Item component
         ItemData heldItemData = null;
         if (playerHoldingItem != null && playerHoldingItem.IsHolding())
         {
-            GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
-            if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
-                heldItemData = heldItem.itemData;
+            // Use the ItemData property that's already stored in PlayerHoldingItem
+            heldItemData = playerHoldingItem.ItemData;
+
+            // Fallback: if ItemData is null, try to get from Item component
+            if (heldItemData == null)
+            {
+                GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
+                if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
+                    heldItemData = heldItem.itemData;
+            }
         }
 
+        // Early return if no tool held
         if (heldItemData == null || heldItemData.type != ItemType.Tool)
             return false;
 
@@ -245,18 +257,27 @@ public class PlayerInteract : NetworkBehaviour
 
         bool valid = (resourceType == ResourceType.Tree && heldTool == ToolType.Axe) ||
                      (resourceType == ResourceType.Rock && heldTool == ToolType.Pickaxe);
+
         if (!valid) return false;
 
+        // Tool is correct - enable mining
         isReadyToMine = true;
+        currentInteractable = minenable as Iinteractable;
 
         isTree = resourceType == ResourceType.Tree;
         isRock = resourceType == ResourceType.Rock;
 
-        // Hiển thị health bar screen UI
+        // Display health bar on screen UI
         if (isTree && hit.collider.TryGetComponent(out MyTree tree))
+        {
             uiManager.healthBar.SetTarget(tree.GetHealthSystem());
+            
+        }
         else if (isRock && hit.collider.TryGetComponent(out MyRock rock))
+        {
             uiManager.healthBar.SetTarget(rock.GetHealthSystem());
+           
+        }
 
         uiManager.ShowInteractUI();
         uiManager.ChangeInteractText("E: Mine");
