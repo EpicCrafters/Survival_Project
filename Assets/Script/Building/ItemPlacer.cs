@@ -94,8 +94,25 @@ public class ItemPlacer : MonoBehaviour
         }
     }
 
+    public void TryPlace()
+    {
+        if (!isPlacing || ghostObject == null)
+        {
+            Debug.Log("[ItemPlacer] Not in placing mode.");
+            return;
+        }
 
-    void PlaceItem()
+        GhostValidator validator = ghostObject.GetComponent<GhostValidator>();
+        if (validator != null && !validator.IsValid)
+        {
+            Debug.Log("[ItemPlacer] Cannot place: ghost is colliding.");
+            return;
+        }
+
+        PlaceItem();
+    }
+
+    public void PlaceItem()
     {
         if (ghostObject == null) return;
 

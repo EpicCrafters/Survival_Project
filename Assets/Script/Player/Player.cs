@@ -7,6 +7,7 @@ using Mirror;
 public class Player : NetworkBehaviour
 {
     [SerializeField] private PlayerInteract playerInteract;
+    [SerializeField] private PlayerItemUseHandler playerItemUseHandler;
 
     // Trạng thái di chuyển của nhân vật
     public enum MovementState { Idle, Walk, Sprint, Falling }
@@ -15,55 +16,61 @@ public class Player : NetworkBehaviour
     [Header("References")]
     [SerializeField] private GameInput gameInput;
     [SerializeField] private PlayerAnimator playerAnimator;
+    [SerializeField] PlayerStatManager playerStatManager;
 
     [Header("Movement Settings")]
-    [SerializeField] private float walkSpeed;        // Tốc độ đi bộ
-    [SerializeField] private float sprintSpeed;      // Tốc độ chạy nhanh
-    [SerializeField] private float rotationSpeed;    // Tốc độ xoay nhân vật
-    [SerializeField] private float acceleration;     // Độ tăng tốc khi di chuyển
-    [SerializeField] private float jumpForce;        // Lực nhảy
-    [SerializeField] private float jumpCooldown;     // Thời gian hồi nhảy
-    [SerializeField] private float gravityMultiplier;// Hệ số trọng lực
+    [SerializeField] private float walkSpeed;
+    [SerializeField] private float sprintSpeed;
+    [SerializeField] private float rotationSpeed;
+    [SerializeField] private float acceleration;
+    [SerializeField] private float jumpForce;
+    [SerializeField] private float jumpCooldown;
+    [SerializeField] private float gravityMultiplier;
+
+    [Header("Aiming Movement")]
+    [SerializeField] private float aimWalkSpeed = 2f; // Slower speed when aiming
+    [SerializeField] private float aimRotationSpeed = 360f; // Faster rotation to camera
 
     [Header("Ground Check")]
-    [SerializeField] private Transform groundCheck;  // Vị trí để kiểm tra tiếp đất
-    [SerializeField] private float groundDistance;   // Bán kính kiểm tra mặt đất
-    [SerializeField] private LayerMask groundMask;   // Layer nào được coi là mặt đất
+    [SerializeField] private Transform groundCheck;
+    [SerializeField] private float groundDistance;
+    [SerializeField] private LayerMask groundMask;
 
     [Header("Slope Handling")]
-    [SerializeField] private float maxSlopeAngle = 45f;      // Góc dốc tối đa mà nhân vật có thể đứng
-    [SerializeField] private float slopeCheckDistance = 0.5f;// Khoảng cách raycast kiểm tra dốc
-    [SerializeField] private float slopeForceDown = 8f;      // Lực kéo nhân vật xuống khi trên dốc
-    [SerializeField] private bool useRaycastForSlopes = true;// Có dùng raycast để kiểm tra dốc hay không
+    [SerializeField] private float maxSlopeAngle = 45f;
+    [SerializeField] private float slopeCheckDistance = 0.5f;
+    [SerializeField] private float slopeForceDown = 8f;
+    [SerializeField] private bool useRaycastForSlopes = true;
 
     [Header("Debug Info")]
-    [SerializeField] private bool showInventory; // Trạng thái mở/đóng túi đồ
+    [SerializeField] private bool showInventory;
+    [Header("Stamina")]
+    [SerializeField] private float sprintStaminaDrainRate = 10f; // Stamina per second while sprinting
 
     private CharacterController controller;
-    [SerializeField] bool isGrounded;     // Nhân vật có đang đứng trên đất hay không
-    private bool wasGrounded = false;     // Trạng thái trước đó có đứng trên đất hay không
-    private bool isFalling;               // Đang rơi
-    private bool isWalking;               // Đang đi bộ
-    private bool isSprinting;             // Đang chạy nhanh
-    private bool canJump = true;          // Có thể nhảy hay không
-    public bool isOnSlope = false;        // Nhân vật có đang đứng trên dốc không
+    [SerializeField] bool isGrounded;
+    private bool wasGrounded = false;
+    private bool isFalling;
+    private bool isWalking;
+    private bool isSprinting;
+    private bool canJump = true;
+    public bool isOnSlope = false;
 
-    private float currentSpeed;           // Tốc độ hiện tại
-    private float maxSpeed;               // Tốc độ tối đa 
-    private float verticalVelocity;       // Vận tốc theo trục Y 
-    public float slopeAngle;             // Góc dốc hiện tại
-    private Vector3 slopeNormal;          // Pháp tuyến của mặt dốc
-    private Vector3 hitPointNormal;       // Normal từ va chạm của CharacterController
+    private float currentSpeed;
+    private float maxSpeed;
+    private float verticalVelocity;
+    public float slopeAngle;
+    private Vector3 slopeNormal;
+    private Vector3 hitPointNormal;
 
-    private Vector3 moveDir;              // Hướng di chuyển
-    private Vector2 inputVector;          // Input từ bàn phím/gamepad
+    private Vector3 moveDir;
+    private Vector2 inputVector;
 
-    public bool isFrozen = false;         // Trạng thái đóng băng 
+    public bool isFrozen = false;
 
     // Cache để tiết kiệm hiệu năng
     private RaycastHit slopeHit;
-
-    private void Start()
+    public override void OnStartLocalPlayer()
     {
         controller = GetComponent<CharacterController>();
         if (controller == null)
@@ -71,6 +78,9 @@ public class Player : NetworkBehaviour
 
         if (playerInteract == null)
             playerInteract = GetComponent<PlayerInteract>();
+
+        if (playerItemUseHandler == null)
+            playerItemUseHandler = GetComponent<PlayerItemUseHandler>();
 
         // Đăng ký sự kiện từ GameInput
         if (gameInput != null)
@@ -80,15 +90,86 @@ public class Player : NetworkBehaviour
             gameInput.OnJump += GameInput_OnJump;
             gameInput.OnShowInventory += GameInput_OnShowInventory;
         }
+        if (playerStatManager != null)
+        {
+            playerStatManager.OnStaminaDepleted += () => isSprinting = false;
+        }
     }
+    //private void Start()
+    //{
+    //    controller = GetComponent<CharacterController>();
+    //    if (controller == null)
+    //        Debug.LogError("Thiếu CharacterController trên Player!");
+
+    //    if (playerInteract == null)
+    //        playerInteract = GetComponent<PlayerInteract>();
+
+    //    if (playerItemUseHandler == null)
+    //        playerItemUseHandler = GetComponent<PlayerItemUseHandler>();
+
+    //    // Đăng ký sự kiện từ GameInput
+    //    if (gameInput != null)
+    //    {
+    //        gameInput.OnSprintStarted += GameInput_OnSprintStarted;
+    //        gameInput.OnSprintCanceled += GameInput_OnSprintCanceled;
+    //        gameInput.OnJump += GameInput_OnJump;
+    //        gameInput.OnShowInventory += GameInput_OnShowInventory;
+    //    }
+    //}
 
     private void Update()
     {
-        if (!isLocalPlayer) return; // Chỉ xử lý cho local player trong multiplayer
+        if (!isLocalPlayer) return;
+        if (isSprinting && isWalking && isGrounded)
+        {
+            if (isServer)
+            {
+                playerStatManager.UseStamina(sprintStaminaDrainRate * Time.deltaTime);
+            }
+            else
+            {
+                CmdUseStamina(sprintStaminaDrainRate * Time.deltaTime);
+            }
 
+            // Stop sprinting if out of stamina
+            if (playerStatManager.CurrentStamina <= 0)
+            {
+                isSprinting = false;
+            }
+        }
         // Lấy input từ GameInput
         inputVector = gameInput.GetMovementVector();
 
+        // Check if player is aiming
+        bool isAiming = playerItemUseHandler != null && playerItemUseHandler.IsAiming();
+
+        if (isAiming)
+        {
+            HandleAimingMovement();
+        }
+        else
+        {
+            HandleNormalMovement();
+        }
+
+        // Kiểm tra trạng thái
+        CheckIfGrounded();
+        CheckSlope();
+        CheckIfFalling();
+        UpdateState();
+        ApplyGravity();
+
+        if (!isAiming)
+        {
+            RotateTowardsCameraWhenInteracting();
+        }
+
+        // Di chuyển nhân vật
+        MovePlayer();
+    }
+
+    private void HandleNormalMovement()
+    {
         // Lấy hướng camera để nhân vật di chuyển theo
         Transform cam = Camera.main.transform;
         Vector3 camForward = cam.forward;
@@ -106,17 +187,30 @@ public class Player : NetworkBehaviour
             Quaternion targetRotation = Quaternion.LookRotation(moveDir);
             transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime * 100f);
         }
+    }
 
-        // Kiểm tra trạng thái
-        CheckIfGrounded();
-        CheckSlope();
-        CheckIfFalling();
-        UpdateState();
-        ApplyGravity();
-        RotateTowardsCameraWhenInteracting();
+    private void HandleAimingMovement()
+    {
+        // When aiming, player always faces camera direction
+        Transform cam = Camera.main.transform;
+        Vector3 camForward = cam.forward;
+        camForward.y = 0f;
 
-        // Di chuyển nhân vật
-        MovePlayer();
+        if (camForward.sqrMagnitude > 0.01f)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(camForward);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, aimRotationSpeed * Time.deltaTime);
+        }
+
+        // Calculate strafe movement (relative to camera)
+        Vector3 camRight = cam.right;
+        camRight.y = 0f;
+        camForward.Normalize();
+        camRight.Normalize();
+
+        // Move relative to camera direction
+        moveDir = (camForward * inputVector.y + camRight * inputVector.x).normalized;
+        isWalking = moveDir != Vector3.zero;
     }
 
     private void CheckSlope()
@@ -130,7 +224,6 @@ public class Player : NetworkBehaviour
 
         if (useRaycastForSlopes)
         {
-            //Dùng raycast để kiểm tra mặt đất/dốc
             Vector3 rayOrigin = transform.position + Vector3.up * 0.1f;
 
             if (Physics.Raycast(rayOrigin, Vector3.down, out slopeHit, slopeCheckDistance, groundMask))
@@ -138,7 +231,6 @@ public class Player : NetworkBehaviour
                 slopeNormal = slopeHit.normal;
                 slopeAngle = Vector3.Angle(Vector3.up, slopeNormal);
 
-                // Nếu góc dốc nằm trong giới hạn → coi là đang đứng trên dốc
                 if (slopeAngle > 0.1f && slopeAngle <= maxSlopeAngle)
                 {
                     isOnSlope = true;
@@ -147,7 +239,6 @@ public class Player : NetworkBehaviour
         }
         else
         {
-            // Dùng thông tin va chạm của CharacterController
             if (hitPointNormal != Vector3.zero)
             {
                 slopeNormal = hitPointNormal;
@@ -160,13 +251,11 @@ public class Player : NetworkBehaviour
             }
         }
 
-        // Debug vẽ ray để quan sát slopeNormal
         Debug.DrawRay(transform.position, slopeNormal * 2f, Color.red);
     }
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        // Lưu lại normal của bề mặt va chạm để dùng cho tính toán slope
         hitPointNormal = hit.normal;
     }
 
@@ -178,18 +267,27 @@ public class Player : NetworkBehaviour
             return;
         }
 
-        // Xác định tốc độ mục tiêu (chạy hay đi)
-        float targetSpeed = isSprinting ? sprintSpeed : walkSpeed;
+        bool isAiming = playerItemUseHandler != null && playerItemUseHandler.IsAiming();
+
+        // Xác định tốc độ mục tiêu
+        float targetSpeed;
+        if (isAiming)
+        {
+            targetSpeed = aimWalkSpeed; // Use slower aiming speed
+        }
+        else
+        {
+            targetSpeed = isSprinting ? sprintSpeed : walkSpeed;
+        }
+
         currentSpeed = isWalking ? Mathf.MoveTowards(currentSpeed, targetSpeed, acceleration * Time.deltaTime) : 0f;
 
         Vector3 move;
 
         if (isOnSlope && isWalking)
         {
-            // Chiếu hướng di chuyển lên mặt phẳng của dốc
             move = ProjectOnSlope(moveDir) * currentSpeed;
 
-            // Nếu góc dốc lớn → thêm lực kéo xuống để nhân vật không bay
             if (slopeAngle > 15f)
             {
                 move.y -= slopeForceDown * Time.deltaTime;
@@ -197,17 +295,12 @@ public class Player : NetworkBehaviour
         }
         else
         {
-            // Di chuyển bình thường trên mặt phẳng
             move = moveDir * currentSpeed;
         }
 
-        // Cộng thêm vận tốc theo trục Y 
         move.y += verticalVelocity;
-
-        // Di chuyển bằng CharacterController
         controller.Move(move * Time.deltaTime);
 
-        // Giữ nhân vật dính xuống mặt đất khi đi xuống dốc
         if (isOnSlope && isGrounded && verticalVelocity <= 0)
         {
             StickToGround();
@@ -216,13 +309,11 @@ public class Player : NetworkBehaviour
 
     private Vector3 ProjectOnSlope(Vector3 direction)
     {
-        // Chiếu vector hướng di chuyển lên mặt phẳng của dốc
         return Vector3.ProjectOnPlane(direction, slopeNormal).normalized;
     }
 
     private void StickToGround()
     {
-        // Raycast xuống dưới để dính vào mặt đất/dốc
         float stickDistance = 0.3f;
         Vector3 rayOrigin = transform.position + controller.center;
 
@@ -233,7 +324,6 @@ public class Player : NetworkBehaviour
 
             if (distanceToGround > 0.01f)
             {
-                // Kéo nhân vật xuống mặt đất
                 Vector3 stickMove = Vector3.down * distanceToGround;
                 controller.Move(stickMove);
             }
@@ -246,7 +336,6 @@ public class Player : NetworkBehaviour
 
         if (isGrounded && verticalVelocity < 0f)
         {
-            // Nếu đang trên dốc → dùng giá trị gravity nhỏ hơn
             if (isOnSlope)
             {
                 verticalVelocity = -1f;
@@ -264,37 +353,56 @@ public class Player : NetworkBehaviour
 
     private void TriggerJump()
     {
-        // Chỉ nhảy nếu được phép và không đứng trên dốc quá dốc
+        // Check if player has enough stamina to jump
+        if (playerStatManager != null && playerStatManager.CurrentStamina < 20f)
+        {
+            return; // Not enough stamina, can't jump
+        }
+
         if (canJump && isGrounded && (!isOnSlope || slopeAngle <= maxSlopeAngle))
         {
             verticalVelocity = Mathf.Sqrt(jumpForce * -2f * Physics.gravity.y);
+
+            // Consume stamina for jumping
+            if (isServer)
+            {
+                playerStatManager.UseStamina(20f);
+            }
+            else
+            {
+                CmdUseStaminaForJump(20f);
+            }
 
             playerAnimator.TriggerJump();
             CmdDoJump();
         }
     }
 
-
     [Command]
     private void CmdDoJump()
     {
         RpcPlayJump();
     }
-
+    [Command]
+    private void CmdUseStamina(float amount)
+    {
+        playerStatManager.UseStamina(amount);
+    }
+    [Command]
+    private void CmdUseStaminaForJump(float amount)
+    {
+        playerStatManager.UseStamina(amount);
+    }
     [ClientRpc]
     private void RpcPlayJump()
     {
-
         playerAnimator.TriggerJump();
     }
 
-
     private void CheckIfGrounded()
     {
-        // Kiểm tra tiếp đất bằng hình cầu
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
 
-        // Nếu vừa chạm đất → reset khả năng nhảy sau 1 khoảng thời gian
         if (isGrounded && !wasGrounded)
         {
             StartCoroutine(ResetJumpAfterDelay());
@@ -305,7 +413,6 @@ public class Player : NetworkBehaviour
 
     private void CheckIfFalling()
     {
-        // Xác định có đang rơi hay không
         isFalling = verticalVelocity < -0.1f && !isGrounded;
 
         if (!isGrounded)
@@ -341,7 +448,6 @@ public class Player : NetworkBehaviour
 
     private void RotateTowardsCameraWhenInteracting()
     {
-        // Khi đang khai thác/mine → nhân vật quay theo hướng camera
         if (playerInteract != null && playerInteract.IsMining())
         {
             Vector3 cameraForward = Camera.main.transform.forward;
@@ -357,16 +463,25 @@ public class Player : NetworkBehaviour
 
     IEnumerator ResetJumpAfterDelay()
     {
-        // Hồi lại khả năng nhảy sau jumpCooldown
         yield return new WaitForSeconds(jumpCooldown);
         canJump = true;
     }
 
     // Các event từ GameInput
-    private void GameInput_OnSprintStarted(object sender, System.EventArgs e) => isSprinting = true;
+    private void GameInput_OnSprintStarted(object sender, System.EventArgs e) {
+        
+        if (playerStatManager != null && playerStatManager.CurrentStamina > 5f)
+        {
+            isSprinting = true;
+        }
+    }
     private void GameInput_OnSprintCanceled(object sender, System.EventArgs e) => isSprinting = false;
     private void GameInput_OnJump(object sender, System.EventArgs e) => TriggerJump();
-    private void GameInput_OnShowInventory(object sender, System.EventArgs e) => showInventory = !showInventory;
+    private void GameInput_OnShowInventory(object sender, System.EventArgs e)
+    {
+        showInventory = !showInventory;
+        UIManager.Instance.ToggleInventory(showInventory);
+    }
 
     // Getter public để lấy trạng thái
     public bool IsSprinting() => isSprinting;
@@ -377,7 +492,9 @@ public class Player : NetworkBehaviour
     public float GetSlopeAngle() => slopeAngle;
     public bool IsOnSlope() => isOnSlope;
 
-    // Debug gizmo: vẽ hướng slope và hướng di chuyển
+    // New getter for aiming movement input
+    public Vector2 GetMovementInput() => inputVector;
+
     private void OnDrawGizmosSelected()
     {
         if (isOnSlope)

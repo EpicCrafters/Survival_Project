@@ -1,6 +1,6 @@
 using Mirror;
-using Unity.VisualScripting;
 using UnityEngine;
+using System.Collections;
 
 public class PlayerSetup : NetworkBehaviour
 {
@@ -8,41 +8,58 @@ public class PlayerSetup : NetworkBehaviour
     public GameInput gameInput;
     public PlayerHoldingItem holdingItem;
     public CameraManager cameraManager;
+    public PlayableAnimationBlender playableAnimationBlender;
+
+    private Transform lookAtTarget;
 
     public override void OnStartLocalPlayer()
     {
-
         base.OnStartLocalPlayer();
         name = $"Player[{netId}] (Local)";
+
         // Cache components
         player = GetComponent<Player>();
         holdingItem = GetComponent<PlayerHoldingItem>();
 
-
-
-        
         // UI hooks
+        UIManager.Instance.HookPlayer(GetComponent<PlayerStatManager>());
         FindObjectOfType<GameSceneUI>()?.SetPlayer(player);
         InventoryManager.instance?.SetPlayerHolding(holdingItem);
         InventoryManager.instance.SetGameInput(gameInput);
-        // Camera hook
+
+        // ============ 1. Assign Camera to Player ============
         cameraManager = FindObjectOfType<CameraManager>();
         if (cameraManager != null)
-            cameraManager.AssignCameraTargets(transform); // assign this player's transform
+            cameraManager.AssignCameraTargets(transform);
 
-      
-
-        //InventoryManager.instance.AddItem(InventoryManager.instance.stick);
-        //InventoryManager.instance.AddItem(InventoryManager.instance.stone);
+        // Wait 1 frame so Camera.main updates its parent
+        StartCoroutine(SetupLookAtTarget());
     }
 
-    public override void OnStartServer()
+    private IEnumerator SetupLookAtTarget()
     {
-        Debug.Log($"Player spawned on SERVER: {gameObject.name}");
-    }
+        // Wait one frame to allow CameraManager to re-parent Camera.main
+        yield return null;
 
-    public override void OnStartClient()
-    {
-        Debug.Log($"Player spawned on CLIENT: {gameObject.name}");
+        Camera cam = Camera.main;
+        if (cam == null)
+        {
+            Debug.LogError("PlayerSetup: Camera.main is NULL after spawning!");
+            yield break;
+        }
+
+        // ============ 2. Create LookAtTarget under the correct camera ============
+        GameObject target = new GameObject("LookAtTarget");
+        target.transform.SetParent(cam.transform);
+        target.transform.localPosition = new Vector3(0, 0, 40f);
+        target.transform.localRotation = Quaternion.identity;
+        lookAtTarget = target.transform;
+
+        // ============ 3. Assign to PlayableAnimationBlender ============
+        if (playableAnimationBlender != null)
+        {
+            playableAnimationBlender.lookAtTarget = lookAtTarget;
+            
+        }
     }
 }

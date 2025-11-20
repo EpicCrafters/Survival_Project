@@ -2,7 +2,7 @@
 using UnityEngine;
 
 public enum ItemType { Weapon, Tool, Consumable, Resource, BuildingPart }
-public enum WeaponType { Sword, Spear, BattleAxe }
+public enum WeaponType { Sword, Spear, BattleAxe,Bow }
 public enum ToolType { Hammer, Pickaxe, Axe }
 public enum BuildingPartType { Foundation, Wall, Floor, Roof, Door, Window }
 
@@ -37,9 +37,14 @@ public class WeaponStats
 
     [Header("Combo Settings")]
     public ComboData[] combos;
-
+    [Header("Bow Settings (Only for Bow/Crossbow)")]
+    public GameObject arrowProjectilePrefab; // Server-spawned projectile
+    public GameObject arrowVisualPrefab;     // Visual on string
+    public float maxChargeTime = 1.5f;
     [Header("Knockback Settings")]
     public KnockbackSettings knockback = new KnockbackSettings();
+
+
 }
 
 [System.Serializable]
@@ -57,6 +62,8 @@ public class ConsumableStats
 {
     public int healAmount;
     public int fillAmount;
+    [Tooltip("How much hunger to restore")]
+    public float hungerRestoreAmount = 20f;
 }
 
 [System.Serializable]

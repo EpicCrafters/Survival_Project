@@ -32,6 +32,37 @@ Transform:
   - {fileID: 8949855872604589594}
   m_Father: {fileID: 9141577047367877751}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &439394174138580572
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4147190936532547121}
+  m_Layer: 9
+  m_Name: LeftHoldingPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4147190936532547121
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 439394174138580572}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.54333377, y: 0.51838505, z: -0.51919407, w: 0.40804774}
+  m_LocalPosition: {x: 0.016, y: 0.327, z: 0.058}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8946278057088944324}
+  m_LocalEulerAnglesHint: {x: 79.021, y: -132.176, z: -227.139}
 --- !u!1 &443439893609699512
 GameObject:
   m_ObjectHideFlags: 0
@@ -463,12 +494,12 @@ GameObject:
   m_Component:
   - component: {fileID: 2659578799809232268}
   - component: {fileID: 1961983369148241218}
+  - component: {fileID: 4977231982528047151}
   - component: {fileID: 5512702918562004889}
   - component: {fileID: 305676098862324490}
   - component: {fileID: 2139561651648103076}
   - component: {fileID: 1623772470423931365}
   - component: {fileID: 4546783487305403673}
-  - component: {fileID: 8932842802045510987}
   m_Layer: 9
   m_Name: Player
   m_TagString: Untagged
@@ -495,7 +526,6 @@ Transform:
   - {fileID: 1052833810893235660}
   - {fileID: 1386652356246409498}
   - {fileID: 2038064501988510714}
-  - {fileID: 2455357509301384015}
   m_Father: {fileID: 7385509276416232327}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &1961983369148241218
@@ -520,6 +550,641 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &4977231982528047151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 998426586775304662}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 490bf63851e0da94fa727d3af93e92af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  animator: {fileID: 1961983369148241218}
+  animationRoot: {fileID: 5914618664236104930}
+  actionAnimations: []
+  defaultIdleClip: {fileID: 0}
+  actionLayerWeight: 1
+  lookBones:
+  - boneName: Spine
+    bone: {fileID: 4979077943385182465}
+    xMinMax: {x: -18, y: 18}
+    yMinMax: {x: -18, y: 18}
+    zMinMax: {x: -18, y: 18}
+    currentRootSpaceRotation: {x: 0, y: 0, z: 0}
+  - boneName: Spine_01
+    bone: {fileID: 7363620267953159296}
+    xMinMax: {x: -18, y: 18}
+    yMinMax: {x: -18, y: 18}
+    zMinMax: {x: -18, y: 18}
+    currentRootSpaceRotation: {x: 0, y: 0, z: 0}
+  - boneName: Spine_02
+    bone: {fileID: 111200947433258721}
+    xMinMax: {x: -18, y: 18}
+    yMinMax: {x: -18, y: 18}
+    zMinMax: {x: -18, y: 18}
+    currentRootSpaceRotation: {x: 0, y: 0, z: 0}
+  - boneName: Neck
+    bone: {fileID: 1824176833997441629}
+    xMinMax: {x: -18, y: 18}
+    yMinMax: {x: -18, y: 18}
+    zMinMax: {x: -18, y: 18}
+    currentRootSpaceRotation: {x: 0, y: 0, z: 0}
+  - boneName: Head
+    bone: {fileID: 804522241166894957}
+    xMinMax: {x: -18, y: 18}
+    yMinMax: {x: -18, y: 18}
+    zMinMax: {x: -18, y: 18}
+    currentRootSpaceRotation: {x: 0, y: 0, z: 0}
+  lookVerticalOffset: 0
+  lookHorizontalOffset: 0
+  enableLookOffset: 1
+  enableLookAtMode: 1
+  lookAtTarget: {fileID: 0}
+  lookAtBlendWeight: 1
+  overlayPoses:
+  - overlayName: Aim Pose
+    overlayType: 0
+    blendWeight: 0
+    poseData: {fileID: 11400000, guid: 92752292dc112d2458fd23a2b962e9db, type: 2}
+    animationClip: {fileID: 0}
+    animationSpeed: 1
+    loopAnimation: 1
+    normalizedTime: 0
+    boneChains:
+    - chainName: Spine
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:Spine
+        bone: {fileID: 4979077943385182465}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Spine1
+        bone: {fileID: 7363620267953159296}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Spine2
+        bone: {fileID: 111200947433258721}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Head
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:Neck
+        bone: {fileID: 1824176833997441629}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Head
+        bone: {fileID: 804522241166894957}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Left Arm
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:LeftShoulder
+        bone: {fileID: 3466784789907037106}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftArm
+        bone: {fileID: 1260614253532688170}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftForeArm
+        bone: {fileID: 7583293686381134364}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHand
+        bone: {fileID: 8946278057088944324}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Right Hand
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:RightShoulder
+        bone: {fileID: 7226957103832640849}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightArm
+        bone: {fileID: 4509921872569651242}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightForeArm
+        bone: {fileID: 3286675898736790985}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHand
+        bone: {fileID: 7737214861551298124}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Right Finger
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:RightHandIndex1
+        bone: {fileID: 9084924945721699218}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex2
+        bone: {fileID: 7063507515735811648}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex3
+        bone: {fileID: 5667113631454400608}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex4
+        bone: {fileID: 3440063278086329556}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex4_end
+        bone: {fileID: 7692892224923899904}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle1
+        bone: {fileID: 5112000111041664160}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle2
+        bone: {fileID: 8024652612861280791}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle3
+        bone: {fileID: 2011407272475171921}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle4
+        bone: {fileID: 1015662114065459529}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle4_end
+        bone: {fileID: 8940950164569499623}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky1
+        bone: {fileID: 8966204689386172403}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky2
+        bone: {fileID: 2042654345491882305}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky3
+        bone: {fileID: 1356190216573117795}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky4
+        bone: {fileID: 3696369849036298172}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky4_end
+        bone: {fileID: 7595366334278200278}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing1
+        bone: {fileID: 3377011149359904308}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing2
+        bone: {fileID: 2583586523182656728}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing3
+        bone: {fileID: 7921569090151358295}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing4
+        bone: {fileID: 674495210355927690}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing4_end
+        bone: {fileID: 2182746318762669711}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb1
+        bone: {fileID: 772015421428613661}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb2
+        bone: {fileID: 8932783193279322933}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb3
+        bone: {fileID: 3467121917814272966}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb4
+        bone: {fileID: 3052987622538995423}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb4_end
+        bone: {fileID: 4844933014433923406}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Left Finger
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:LeftHandIndex1
+        bone: {fileID: 259521528694462315}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex2
+        bone: {fileID: 6858396076761887589}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex3
+        bone: {fileID: 7400046870864584900}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex4
+        bone: {fileID: 214842173296643210}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex4_end
+        bone: {fileID: 97631813788921315}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle1
+        bone: {fileID: 4572742616405968025}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle2
+        bone: {fileID: 6805301678804472137}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle3
+        bone: {fileID: 765774373333123960}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle4
+        bone: {fileID: 209725674563444421}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle4_end
+        bone: {fileID: 7685786864772516296}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky1
+        bone: {fileID: 2570390752577718111}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky2
+        bone: {fileID: 4386600209067532186}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky3
+        bone: {fileID: 7240952308828334040}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky4
+        bone: {fileID: 7687954531148778560}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky4_end
+        bone: {fileID: 3133448407841538010}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing1
+        bone: {fileID: 1719630599410119632}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing2
+        bone: {fileID: 814374968627165938}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing3
+        bone: {fileID: 6118404973630040813}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing4
+        bone: {fileID: 2188672651302735818}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing4_end
+        bone: {fileID: 3653930879534164485}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb1
+        bone: {fileID: 1048339487611176131}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb2
+        bone: {fileID: 3458884118882489432}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb3
+        bone: {fileID: 8364822215932084850}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb4
+        bone: {fileID: 3624147339679917284}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb4_end
+        bone: {fileID: 2536564982505577391}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    globalRotationOffset: {x: 0, y: 0, z: 0}
+    defaultTransitionTime: 0.3
+    isPlaying: 0
+    playbackTime: 0
+    cachedPoseAtTime: {fileID: 0}
+    needsUpdate: 0
+  - overlayName: Charge Pose
+    overlayType: 0
+    blendWeight: 0
+    poseData: {fileID: 11400000, guid: d674906d21c3da94a8054e5a7376baa2, type: 2}
+    animationClip: {fileID: 0}
+    animationSpeed: 1
+    loopAnimation: 1
+    normalizedTime: 0
+    boneChains:
+    - chainName: Spine
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:Spine
+        bone: {fileID: 4979077943385182465}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Spine1
+        bone: {fileID: 7363620267953159296}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Spine2
+        bone: {fileID: 111200947433258721}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Head
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:Neck
+        bone: {fileID: 1824176833997441629}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:Head
+        bone: {fileID: 804522241166894957}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Left Arm
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:LeftShoulder
+        bone: {fileID: 3466784789907037106}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftArm
+        bone: {fileID: 1260614253532688170}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftForeArm
+        bone: {fileID: 7583293686381134364}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHand
+        bone: {fileID: 8946278057088944324}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Right Hand
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:RightShoulder
+        bone: {fileID: 7226957103832640849}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightArm
+        bone: {fileID: 4509921872569651242}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightForeArm
+        bone: {fileID: 3286675898736790985}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHand
+        bone: {fileID: 7737214861551298124}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Right Finger
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:RightHandIndex1
+        bone: {fileID: 9084924945721699218}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex2
+        bone: {fileID: 7063507515735811648}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex3
+        bone: {fileID: 5667113631454400608}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex4
+        bone: {fileID: 3440063278086329556}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandIndex4_end
+        bone: {fileID: 7692892224923899904}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle1
+        bone: {fileID: 5112000111041664160}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle2
+        bone: {fileID: 8024652612861280791}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle3
+        bone: {fileID: 2011407272475171921}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle4
+        bone: {fileID: 1015662114065459529}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandMiddle4_end
+        bone: {fileID: 8940950164569499623}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky1
+        bone: {fileID: 8966204689386172403}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky2
+        bone: {fileID: 2042654345491882305}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky3
+        bone: {fileID: 1356190216573117795}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky4
+        bone: {fileID: 3696369849036298172}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandPinky4_end
+        bone: {fileID: 7595366334278200278}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing1
+        bone: {fileID: 3377011149359904308}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing2
+        bone: {fileID: 2583586523182656728}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing3
+        bone: {fileID: 7921569090151358295}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing4
+        bone: {fileID: 674495210355927690}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandRing4_end
+        bone: {fileID: 2182746318762669711}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb1
+        bone: {fileID: 772015421428613661}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb2
+        bone: {fileID: 8932783193279322933}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb3
+        bone: {fileID: 3467121917814272966}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb4
+        bone: {fileID: 3052987622538995423}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:RightHandThumb4_end
+        bone: {fileID: 4844933014433923406}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    - chainName: Left Finger
+      blendWeight: 1
+      bones:
+      - boneName: mixamorig:LeftHandIndex1
+        bone: {fileID: 259521528694462315}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex2
+        bone: {fileID: 6858396076761887589}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex3
+        bone: {fileID: 7400046870864584900}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex4
+        bone: {fileID: 214842173296643210}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandIndex4_end
+        bone: {fileID: 97631813788921315}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle1
+        bone: {fileID: 4572742616405968025}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle2
+        bone: {fileID: 6805301678804472137}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle3
+        bone: {fileID: 765774373333123960}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle4
+        bone: {fileID: 209725674563444421}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandMiddle4_end
+        bone: {fileID: 7685786864772516296}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky1
+        bone: {fileID: 2570390752577718111}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky2
+        bone: {fileID: 4386600209067532186}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky3
+        bone: {fileID: 7240952308828334040}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky4
+        bone: {fileID: 7687954531148778560}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandPinky4_end
+        bone: {fileID: 3133448407841538010}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing1
+        bone: {fileID: 1719630599410119632}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing2
+        bone: {fileID: 814374968627165938}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing3
+        bone: {fileID: 6118404973630040813}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing4
+        bone: {fileID: 2188672651302735818}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandRing4_end
+        bone: {fileID: 3653930879534164485}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb1
+        bone: {fileID: 1048339487611176131}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb2
+        bone: {fileID: 3458884118882489432}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb3
+        bone: {fileID: 8364822215932084850}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb4
+        bone: {fileID: 3624147339679917284}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+      - boneName: mixamorig:LeftHandThumb4_end
+        bone: {fileID: 2536564982505577391}
+        blendWeight: 1
+        rotationOffset: {x: 0, y: 0, z: 0}
+    globalRotationOffset: {x: 0, y: 0, z: 0}
+    defaultTransitionTime: 0.3
+    isPlaying: 0
+    playbackTime: 0
+    cachedPoseAtTime: {fileID: 0}
+    needsUpdate: 0
+  enableIKProtection: 0
+  ikProtectedBones: []
+  masterWeight: 1
+  previewInEditor: 0
+  networkSendRate: 20
+  enableNetworkSmoothing: 1
+  networkSmoothingSpeed: 0.15
 --- !u!114 &5512702918562004889
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -563,7 +1228,10 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
+  charge: 0
   playerSpeed: 0
+  AimBlendSpeed: 1
+  aimBlendSpeed: 5
   playerSpeedMin: 0
   playerSpeedMax: 1
   playerSpeedAcceleration: 3
@@ -571,6 +1239,8 @@ MonoBehaviour:
   playerInteract: {fileID: 8379247133936365975}
   playerholdingItem: {fileID: 1418801298050016171}
   playerCombat: {fileID: 5528069724715214631}
+  playerItemUseHandler: {fileID: 2127603789340546886}
+  playableAnimationBlender: {fileID: 4977231982528047151}
 --- !u!114 &2139561651648103076
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -599,7 +1269,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lookTarget: {fileID: 0}
   cameraTransform: {fileID: 0}
-  playerHead: {fileID: 6015258297792564054}
+  playerHead: {fileID: 0}
+  enableFootIK: 1
   IK_LeftFootWeight: 0
   IK_RightFootWeight: 0
   groundMask:
@@ -607,7 +1278,16 @@ MonoBehaviour:
     m_Bits: 64
   raycastDistance: 1
   footIkOffset: {x: 0, y: 0.3, z: 0}
-  smotthnessSpeed: 10
+  smoothnessSpeed: 10
+  enableRightHandIK: 1
+  rightHandIKTarget: {fileID: 0}
+  rightHandIKWeight: 1
+  handIkBlendSpeed: 25
+  maintainHandRotation: 0
+  clampTargetDistance: 1
+  maxReachDistance: 0
+  stabilizeIK: 1
+  stabilizationThreshold: 0.001
 --- !u!114 &4546783487305403673
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -625,22 +1305,6 @@ MonoBehaviour:
   syncInterval: 0
   animator: {fileID: 1961983369148241218}
   overrideController: {fileID: 22100000, guid: 45fe2306b23dcb14c9b049028354ab4b, type: 2}
---- !u!114 &8932842802045510987
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 998426586775304662}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fff0960ef4ea6e04eac66b4a7fd2189d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_RigLayers:
-  - m_Rig: {fileID: 4707963237897400608}
-    m_Active: 1
-  m_Effectors: []
 --- !u!1 &1077700270273632173
 GameObject:
   m_ObjectHideFlags: 0
@@ -1765,6 +2429,7 @@ Transform:
   - {fileID: 2570390752577718111}
   - {fileID: 1719630599410119632}
   - {fileID: 1048339487611176131}
+  - {fileID: 4147190936532547121}
   m_Father: {fileID: 7583293686381134364}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4593627208383692778
@@ -1836,92 +2501,6 @@ Transform:
   - {fileID: 8932783193279322933}
   m_Father: {fileID: 7737214861551298124}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &4694315195348236524
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 218644240492971895}
-  - component: {fileID: 6015258297792564054}
-  m_Layer: 9
-  m_Name: HeadRig
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &218644240492971895
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4694315195348236524}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2455357509301384015}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &6015258297792564054
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4694315195348236524}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e3c430f382484144e925c097c2d33cfe, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Weight: 1
-  m_Data:
-    m_ConstrainedObject: {fileID: 804522241166894957}
-    m_SourceObjects:
-      m_Length: 1
-      m_Item0:
-        transform: {fileID: 0}
-        weight: 1
-      m_Item1:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item2:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item3:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item4:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item5:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item6:
-        transform: {fileID: 0}
-        weight: 0
-      m_Item7:
-        transform: {fileID: 0}
-        weight: 0
-    m_Offset: {x: 0, y: 0, z: 0}
-    m_MinLimit: -70
-    m_MaxLimit: 60
-    m_AimAxis: 4
-    m_UpAxis: 2
-    m_WorldUpType: 0
-    m_WorldUpObject: {fileID: 0}
-    m_WorldUpAxis: 2
-    m_MaintainOffset: 0
-    m_ConstrainedAxes:
-      x: 1
-      y: 1
-      z: 1
 --- !u!1 &4973807521592012523
 GameObject:
   m_ObjectHideFlags: 0
@@ -2755,53 +3334,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2182746318762669711}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &6663914633183555427
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2455357509301384015}
-  - component: {fileID: 4707963237897400608}
-  m_Layer: 9
-  m_Name: RigLayer
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2455357509301384015
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6663914633183555427}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 218644240492971895}
-  m_Father: {fileID: 2659578799809232268}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &4707963237897400608
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6663914633183555427}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 70b342d8ce5c2fd48b8fa3147d48d1d1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Weight: 1
-  m_Effectors: []
 --- !u!1 &6672687889880474350
 GameObject:
   m_ObjectHideFlags: 0
@@ -3483,7 +4015,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3240410374694254503}
   m_Layer: 0
-  m_Name: HoldingPoint
+  m_Name: RightHoldingPoint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4031,17 +4563,18 @@ GameObject:
   m_Component:
   - component: {fileID: 7385509276416232327}
   - component: {fileID: 4039622900495366456}
+  - component: {fileID: 3907708711472795562}
+  - component: {fileID: 1105355830668630622}
+  - component: {fileID: 6898246783387066304}
   - component: {fileID: -4590973325412194780}
   - component: {fileID: 7217165074648246924}
   - component: {fileID: 8379247133936365975}
   - component: {fileID: 1418801298050016171}
   - component: {fileID: 5284994920541229815}
-  - component: {fileID: 3907708711472795562}
   - component: {fileID: 5528069724715214631}
   - component: {fileID: 8971317824985975248}
   - component: {fileID: -5057254731899719572}
-  - component: {fileID: 1105355830668630622}
-  - component: {fileID: 6898246783387066304}
+  - component: {fileID: 2127603789340546886}
   m_Layer: 9
   m_Name: Player
   m_TagString: Player
@@ -4093,135 +4626,6 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 2.49, z: 0}
---- !u!114 &-4590973325412194780
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a4f645240f04a3748a7f0100611ba325, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  player: {fileID: 7217165074648246924}
-  gameInput: {fileID: 5671251393491085693}
-  holdingItem: {fileID: 1418801298050016171}
-  cameraManager: {fileID: 0}
---- !u!114 &7217165074648246924
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e0129edef5e968943ba37d17cd81dcda, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  playerInteract: {fileID: 8379247133936365975}
-  state: 0
-  gameInput: {fileID: 5671251393491085693}
-  playerAnimator: {fileID: 305676098862324490}
-  walkSpeed: 5
-  sprintSpeed: 10
-  rotationSpeed: 5
-  acceleration: 10
-  jumpForce: 4
-  jumpCooldown: 0.4
-  gravityMultiplier: 3
-  groundCheck: {fileID: 7288871377968041263}
-  groundDistance: 0.3
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 2368
-  maxSlopeAngle: 45
-  slopeCheckDistance: 0.5
-  slopeForceDown: 8
-  useRaycastForSlopes: 1
-  showInventory: 0
-  isGrounded: 0
-  isOnSlope: 0
-  slopeAngle: 0
-  isFrozen: 0
---- !u!114 &8379247133936365975
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b5d8048cdd349a04e84a42d5ebf1b477, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  interactionRayOrigin: {fileID: 0}
-  rayStartPoint: {fileID: 7385509276416232327}
-  rayHeight: 4
-  cameraRayDistance: 25
-  miningRay: 10
-  interactRay: 10
-  interactableLayers:
-    serializedVersion: 2
-    m_Bits: 1416
-  gameInput: {fileID: 5671251393491085693}
-  uiManager: {fileID: 0}
-  isReadyToMine: 0
-  isReadyToPickup: 0
---- !u!114 &1418801298050016171
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e8102c6f6e5af2d478486c702195401b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  holdingPoint: {fileID: 3240410374694254503}
-  itemPlacer: {fileID: 0}
-  weaponHandler: {fileID: 4546783487305403673}
-  buildingType: 0
---- !u!114 &5284994920541229815
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b624b93743a5fee4a93d2b13902abe14, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  damageTest: 50
-  healTest: 50
-  maxHealth: 100
-  hitEffectPrefab: {fileID: 2271903271664755681, guid: 6a3f5c7a553cfd942a3f7db94f3465c2, type: 3}
-  maxStamina: 100
-  staminaRestoreRate: 5
-  maxHunger: 100
-  hurtbox: {fileID: 7735750946580863400}
 --- !u!114 &3907708711472795562
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4239,57 +4643,6 @@ MonoBehaviour:
   serverOnly: 0
   visibility: 0
   hasSpawned: 0
---- !u!114 &5528069724715214631
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b621461010cbcd45bcfb5ae900c03bf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  gameInput: {fileID: 5671251393491085693}
-  playerAnimator: {fileID: 305676098862324490}
-  playerHoldingItem: {fileID: 1418801298050016171}
-  weaponHandler: {fileID: 4546783487305403673}
---- !u!114 &8971317824985975248
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cdf08002eccc7ae48aeb02395e9339cb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
-  animator: {fileID: 1961983369148241218}
-  overrideController: {fileID: 22100000, guid: 45fe2306b23dcb14c9b049028354ab4b, type: 2}
---- !u!114 &-5057254731899719572
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8626825677803242378}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3dd5972362ff31a42b8cbbc26e556b8c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  category: 0
-  priority: 0
-  detectionRadius: 0
 --- !u!114 &1105355830668630622
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4341,6 +4694,227 @@ MonoBehaviour:
   positionSensitivity: 0.01
   rotationSensitivity: 0.01
   scaleSensitivity: 0.01
+--- !u!114 &-4590973325412194780
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4f645240f04a3748a7f0100611ba325, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  player: {fileID: 7217165074648246924}
+  gameInput: {fileID: 5671251393491085693}
+  holdingItem: {fileID: 1418801298050016171}
+  cameraManager: {fileID: 0}
+  playableAnimationBlender: {fileID: 4977231982528047151}
+--- !u!114 &7217165074648246924
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0129edef5e968943ba37d17cd81dcda, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  playerInteract: {fileID: 8379247133936365975}
+  playerItemUseHandler: {fileID: 2127603789340546886}
+  state: 0
+  gameInput: {fileID: 5671251393491085693}
+  playerAnimator: {fileID: 305676098862324490}
+  playerStatManager: {fileID: 5284994920541229815}
+  walkSpeed: 5
+  sprintSpeed: 10
+  rotationSpeed: 5
+  acceleration: 10
+  jumpForce: 4
+  jumpCooldown: 0.4
+  gravityMultiplier: 3
+  aimWalkSpeed: 3
+  aimRotationSpeed: 360
+  groundCheck: {fileID: 7288871377968041263}
+  groundDistance: 0.3
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 2368
+  maxSlopeAngle: 45
+  slopeCheckDistance: 0.5
+  slopeForceDown: 8
+  useRaycastForSlopes: 1
+  showInventory: 0
+  sprintStaminaDrainRate: 10
+  isGrounded: 0
+  isOnSlope: 0
+  slopeAngle: 0
+  isFrozen: 0
+--- !u!114 &8379247133936365975
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b5d8048cdd349a04e84a42d5ebf1b477, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  interactionRayOrigin: {fileID: 0}
+  rayStartPoint: {fileID: 7385509276416232327}
+  rayHeight: 4
+  cameraRayDistance: 25
+  miningRay: 10
+  interactRay: 10
+  interactableLayers:
+    serializedVersion: 2
+    m_Bits: 1416
+  gameInput: {fileID: 5671251393491085693}
+  uiManager: {fileID: 0}
+  isReadyToMine: 0
+  isReadyToPickup: 0
+--- !u!114 &1418801298050016171
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8102c6f6e5af2d478486c702195401b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  holdingPoint: {fileID: 3240410374694254503}
+  leftHandHoldingPoint: {fileID: 4147190936532547121}
+  itemPlacer: {fileID: 0}
+  weaponHandler: {fileID: 4546783487305403673}
+  buildingType: 0
+--- !u!114 &5284994920541229815
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b624b93743a5fee4a93d2b13902abe14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  damageTest: 50
+  healTest: 50
+  maxHealth: 100
+  maxStamina: 100
+  staminaRestoreRate: 5
+  staminaRegenDelay: 2
+  maxHunger: 100
+  hungerDrainRate: 1
+  hungerTickInterval: 5
+  starvationDamageInterval: 2
+  starvationDamage: 1
+  regenInterval: 1.5
+  regenAmount: 1
+  hitEffectPrefab: {fileID: 2271903271664755681, guid: 6a3f5c7a553cfd942a3f7db94f3465c2, type: 3}
+  hurtbox: {fileID: 7735750946580863400}
+--- !u!114 &5528069724715214631
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b621461010cbcd45bcfb5ae900c03bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  gameInput: {fileID: 5671251393491085693}
+  playerAnimator: {fileID: 305676098862324490}
+  playerHoldingItem: {fileID: 1418801298050016171}
+  weaponHandler: {fileID: 4546783487305403673}
+--- !u!114 &8971317824985975248
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdf08002eccc7ae48aeb02395e9339cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  animator: {fileID: 1961983369148241218}
+  overrideController: {fileID: 22100000, guid: 45fe2306b23dcb14c9b049028354ab4b, type: 2}
+--- !u!114 &-5057254731899719572
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3dd5972362ff31a42b8cbbc26e556b8c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  category: 0
+  priority: 0
+  detectionRadius: 0
+--- !u!114 &2127603789340546886
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac0b5f3a2b16f32438332359e9ccdde5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  playerHoldingItem: {fileID: 1418801298050016171}
+  playerCombat: {fileID: 5528069724715214631}
+  playerAnimator: {fileID: 305676098862324490}
+  playerStats: {fileID: 5284994920541229815}
+  gameInput: {fileID: 5671251393491085693}
+  animator: {fileID: 1961983369148241218}
+  ikController: {fileID: 1623772470423931365}
+  playableAnimationBlender: {fileID: 4977231982528047151}
+  aimCamera: {fileID: 0}
+  crosshair: {fileID: 0}
+  normalFOV: 60
+  aimFOV: 40
 --- !u!1 &8925254841853047397
 GameObject:
   m_ObjectHideFlags: 0

@@ -3,14 +3,18 @@ using UnityEngine;
 
 public class PlayerHoldingItem : NetworkBehaviour
 {
+    [Header("Hand References")]
+    [SerializeField] public Transform holdingPoint; // Right hand
+    [SerializeField] public Transform leftHandHoldingPoint; // Left hand (NEW!)
+
     [Header("References")]
-    [SerializeField] public Transform holdingPoint;
-    [SerializeField] private ItemPlacer itemPlacer;
+    [SerializeField] public ItemPlacer itemPlacer;
     [SerializeField] private WeaponAnimatorHandler weaponHandler;
 
     private GameObject currentHoldingItem;
     private bool isHolding;
     private bool isWeapon;
+    private bool isRangedWeapon;
     public ItemData ItemData { get; private set; }
     public bool buildingType = false;
 
@@ -40,7 +44,6 @@ public class PlayerHoldingItem : NetworkBehaviour
     [Command]
     private void CmdSetHeldItem(int itemId)
     {
-        
         currentItemId = itemId;
     }
 
@@ -48,12 +51,9 @@ public class PlayerHoldingItem : NetworkBehaviour
     // Hook called when SyncVar changes (runs on ALL clients)
     private void OnItemChanged(int oldId, int newId)
     {
-        
-
         // Local player already updated in HoldingItem(), skip to avoid double processing
         if (isLocalPlayer)
         {
-            
             return;
         }
 
@@ -65,8 +65,6 @@ public class PlayerHoldingItem : NetworkBehaviour
     // Core method to update held item (used by both local and remote)
     private void UpdateHeldItem(int itemId)
     {
-       
-
         // Clear current item
         ClearHeldItem();
 
@@ -84,18 +82,46 @@ public class PlayerHoldingItem : NetworkBehaviour
         ItemData data = ItemDatabase.Get(itemId);
         if (data == null)
         {
-            
+            Debug.LogWarning($"[PlayerHoldingItem] ItemData with id {itemId} not found");
             return;
         }
 
         GameObject prefab = data.heldPrefab ?? data.worldPrefab;
         if (prefab == null)
         {
-            
+            Debug.LogWarning($"[PlayerHoldingItem] No prefab found for {data.itemName}");
             return;
         }
 
-        GameObject newItem = Instantiate(prefab, holdingPoint);
+        // ✅ CHOOSE HAND BASED ON WEAPON TYPE
+        Transform targetHand = holdingPoint; // Default: right hand
+
+        // Only check weapon type if it's actually a weapon with valid weapon stats
+        if (data.type == ItemType.Weapon && data.weapon != null)
+        {
+            if (data.weapon.weaponType == WeaponType.Bow )
+            {
+                isRangedWeapon = true;
+                // Bow goes to LEFT hand
+                if (leftHandHoldingPoint != null)
+                {
+                    targetHand = leftHandHoldingPoint;
+                    Debug.Log($"[PlayerHoldingItem] Equipping {data.itemName} (bow) to LEFT hand");
+                }
+                else
+                {
+                    Debug.LogWarning("[PlayerHoldingItem] leftHandHoldingPoint not assigned! Using right hand.");
+                }
+            }
+            else
+            {
+                // All other weapons (sword, axe, spear) go to RIGHT hand
+                Debug.Log($"[PlayerHoldingItem] Equipping {data.itemName} ({data.weapon.weaponType}) to RIGHT hand");
+            }
+        }
+
+        // Instantiate item on the chosen hand
+        GameObject newItem = Instantiate(prefab, targetHand);
         newItem.transform.localPosition = Vector3.zero;
         newItem.transform.localRotation = Quaternion.identity;
         newItem.transform.localScale = Vector3.one;
@@ -123,26 +149,92 @@ public class PlayerHoldingItem : NetworkBehaviour
         {
             isWeapon = true;
             weaponHandler?.EquipWeapon(data);
+
+            // ✅ SETUP BOW IK IF IT'S A BOW
+            if (data.weapon != null &&
+                (data.weapon.weaponType == WeaponType.Bow))
+            {
+                SetupBowIK(newItem);
+            }
         }
 
-        
+        Debug.Log($"[PlayerHoldingItem] Created held item: {data.itemName} on {targetHand.name}");
+    }
+
+    // ===========================================================
+    // ✅ NEW: Setup IK target when bow is equipped
+    private void SetupBowIK(GameObject bowObject)
+    {
+        BowStringController bowController = bowObject.GetComponentInChildren<BowStringController>();
+        if (bowController == null)
+        {
+            Debug.LogWarning("[PlayerHoldingItem] BowStringController not found on bow!");
+            return;
+        }
+
+        // Send IK target
+        PlayerItemUseHandler useHandler = GetComponent<PlayerItemUseHandler>();
+        if (useHandler != null)
+        {
+            useHandler.SetBowIKTarget(bowController.rightHandIKTarget);
+
+            // 🔥 NEW: send arrow spawn point to handler
+            useHandler.SetArrowSpawnPoint(bowController.arrowSpawnPoint);
+
+            Debug.Log("[PlayerHoldingItem] Bow IK + ArrowSpawnPoint assigned");
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerHoldingItem] PlayerItemUseHandler not found!");
+        }
+    }
+
+
+
+
+    // ===========================================================
+    // ✅ NEW: Helper to find child by multiple possible names
+    private Transform FindChildRecursive(Transform parent, params string[] names)
+    {
+        foreach (string name in names)
+        {
+            Transform found = parent.Find(name);
+            if (found != null) return found;
+        }
+
+        // Search children recursively
+        foreach (Transform child in parent)
+        {
+            Transform found = FindChildRecursive(child, names);
+            if (found != null) return found;
+        }
+
+        return null;
     }
 
     // ===========================================================
     // Clear held item
     private void ClearHeldItem()
     {
-        
-
         if (currentHoldingItem != null)
         {
             Destroy(currentHoldingItem);
             currentHoldingItem = null;
         }
-
+        isRangedWeapon=false;
         isHolding = false;
         isWeapon = false;
         ItemData = null;
+
+        // ✅ NOTIFY PlayerItemUseHandler that item was switched
+        if (isLocalPlayer)
+        {
+            PlayerItemUseHandler useHandler = GetComponent<PlayerItemUseHandler>();
+            if (useHandler != null)
+            {
+                useHandler.OnItemSwitched();
+            }
+        }
 
         // Cancel placement/building mode
         if (itemPlacer != null)
@@ -219,4 +311,6 @@ public class PlayerHoldingItem : NetworkBehaviour
     public bool IsHolding() => isHolding;
     public bool IsAWeapon() => isWeapon;
     public GameObject GetCurrentHeldObject() => currentHoldingItem;
+
+    public bool IsRangedWeapon() => isRangedWeapon;
 }

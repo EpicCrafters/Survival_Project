@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using Mirror;
-using static BaseAnimalAI;
+
 
 public class HFSMController : NetworkBehaviour, IDamageable
 {

@@ -15,39 +15,38 @@ public class PlayerCombat : NetworkBehaviour
     private bool canCombo = false;
     private bool queuedAttack = false;
 
-    public override void OnStartLocalPlayer()
-    {
-        base.OnStartLocalPlayer();
+    //public override void OnStartLocalPlayer()
+    //{
+    //    base.OnStartLocalPlayer();
 
-        gameInput = GetComponentInChildren<GameInput>(true);
-        if (gameInput != null)
-        {
-            gameInput.gameObject.SetActive(true);
-            gameInput.OnAttack += HandleAttackInput;
-            Debug.Log($"[{name}] LocalPlayer input enabled.");
-        }
-    }
+    //    gameInput = GetComponentInChildren<GameInput>(true);
+    //    if (gameInput != null)
+    //    {
+    //        gameInput.gameObject.SetActive(true);
+    //        gameInput.OnAttack += HandleAttackInput;
+    //        Debug.Log($"[{name}] LocalPlayer input enabled.");
+    //    }
+    //}
 
     public override void OnStartClient()
     {
         base.OnStartClient();
-        Debug.Log($"OnStartClient: name={gameObject.name} netId={netId} owner={isLocalPlayer} animator={playerAnimator?.gameObject.name}");
+       
     }
 
-    public override void OnStopLocalPlayer()
-    {
-        if (gameInput != null)
-            gameInput.OnAttack -= HandleAttackInput;
-    }
+    //public override void OnStopLocalPlayer()
+    //{
+    //    if (gameInput != null)
+    //        gameInput.OnAttack -= HandleAttackInput;
+    //}
 
-    private void HandleAttackInput(object sender, System.EventArgs e)
+    public void TryAttack()
     {
         if (!isLocalPlayer) return;
         if (!isReadyToAttack) return;
-        if (playerHoldingItem.IsAWeapon())
-        {
-            CmdDoAttack();
-        }
+        if (!playerHoldingItem.IsAWeapon()) return;
+
+        CmdDoAttack();
     }
 
     // ------------------ Mirror Networking ------------------

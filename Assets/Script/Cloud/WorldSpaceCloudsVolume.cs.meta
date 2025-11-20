@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 219ee021ef48e534a83723d7a455ddde
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - cloudTexture1: {fileID: 11700000, guid: d1aae012f8a4f23478471851f17ff915, type: 3}
+  - cloudTexture2: {fileID: 11700000, guid: ec156c314a242914dbb706f73ad78cf2, type: 3}
+  - cloudTexture3: {fileID: 11700000, guid: 1fe54a721d0e2504e89f121c723404a8, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -177,7 +177,14 @@ public class CharacterCustomizeUI : MonoBehaviour
         }
 
         // Chuyển sang màn chơi chính
-        SceneManager.LoadScene("GameScene");
+        SceneManager.LoadScene("System&Water");
+        SceneManager.LoadScene("Ground1");
+        SceneManager.LoadScene("Ground2");
+        SceneManager.LoadScene("Ground3");
+        SceneManager.LoadScene("Ground4");
+        SceneManager.LoadScene("Ground5");
+        
+
     }
 
     #endregion

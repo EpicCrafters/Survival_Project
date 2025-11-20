@@ -1,27 +1,31 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.EventSystems;
 using System;
 
 public class GameInput : MonoBehaviour
 {
-    // Các sự kiện đầu vào
-    public event EventHandler OnJump; // Sự kiện khi nhảy
-    public event EventHandler OnInteract; // Sự kiện khi tương tác (click 1 lần)
-    public event EventHandler OnShowInventory; // Sự kiện khi mở/tắt túi đồ
-    public event EventHandler<float> OnScroll; // Sự kiện khi cuộn chuột (đổi slot nhanh)
-    public event EventHandler<int> OnNumberKeyPressed; // Sự kiện khi nhấn phím số 1-9
-    public event EventHandler OnDropItem; // Sự kiện khi vứt đồ
-    public event EventHandler OnAttack; // Sự kiện khi tấn công
-    public event EventHandler OnSprintStarted; // Sự kiện khi bắt đầu chạy nhanh
-    public event EventHandler OnSprintCanceled; // Sự kiện khi dừng chạy nhanh
-    public event EventHandler OnInteractStarted; // Sự kiện khi bắt đầu tương tác (giữ)
-    public event EventHandler OnInteractFinished; // Sự kiện khi kết thúc tương tác (thả)
+    // Existing events
+    public event EventHandler OnJump;
+    public event EventHandler OnInteract;
+    public event EventHandler OnShowInventory;
+    public event EventHandler<float> OnScroll;
+    public event EventHandler<int> OnNumberKeyPressed;
+    public event EventHandler OnDropItem;
+    public event EventHandler OnAttack; // (kept for backward compatibility)
+    public event EventHandler OnSprintStarted;
+    public event EventHandler OnSprintCanceled;
+    public event EventHandler OnInteractStarted;
+    public event EventHandler OnInteractFinished;
 
-    // Tham chiếu đến InputActionAsset (được thiết lập trong Editor)
+    // ✅ New events for continuous attack support
+    public event EventHandler OnAttackStarted;
+    public event EventHandler OnAttackCanceled;
+
+    public event EventHandler OnAimStarted;
+    public event EventHandler OnAimCanceled;
+
     [SerializeField] private InputActionAsset inputActions;
 
-    // Các InputAction cụ thể
     private InputAction moveAction;
     private InputAction Sprint;
     private InputAction Jump;
@@ -30,13 +34,15 @@ public class GameInput : MonoBehaviour
     private InputAction scrollAction;
     private InputAction numberKeyAction;
     private InputAction attackAction;
+    private InputAction aimAction;
     private InputAction dropAction;
 
-    private int lastSelectedSlot = -1; // Slot gần nhất được chọn (để tránh spam sự kiện)
+    private int lastSelectedSlot = -1;
+
+    public bool IsAttackHeld { get; private set; } = false;
 
     private void Awake()
     {
-        // Gán các hành động và bật chúng lên
         moveAction = inputActions.FindAction("Move");
         moveAction.Enable();
 
@@ -69,18 +75,29 @@ public class GameInput : MonoBehaviour
 
         attackAction = inputActions.FindAction("Attack");
         attackAction.Enable();
-        attackAction.performed += AttackAction_performed;
+        attackAction.started += AttackAction_started;   // 🟢 Press down
+        attackAction.canceled += AttackAction_canceled; // 🔴 Release
+        attackAction.performed += AttackAction_performed; // 🟡 One-shot click
+
+
+        aimAction = inputActions.FindAction("Aim");
+        aimAction.Enable();
+        aimAction.started += AimAction_started;
+        aimAction.canceled += AimAction_canceled;
+        
 
         dropAction = inputActions.FindAction("DropItem");
         dropAction.Enable();
         dropAction.performed += DropAction_performed;
     }
 
+  
+
     private void Update()
     {
-        // Kiểm tra nếu người chơi nhấn các phím số 1-9
         if (Keyboard.current == null) return;
 
+        // Handle number keys
         for (int i = 1; i <= 9; i++)
         {
             Key key = GetKeyFromNumber(i);
@@ -95,7 +112,6 @@ public class GameInput : MonoBehaviour
         }
     }
 
-    // Trả về phím tương ứng với số
     private Key GetKeyFromNumber(int number)
     {
         return number switch
@@ -133,6 +149,26 @@ public class GameInput : MonoBehaviour
         OnAttack?.Invoke(this, EventArgs.Empty);
     }
 
+    private void AttackAction_started(InputAction.CallbackContext obj)
+    {
+        IsAttackHeld = true;
+        OnAttackStarted?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void AttackAction_canceled(InputAction.CallbackContext obj)
+    {
+        IsAttackHeld = false;
+        OnAttackCanceled?.Invoke(this, EventArgs.Empty);
+    }
+    private void AimAction_canceled(InputAction.CallbackContext obj)
+    {
+        OnAimCanceled?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void AimAction_started(InputAction.CallbackContext obj)
+    {
+        OnAimStarted?.Invoke(this, EventArgs.Empty);
+    }
     private void NumberKeyAction_performed(InputAction.CallbackContext obj)
     {
         int slot = Mathf.Clamp(Mathf.RoundToInt(obj.ReadValue<float>()), 1, 9);
@@ -143,9 +179,7 @@ public class GameInput : MonoBehaviour
     {
         Vector2 scrollValue = obj.ReadValue<Vector2>();
         if (scrollValue.y != 0)
-        {
             OnScroll?.Invoke(this, scrollValue.y);
-        }
     }
 
     private void ShowInventory_performed(InputAction.CallbackContext obj)
@@ -173,7 +207,6 @@ public class GameInput : MonoBehaviour
         OnJump?.Invoke(this, EventArgs.Empty);
     }
 
-    // Lấy vector di chuyển từ phím điều hướng hoặc joystick
     public Vector2 GetMovementVector()
     {
         return moveAction.ReadValue<Vector2>();
