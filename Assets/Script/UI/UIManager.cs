@@ -7,6 +7,9 @@ public class UIManager : MonoBehaviour
     // Singleton: Đảm bảo trong game chỉ có 1 UIManager tồn tại
     public static UIManager Instance { get; private set; }
 
+    [Header("Inventory UI")]
+    [SerializeField] private GameObject mainInventory;
+
     [Header("Player HUD")]
     [SerializeField] private Image healthFill;          // Thanh máu chính 
     [SerializeField] private Image healthDamageFill;    // Thanh máu phụ 
@@ -35,7 +38,7 @@ public class UIManager : MonoBehaviour
             return;
         }
         Instance = this;
-
+        mainInventory.SetActive(false);
         // Khởi tạo hệ thống thanh máu cho mục tiêu
         healthBar = new HealthBarUI(HealthBar, fillImage);
     }
@@ -47,9 +50,9 @@ public class UIManager : MonoBehaviour
         player.OnStaminaChanged += UpdateStaminaUI; // Khi stamina thay đổi → gọi UpdateStaminaUI
         player.OnHungerChanged += UpdateHungerUI;   // Khi hunger thay đổi → gọi UpdateHungerUI
 
-         UpdateHealthUI(player.CurrentHealth, player.MaxHealth);
-    UpdateStaminaUI(player.CurrentStamina, player.MaxStamina);
-    UpdateHungerUI(player.CurrentHunger, player.MaxHunger);
+        UpdateHealthUI(player.CurrentHealth, player.MaxHealth);
+        UpdateStaminaUI(player.CurrentStamina, player.MaxStamina);
+        UpdateHungerUI(player.CurrentHunger, player.MaxHunger);
         if (healthDamageFill != null && healthDamageFill.fillAmount == 0f)
             healthDamageFill.fillAmount = targetHealthFill; // Chỉ khởi tạo lúc đầu game
     }
@@ -62,8 +65,8 @@ public class UIManager : MonoBehaviour
         if (healthFill != null)
             healthFill.fillAmount = targetHealthFill; // Cập nhật thanh đỏ ngay lập tức
 
-      
-       
+
+
     }
 
     private void LateUpdate()
@@ -121,6 +124,12 @@ public class UIManager : MonoBehaviour
         if (eWord != null)
             eWord.text = newText;
     }
+    public void ToggleInventory(bool show)
+    {
+        if (mainInventory != null)
+            mainInventory.SetActive(show);
+    }
+
 
     // Lớp con để quản lý thanh máu của mục tiêu 
     public class HealthBarUI
@@ -153,5 +162,6 @@ public class UIManager : MonoBehaviour
             if (healthSystem != null && fillImage != null)
                 fillImage.fillAmount = (float)healthSystem.health / healthSystem.healthMax;
         }
+
     }
 }

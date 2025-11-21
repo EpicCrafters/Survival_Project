@@ -368,7 +368,11 @@ public class Player : NetworkBehaviour
     private void GameInput_OnSprintStarted(object sender, System.EventArgs e) => isSprinting = true;
     private void GameInput_OnSprintCanceled(object sender, System.EventArgs e) => isSprinting = false;
     private void GameInput_OnJump(object sender, System.EventArgs e) => TriggerJump();
-    private void GameInput_OnShowInventory(object sender, System.EventArgs e) => showInventory = !showInventory;
+    private void GameInput_OnShowInventory(object sender, System.EventArgs e)
+    {
+        showInventory = !showInventory;
+        UIManager.Instance.ToggleInventory(showInventory);
+    }
 
     // Getter public để lấy trạng thái
     public bool IsSprinting() => isSprinting;

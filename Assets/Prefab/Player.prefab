@@ -599,6 +599,7 @@ MonoBehaviour:
   lookTarget: {fileID: 0}
   cameraTransform: {fileID: 0}
   playerHead: {fileID: 6015258297792564054}
+  enableFootIK: 1
   IK_LeftFootWeight: 0
   IK_RightFootWeight: 0
   groundMask:
@@ -606,7 +607,16 @@ MonoBehaviour:
     m_Bits: 64
   raycastDistance: 1
   footIkOffset: {x: 0, y: 0.3, z: 0}
-  smotthnessSpeed: 10
+  smoothnessSpeed: 10
+  enableRightHandIK: 0
+  rightHandIKTarget: {fileID: 0}
+  rightHandIKWeight: 1
+  handIkBlendSpeed: 25
+  maintainHandRotation: 0
+  clampTargetDistance: 1
+  maxReachDistance: 0
+  stabilizeIK: 1
+  stabilizationThreshold: 0.001
 --- !u!114 &8932842802045510987
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -909,12 +919,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: afd094fcde7b48d4897b685a4918c669, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   previewSystem: {fileID: 7310900872541547730}
   placementSystem: {fileID: 7935485850028195289}
   destroySystem: {fileID: 6102141708965789341}
   cellHeight: 9
   cellWidth: 9
   playerHolding: {fileID: 1418801298050016171}
+  spawnablePrefabs: []
+  spawnablePrefabItemIds: []
 --- !u!114 &7935485850028195289
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -931,6 +946,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 2048
   clusterSnapRadiusMultiplier: 1.25
+  foundationExtraLift: 0.02
+  foundationMaxLift: 1
 --- !u!114 &7310900872541547730
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -944,6 +961,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   transparentMat: {fileID: 2100000, guid: f034d967b7bfd1b4fa937e4d960f8b8f, type: 2}
+  previewLayer: 2
 --- !u!1 &1698896012778239866
 GameObject:
   m_ObjectHideFlags: 0
@@ -1845,6 +1863,7 @@ Transform:
   - {fileID: 2570390752577718111}
   - {fileID: 1719630599410119632}
   - {fileID: 1048339487611176131}
+  - {fileID: 6005361999722162669}
   m_Father: {fileID: 7583293686381134364}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &4593627208383692778
@@ -3610,6 +3629,37 @@ Transform:
   - {fileID: 97631813788921315}
   m_Father: {fileID: 7400046870864584900}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &7703126883187098831
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6005361999722162669}
+  m_Layer: 9
+  m_Name: LeftHoldingPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6005361999722162669
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7703126883187098831}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8946278057088944324}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7709429754820458253
 GameObject:
   m_ObjectHideFlags: 0
@@ -4271,9 +4321,12 @@ MonoBehaviour:
   syncMode: 1
   syncInterval: 0
   holdingPoint: {fileID: 3240410374694254503}
+  leftHandHoldingPoint: {fileID: 6005361999722162669}
   itemPlacer: {fileID: 6541186784447125656}
+  buildManager: {fileID: 5779177408304134375}
   weaponHandler: {fileID: 8971317824985975248}
   buildingType: 0
+  TestItemData: {fileID: 0}
 --- !u!114 &8377111500348481694
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4306,12 +4359,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b624b93743a5fee4a93d2b13902abe14, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   damageTest: 50
   healTest: 50
   maxHealth: 100
   maxStamina: 100
   staminaRestoreRate: 5
+  staminaRegenDelay: 2
   maxHunger: 100
+  hungerDrainRate: 1
+  hungerTickInterval: 5
+  starvationDamageInterval: 2
+  starvationDamage: 1
+  regenInterval: 1.5
+  regenAmount: 1
+  hitEffectPrefab: {fileID: 0}
+  hurtbox: {fileID: 0}
 --- !u!114 &3907708711472795562
 MonoBehaviour:
   m_ObjectHideFlags: 0

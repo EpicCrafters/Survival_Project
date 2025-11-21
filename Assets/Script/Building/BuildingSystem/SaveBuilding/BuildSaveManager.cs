@@ -193,7 +193,7 @@ public class BuildingSaveManager : MonoBehaviour, ISaveable
     {
         var rec = new BuildRecord();
         rec.guid = b.guid;
-        //rec.itemId = b.objectType != null ? b.objectType.building.id : (b.objectType?.worldPrefab?.name ?? "unknown");
+        rec.itemId = b.objectType != null ? b.objectType.id : -1;
         rec.prefabName = b.objectType?.worldPrefab?.name ?? "unknown";
         rec.position = new SerializableVector3(b.transform.position);
         rec.rotation = new SerializableQuaternion(b.transform.rotation);
@@ -212,23 +212,19 @@ public class BuildingSaveManager : MonoBehaviour, ISaveable
         return rec;
     }
 
-    private ItemData FindItemDataById(string id)
+    private ItemData FindItemDataById(int id)
     {
-        if (string.IsNullOrEmpty(id)) return null;
         foreach (var it in itemCatalog)
         {
-            if (it == null) continue;
-            //if (it.building.id == id || it.name == id) return it;
+            if (it != null && it.id == id)
+                return it;
         }
         return null;
     }
-
     private GameObject ResolvePrefabForRecord(BuildRecord rec)
     {
-        // Prefer lookup by itemCatalog via itemId
         var it = FindItemDataById(rec.itemId);
         if (it != null && it.worldPrefab != null) return it.worldPrefab;
-        // fallback: try Resources load by prefabName
         if (!string.IsNullOrEmpty(rec.prefabName))
         {
             var r = Resources.Load<GameObject>(rec.prefabName);

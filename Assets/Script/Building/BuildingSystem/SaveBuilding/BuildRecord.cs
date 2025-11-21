@@ -22,7 +22,7 @@ public struct SerializableQuaternion
 public class BuildRecord
 {
     public string guid;
-    public string itemId;      // primary key để tìm ItemData
+    public int itemId;      // primary key để tìm ItemData
     public string prefabName;  // fallback
     public SerializableVector3 position;
     public SerializableQuaternion rotation;

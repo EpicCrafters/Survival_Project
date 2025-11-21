@@ -45,4 +45,6 @@ public class ItemDatabase : MonoBehaviour
         }
         return Instance.GetItemById(id);
     }
+    public static ItemData GetById(int id) => Instance.GetItemById(id);
+    public static GameObject GetPrefabById(int id) => GetById(id)?.worldPrefab;
 }

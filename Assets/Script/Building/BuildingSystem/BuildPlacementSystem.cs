@@ -1,4 +1,8 @@
-﻿using UnityEngine;
+﻿// BuildPlacementSystem.cs (Mirror-friendly)
+// Keep placement logic local for preview; provide ServerPlaceObject to be called only on server.
+using System.Collections.Generic;
+using UnityEngine;
+using Mirror;
 
 public class BuildPlacementSystem : MonoBehaviour
 {
@@ -7,6 +11,17 @@ public class BuildPlacementSystem : MonoBehaviour
     private BuildManager buildManager;
     private float rotY; // xoay theo Q/E
     private Transform previewAnchor;
+
+    // Ghost caching to avoid allocations every frame
+    private GameObject ghostCache;
+    private GameObject ghostCachePrefab;
+
+    // Tuning: khi nâng foundation lần đầu, thêm một ít để tránh clipping
+    [Tooltip("Số mét nâng thêm sau khi đã tính để tránh cắt mặt đất")]
+    [SerializeField] private float foundationExtraLift = 0.02f;
+
+    [Tooltip("Giới hạn nâng tối đa")]
+    [SerializeField] private float foundationMaxLift = 1.0f;
 
     public void Initialize(BuildManager manager)
     {
@@ -17,6 +32,8 @@ public class BuildPlacementSystem : MonoBehaviour
 
     public void UpdatePlacement(ItemData item)
     {
+        if (Camera.main == null) return; // sanity
+
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
 
         if (Physics.Raycast(ray, out RaycastHit hit, 30, item.building.groundMask))
@@ -33,15 +50,102 @@ public class BuildPlacementSystem : MonoBehaviour
 
             float finalRotY = computedRotY + rotY;
 
+            // --- CHỈNH: nếu là foundation và KHÔNG có anchor thì adjust height trước khi preview ---
+            if (item.building.partType == BuildingPartType.Foundation && previewAnchor == null)
+            {
+                // truyền rotation để tính góc-corners chính xác
+                snappedPos = AdjustFoundationHeight(snappedPos, finalRotY, item, foundationExtraLift, foundationMaxLift);
+            }
+
             bool canPlace = CheckCanPlace(snappedPos, finalRotY, item);
 
+            // Now show preview at corrected height
             buildManager.previewSystem.UpdatePreview(snappedPos, finalRotY, canPlace);
 
             if (Input.GetMouseButtonDown(0) && canPlace)
             {
+                // Keep existing signature: ConfirmPlacement in BuildManager will
+                // call CmdRequestPlace on client (or directly call ServerPlaceObject on host)
                 buildManager.ConfirmPlacement(snappedPos, finalRotY, item, previewAnchor);
             }
         }
+    }
+
+    private Vector3 AdjustFoundationHeight(Vector3 basePos, float rotY, ItemData item, float extraLift, float maxLift)
+    {
+        // compute half extents in world XZ using the cell width
+        float half = buildManager.cellWidth * 0.5f;
+
+        // corner offsets in local (before rotation)
+        Vector3[] localCorners = new Vector3[]
+        {
+            new Vector3(-half, 0f, -half),
+            new Vector3(-half, 0f, +half),
+            new Vector3(+half, 0f, -half),
+            new Vector3(+half, 0f, +half)
+        };
+
+        // rotation to apply to local corners
+        Quaternion rot = Quaternion.Euler(0f, rotY, 0f);
+
+        float lowestGroundY = float.MaxValue;
+        bool foundAny = false;
+
+        // raycast down from slightly above each corner and get the lowest hit
+        foreach (var lc in localCorners)
+        {
+            Vector3 worldCorner = basePos + rot * lc;
+
+            // raycast from a bit above corner to ensure hitting slope
+            Vector3 rayStart = worldCorner + Vector3.up * (buildManager.cellHeight + 0.5f);
+            float rayLen = buildManager.cellHeight + 5f; // reasonable depth
+
+            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, rayLen, item.building.groundMask))
+            {
+                lowestGroundY = Mathf.Min(lowestGroundY, hit.point.y);
+                foundAny = true;
+            }
+            else
+            {
+                // if no ground under corner, optionally treat as "very low"
+                // here we skip it; if *none* corners hit ground, we won't lift.
+            }
+        }
+
+        if (!foundAny)
+        {
+            // no ground detected under corners -> return original
+            return basePos;
+        }
+
+
+        float foundationHalfHeight = buildManager.cellHeight * 0.3f;
+        float foundationBottomY = basePos.y - foundationHalfHeight;
+
+        float neededLift = 0f;
+        // only lift when really needed (foundation bottom is under ground)
+        if (foundationBottomY < lowestGroundY)
+        {
+            float rawLift = lowestGroundY - foundationBottomY;
+
+            // giảm độ nhạy nâng: chỉ nâng 30% của mức cần thiết
+            float adjustedLift = rawLift * 0.2f;
+
+            // clamp để tránh bay
+            adjustedLift = Mathf.Clamp(adjustedLift, 0f, maxLift);
+
+            // thêm uplift nhỏ để tránh clipping
+            adjustedLift += extraLift;
+
+            basePos.y += adjustedLift;
+        }
+        else
+        {
+            // nếu không cần nâng -> hạ nhẹ xuống để không trông bay
+            basePos.y -= extraLift * 0.5f;
+        }
+
+        return basePos;
     }
 
     private void ComputeSnappedTransform(Vector3 rawPosition, ItemData obj, Transform anchor, out Vector3 outPosition, out float outRotY)
@@ -70,8 +174,8 @@ public class BuildPlacementSystem : MonoBehaviour
             float fracX = localX - ix;
             float fracZ = localZ - iz;
 
-            float offsetIntoCell = 0.3355f; // tỉ lệ ~0.35 khi  điều chỉnh nếu cần
-            
+            float offsetIntoCell = 0.3355f; // tỉ lệ ~0.35 khi điều chỉnh nếu cần
+
             if (Mathf.Abs(fracX) > Mathf.Abs(fracZ))
             {
                 float signX = Mathf.Sign(fracX);
@@ -79,7 +183,6 @@ public class BuildPlacementSystem : MonoBehaviour
                 float z = origin.z + iz * buildManager.cellWidth;
                 outPosition = new Vector3(x, origin.y, z);
                 outRotY = 0f;
-                //outPosition.x -= signX * offsetIntoCell; // dịch vào tâm ô như cũ
             }
             else
             {
@@ -88,7 +191,6 @@ public class BuildPlacementSystem : MonoBehaviour
                 float x = origin.x + ix * buildManager.cellWidth;
                 outPosition = new Vector3(x, origin.y, z);
                 outRotY = 90f;
-                //outPosition.z -= signZ * offsetIntoCell;
             }
         }
         else
@@ -97,8 +199,8 @@ public class BuildPlacementSystem : MonoBehaviour
             outRotY = 0f;
         }
 
-        //int targetLayer = iy + obj.building.verticalOffset;
-        //outPosition.y = origin.y + targetLayer * buildManager.cellHeight;
+        int targetLayer = iy + obj.building.verticalOffset;
+        outPosition.y = origin.y + targetLayer * buildManager.cellHeight;
     }
 
     // tìm anchor gần nhất (ưu tiên BuildClusterRef, fallback BuildtObject cũ)
@@ -121,7 +223,6 @@ public class BuildPlacementSystem : MonoBehaviour
             }
             else
             {
-                // Công trình cũ chưa có BuildClusterRef: dùng chính transform của nó (sẽ mượt hơn khi đã có anchor)
                 var old = c.GetComponentInParent<BuildtObject>();
                 if (old != null) candidate = old.transform;
             }
@@ -138,31 +239,40 @@ public class BuildPlacementSystem : MonoBehaviour
 
         return anchor != null;
     }
+
     private bool CheckCanPlace(Vector3 pos, float rotY, ItemData obj)
     {
-        // Tạo ghost để kiểm tra collider
-        GameObject ghost = Instantiate(obj.worldPrefab, pos, Quaternion.Euler(0, rotY, 0));
-        ghost.transform.localScale = new Vector3(buildManager.cellWidth, buildManager.cellHeight, buildManager.cellWidth);
+        if (obj == null || obj.worldPrefab == null) return false;
+
+        // Ensure we have a cached ghost of the same prefab
+        if (ghostCache == null || ghostCachePrefab != obj.worldPrefab)
+        {
+            if (ghostCache != null) Destroy(ghostCache);
+            ghostCache = Instantiate(obj.worldPrefab);
+            ghostCachePrefab = obj.worldPrefab;
+
+            // Hide renderers and make colliders triggers so they don't interfere
+            foreach (var r in ghostCache.GetComponentsInChildren<Renderer>()) r.enabled = false;
+            foreach (var c in ghostCache.GetComponentsInChildren<Collider>()) c.isTrigger = true;
+        }
+
+        ghostCache.transform.SetPositionAndRotation(pos, Quaternion.Euler(0, rotY, 0));
+        ghostCache.transform.localScale = new Vector3(buildManager.cellWidth, buildManager.cellHeight, buildManager.cellWidth);
 
         bool isOccupied = false;
-        Collider[] colliders = ghost.GetComponentsInChildren<Collider>();
+        Collider[] colliders = ghostCache.GetComponentsInChildren<Collider>();
         foreach (Collider collider in colliders)
         {
-            collider.isTrigger = true;
+            // Use OverlapBox with the collider's world bounds to detect any build objects
+            Vector3 center = collider.bounds.center;
+            Vector3 halfExtents = collider.bounds.extents * 0.4f; // adjust tolerance if needed
+            Quaternion orientation = ghostCache.transform.rotation;
 
-            RaycastHit[] hits = Physics.BoxCastAll(
-                collider.bounds.center,
-                collider.bounds.extents * 0.4f,
-                Vector3.up,
-                Quaternion.identity,
-                1,
-                buildLayer);
-
-            foreach (RaycastHit hit in hits)
+            Collider[] hits = Physics.OverlapBox(center, halfExtents, orientation, buildLayer);
+            foreach (var hit in hits)
             {
-                if (hit.collider != null &&
-                    hit.collider.GetComponentInParent<BuildtObject>() != null &&
-                    !obj.building.ignorObject.Contains(hit.collider.GetComponentInParent<BuildtObject>().objectType))
+                var existing = hit.GetComponentInParent<BuildtObject>();
+                if (existing != null && !obj.building.ignorObject.Contains(existing.objectType))
                 {
                     isOccupied = true;
                     break;
@@ -170,8 +280,6 @@ public class BuildPlacementSystem : MonoBehaviour
             }
             if (isOccupied) break;
         }
-
-        Destroy(ghost);
 
         bool isPlatform =
             obj.building.partType == BuildingPartType.Foundation ||
@@ -182,30 +290,45 @@ public class BuildPlacementSystem : MonoBehaviour
 
         return !isOccupied && !blockedByNoAnchor;
     }
-    public void PlaceObject(Vector3 pos, float rotY, ItemData obj, PlayerHoldingItem playerHolding, Transform anchor)
+
+    // ---------------------------
+    // Server-side spawn / destroy
+    // These must be called on the server (isServer == true)
+    // ---------------------------
+
+    // Called by BuildManager on server (or by Cmd handler)
+    public void ServerPlaceObject(Vector3 pos, float rotY, ItemData obj, PlayerHoldingItem playerHolding, Transform anchor, BuildManager callerManager)
     {
-        GameObject newObj = Instantiate(obj.worldPrefab, pos, Quaternion.Euler(0, rotY, 0), BuildHierarchy.Root);
-
-        newObj.transform.localScale = new Vector3(buildManager.cellWidth, buildManager.cellHeight, buildManager.cellWidth);
-
-        // layer (vẫn giữ cảnh báo: groundMask chỉ 1 bit)
-        int layerIndex = Mathf.FloorToInt(Mathf.Log(buildLayer.value, 2));
-        newObj.layer = layerIndex;
-        foreach (Transform child in newObj.transform) child.gameObject.layer = layerIndex;
-
-        BuildtObject buildingObject = newObj.AddComponent<BuildtObject>();
-        buildingObject.objectType = obj;
-        // thêm GUID duy nhất khi tạo
-        buildingObject.guid = System.Guid.NewGuid().ToString();
-
-        var bsm = BuildingSaveManager.Instance;
-        if (bsm != null)
+        if (!NetworkServer.active)
         {
-            bsm.AddOrUpdateRecord(buildingObject);
-            Debug.Log("[PlaceObject] Đã đăng ký công trình vào BSM: " + buildingObject.guid);
+            Debug.LogWarning("[ServerPlaceObject] attempted to call ServerPlaceObject while not on server.");
+            return;
         }
 
-        var clusterRef = newObj.AddComponent<BuildClusterRef>();
+        if (obj == null || obj.worldPrefab == null)
+        {
+            Debug.LogWarning("[ServerPlaceObject] invalid item.");
+            return;
+        }
+
+        // Instantiate WITHOUT parent (Mirror sẽ không giữ parent nếu bạn spawn với parent)
+        GameObject newObj = Instantiate(obj.worldPrefab, pos, Quaternion.Euler(0, rotY, 0));
+        // set scale BEFORE spawn (scale sẽ sync qua clients nếu NetworkTransform/transform sync được)
+        newObj.transform.localScale = new Vector3(buildManager.cellWidth, buildManager.cellHeight, buildManager.cellWidth);
+
+        // layer - set trên server so clients nhìn đúng khi OnStartClient chạy (client cũng sẽ reset layer trong OnStartClient)
+        int layerIndex = GetBuildLayerIndex();
+        SetLayerRecursively(newObj, layerIndex);
+
+        // Add BuildtObject and set metadata (server authoritative)
+        BuildtObject buildingObject = newObj.GetComponent<BuildtObject>();
+        if (buildingObject == null) buildingObject = newObj.AddComponent<BuildtObject>();
+        buildingObject.objectType = obj;
+        buildingObject.guid = System.Guid.NewGuid().ToString();
+
+        // cluster ref
+        var clusterRef = newObj.GetComponent<BuildClusterRef>();
+        if (clusterRef == null) clusterRef = newObj.AddComponent<BuildClusterRef>();
         if (anchor != null) clusterRef.anchor = anchor;
         else
         {
@@ -214,15 +337,48 @@ public class BuildPlacementSystem : MonoBehaviour
             clusterRef.anchor = isPlatform ? newObj.transform : null;
         }
 
-        // notify save manager
-        var buildt = newObj.GetComponent<BuildtObject>();
-        if (buildt != null)
+        // Register in save manager (server-side)
+        BuildingSaveManager.Instance?.AddOrUpdateRecord(buildingObject);
+
+        // Finally spawn via Mirror so all clients see it
+        NetworkServer.Spawn(newObj);
+
+        // AFTER spawn: set parent on server for server-side scene organization
+        // Note: parent is NOT guaranteed to propagate to clients, so client-side script must also parent.
+        if (BuildHierarchy.Root != null)
+            newObj.transform.SetParent(BuildHierarchy.Root, true);
+    }
+
+
+    public void ServerDestroyBuild(BuildtObject target)
+    {
+        if (!NetworkServer.active)
         {
-            BuildingSaveManager.Instance?.AddOrUpdateRecord(buildt);
+            Debug.LogWarning("[ServerDestroyBuild] not server.");
+            return;
+        }
+        if (target == null)
+        {
+            Debug.LogWarning("[ServerDestroyBuild] target null.");
+            return;
         }
 
-        //if (playerHolding != null) playerHolding.OnPlaced();
+        // Remove record from save
+        BuildingSaveManager.Instance?.RemoveRecord(target.guid);
+
+        // Mirror destroy
+        NetworkIdentity nid = target.GetComponent<NetworkIdentity>();
+        if (nid != null)
+        {
+            NetworkServer.Destroy(nid.gameObject);
+        }
+        else
+        {
+            // Fallback: destroy normally (won't sync to clients)
+            Destroy(target.gameObject);
+        }
     }
+
     public int GetBuildLayerIndex()
     {
         int mask = buildLayer.value;
@@ -233,26 +389,18 @@ public class BuildPlacementSystem : MonoBehaviour
         // fallback: layer 0 (Default)
         return 0;
     }
-}
-public static class BuildHierarchy
-{
-    private static Transform _root;
 
-    public static Transform Root
+    private void SetLayerRecursively(GameObject go, int layer)
     {
-        get
-        {
-            if (_root == null)
-            {
-                var existing = GameObject.Find("BuildRoot");
-                if (existing != null) _root = existing.transform;
-                else
-                {
-                    GameObject go = new GameObject("BuildRoot");
-                    _root = go.transform;
-                }
-            }
-            return _root;
-        }
+        if (go == null) return;
+        go.layer = layer;
+        foreach (Transform t in go.transform) SetLayerRecursively(t.gameObject, layer);
+    }
+
+    private void OnDisable()
+    {
+        if (ghostCache != null) Destroy(ghostCache);
+        ghostCache = null;
+        ghostCachePrefab = null;
     }
 }

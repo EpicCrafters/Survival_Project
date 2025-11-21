@@ -2,7 +2,7 @@
 using UnityEngine;
 
 public enum ItemType { Weapon, Tool, Consumable, Resource, BuildingPart }
-public enum WeaponType { Sword, Spear, BattleAxe }
+public enum WeaponType { Sword, Spear, BattleAxe, Bow }
 public enum ToolType { Hammer, Pickaxe, Axe }
 public enum BuildingPartType { Foundation, Wall, Floor, Roof, Door, Window }
 
@@ -37,9 +37,14 @@ public class WeaponStats
 
     [Header("Combo Settings")]
     public ComboData[] combos;
-
+    [Header("Bow Settings (Only for Bow/Crossbow)")]
+    public GameObject arrowProjectilePrefab; // Server-spawned projectile
+    public GameObject arrowVisualPrefab;     // Visual on string
+    public float maxChargeTime = 1.5f;
     [Header("Knockback Settings")]
     public KnockbackSettings knockback = new KnockbackSettings();
+
+
 }
 
 [System.Serializable]
@@ -57,6 +62,8 @@ public class ConsumableStats
 {
     public int healAmount;
     public int fillAmount;
+    [Tooltip("How much hunger to restore")]
+    public float hungerRestoreAmount = 20f;
 }
 
 [System.Serializable]
@@ -75,6 +82,10 @@ public class BuildingStats
     public bool snapToGridEdge;
     public List<ItemData> ignorObject;
     public LayerMask groundMask;
+    public int verticalOffset = 0;
+    public Vector3 placementAnchorOffset;     // local offset (child pivot) để align prefab với slot
+    public float maxCornerDrop = 0.4f;    // độ chênh tối đa giữa các góc cho phép
+    public bool raiseToHighest = true;    // có nâng object lên góc cao nhất không
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]

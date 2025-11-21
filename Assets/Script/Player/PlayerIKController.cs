@@ -1,44 +1,51 @@
-﻿using UnityEngine;
+﻿using BSS.PoseBlender;
+using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
 [RequireComponent(typeof(Animator))]
+[DefaultExecutionOrder(100)]
 public class PlayerIKController : MonoBehaviour
 {
     private Animator animator;
 
+    [Header("Head Look At")]
     public Transform lookTarget;
     public Transform cameraTransform;
-
-
     public MultiAimConstraint playerHead;
 
-    // Giá trị lấy từ animation 
-    public float IK_LeftFootWeight;
-    public float IK_RightFootWeight;
-
-
+    [Header("Foot IK")]
+    public bool enableFootIK = true;
+    public float IK_LeftFootWeight = 1f;
+    public float IK_RightFootWeight = 1f;
     public LayerMask groundMask;
-
-
     public float raycastDistance = 1.2f;
-
     public Vector3 footIkOffset = new Vector3(0, 0.1f, 0);
+    public float smoothnessSpeed = 10f;
 
+    [Header("Right Hand IK (Bow)")]
+    public bool enableRightHandIK = false;
+    public Transform rightHandIKTarget;
 
-    public float smotthnessSpeed = 10f;
+    [Range(0f, 1f)]
+    public float rightHandIKWeight = 1f;
+    public float handIkBlendSpeed = 25f;
+    public bool maintainHandRotation = false;
 
-    // Lưu giá trị weight đã được làm mượt
+    [Header("IK Debug & Fixes")]
+    public bool clampTargetDistance = true;
+    public float maxReachDistance = 0f;
+    public bool stabilizeIK = true;
+
+    [Range(0f, 0.1f)]
+    public float stabilizationThreshold = 0.001f;
+
     private float smoothLeftWeight = 0f;
     private float smoothRightWeight = 0f;
-
-    // Transform của xương bàn chân
     private Transform leftFoot, rightFoot;
 
+    private float currentRightHandIKWeight = 0f;
+    private float targetRightHandIKWeight = 0f;
 
-    public void Update()
-    {
-        LookAtTarget();
-    }
     void Start()
     {
         animator = GetComponent<Animator>();
@@ -46,78 +53,160 @@ public class PlayerIKController : MonoBehaviour
         rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
     }
 
+    void Update()
+    {
+        LookAtTarget();
+        targetRightHandIKWeight = enableRightHandIK ? rightHandIKWeight : 0f;
+        currentRightHandIKWeight = Mathf.Lerp(currentRightHandIKWeight, targetRightHandIKWeight, handIkBlendSpeed * Time.deltaTime);
+    }
+
     private void LookAtTarget()
     {
         if (lookTarget == null || cameraTransform == null || playerHead == null)
             return;
 
-        //Di chuyen Object theo tam nhin cua camera
         lookTarget.position = cameraTransform.position + cameraTransform.forward * 40f;
 
-        //Huong nhin cua Cameara va Player
-        Vector3 cameraDir = cameraTransform.forward;
-        Vector3 playerForward = transform.forward;
-
-
-        //Tinh Goc giua huong nhin cua camera va nhan vat 
-        float angle = Vector3.Angle(playerForward, cameraDir);
-
-
-        //Gioi han goc nhin
+        float angle = Vector3.Angle(transform.forward, cameraTransform.forward);
         float maxLookAngle = 100f;
 
-        if (angle <= maxLookAngle)
-        {
-            //Neu Camera o phia truoc nhan vat 
-            playerHead.weight = Mathf.Lerp(playerHead.weight, 1f, Time.deltaTime * 10f);
-        }
+        playerHead.weight = Mathf.Lerp(playerHead.weight, angle <= maxLookAngle ? 1f : 0f, Time.deltaTime * 10f);
+    }
+
+    void LateUpdate()
+    {
+        if (animator == null) return;
+
+        ApplyRightHandIK();
+
+        if (enableFootIK)
+            ApplyFootIKInLateUpdate();
+    }
+
+    private void ApplyRightHandIK()
+    {
+        if (!enableRightHandIK || rightHandIKTarget == null || currentRightHandIKWeight <= 0.01f)
+            return;
+
+        Transform upperArm = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+        Transform lowerArm = animator.GetBoneTransform(HumanBodyBones.RightLowerArm);
+        Transform hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+
+        Quaternion originalUpper = upperArm.rotation;
+        Quaternion originalLower = lowerArm.rotation;
+        Quaternion originalHand = hand.rotation;
+
+        // Automatically calculate pole position (no more rightHandPoleTarget)
+        Vector3 shoulderToElbow = lowerArm.position - upperArm.position;
+        Vector3 shoulderToHand = rightHandIKTarget.position - upperArm.position;
+
+        Vector3 bendNormal = Vector3.Cross(shoulderToElbow, shoulderToHand).normalized;
+        if (bendNormal.magnitude < 0.001f)
+            bendNormal = -transform.right;
+
+        Vector3 mid = upperArm.position + shoulderToHand * 0.5f;
+        Vector3 poleDir = Vector3.Cross(shoulderToHand, bendNormal).normalized;
+
+        float poleDist = shoulderToHand.magnitude * 0.3f;
+        Vector3 polePos = mid + poleDir * poleDist;
+
+        // Full solve
+        TwoBoneIKSolver.Solve(
+            upperArm,
+            lowerArm,
+            hand,
+            rightHandIKTarget.position,
+            polePos,
+            1f,
+            maintainHandRotation
+        );
+
+        // Blend
+        upperArm.rotation = Quaternion.Slerp(originalUpper, upperArm.rotation, currentRightHandIKWeight);
+        lowerArm.rotation = Quaternion.Slerp(originalLower, lowerArm.rotation, currentRightHandIKWeight);
+
+        if (!maintainHandRotation)
+            hand.rotation = Quaternion.Slerp(originalHand, rightHandIKTarget.rotation, currentRightHandIKWeight);
         else
+            hand.rotation = Quaternion.Slerp(originalHand, hand.rotation, currentRightHandIKWeight);
+    }
+
+    private void ApplyFootIKInLateUpdate()
+    {
+        smoothLeftWeight = Mathf.Lerp(smoothLeftWeight, IK_LeftFootWeight, Time.deltaTime * smoothnessSpeed);
+        smoothRightWeight = Mathf.Lerp(smoothRightWeight, IK_RightFootWeight, Time.deltaTime * smoothnessSpeed);
+
+        ApplyFootIKDirect(leftFoot, smoothLeftWeight);
+        ApplyFootIKDirect(rightFoot, smoothRightWeight);
+    }
+
+    private void ApplyFootIKDirect(Transform footTransform, float ikWeight)
+    {
+        if (!footTransform || ikWeight <= 0.01f) return;
+
+        Vector3 start = footTransform.position + Vector3.up * 0.3f;
+
+        if (Physics.Raycast(start, Vector3.down, out RaycastHit hit, raycastDistance, groundMask))
         {
-            //Neu Camera o phia sau nhan vat 
-            playerHead.weight = Mathf.Lerp(playerHead.weight, 0f, Time.deltaTime * 10f);
+            Vector3 pos = hit.point + footIkOffset;
+            Quaternion rot = Quaternion.LookRotation(
+                Vector3.ProjectOnPlane(transform.forward, hit.normal),
+                hit.normal
+            );
+
+            footTransform.position = Vector3.Lerp(footTransform.position, pos, ikWeight);
+            footTransform.rotation = Quaternion.Slerp(footTransform.rotation, rot, ikWeight);
         }
     }
 
-
-    void OnAnimatorIK(int layerIndex)
+    public void SetupBowIK(GameObject bowObject)
     {
-        // Lấy giá trị IK weight từ animation curve
-        float targetLeftWeight = IK_LeftFootWeight;
-        float targetRightWeight = IK_RightFootWeight;
+        if (bowObject == null) return;
 
-        // Làm mượt 
-        smoothLeftWeight = Mathf.Lerp(smoothLeftWeight, targetLeftWeight, Time.deltaTime * smotthnessSpeed);
-        smoothRightWeight = Mathf.Lerp(smoothRightWeight, targetRightWeight, Time.deltaTime * smotthnessSpeed);
+        BowStringController bowController = bowObject.GetComponentInChildren<BowStringController>();
+        if (bowController == null) return;
 
-        // Áp dụng IK cho chân
-        ApplyFootIK(AvatarIKGoal.LeftFoot, leftFoot, smoothLeftWeight);
-        ApplyFootIK(AvatarIKGoal.RightFoot, rightFoot, smoothRightWeight);
+        if (bowController.rightHandIKTarget != null)
+        {
+            SetRightHandIKTarget(bowController.rightHandIKTarget);
+            enableRightHandIK = true;
+            rightHandIKWeight = 1f;
+        }
     }
 
-    // Hàm xử lý đặt chân xuống mặt đất bằng IK
-    void ApplyFootIK(AvatarIKGoal foot, Transform footTransform, float ikWeight)
+    public void ClearBowIK()
     {
-        Vector3 footPos = footTransform.position;
-        Vector3 rayStart = footPos + Vector3.up * 0.3f;
+        enableRightHandIK = false;
+        rightHandIKTarget = null;
+    }
 
-        // Raycast
-        if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, raycastDistance, groundMask))
-        {
-            // Vị trí và hướng xoay của chân 
-            Vector3 ikPosition = hit.point + footIkOffset;
-            Quaternion ikRotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(transform.forward, hit.normal), hit.normal);
+    public void SetRightHandIKTarget(Transform target)
+    {
+        rightHandIKTarget = target;
+    }
 
-            // Thiết lập IK 
-            animator.SetIKPositionWeight(foot, ikWeight);
-            animator.SetIKRotationWeight(foot, ikWeight);
-            animator.SetIKPosition(foot, ikPosition);
-            animator.SetIKRotation(foot, ikRotation);
-        }
-        else
-        {
-            // tắt IK cho chân 
-            animator.SetIKPositionWeight(foot, 0f);
-            animator.SetIKRotationWeight(foot, 0f);
-        }
+    public void SetRightHandIKEnabled(bool enabled)
+    {
+        enableRightHandIK = enabled;
+    }
+
+    public void SetRightHandIKWeight(float weight)
+    {
+        rightHandIKWeight = Mathf.Clamp01(weight);
+    }
+
+    public bool IsHandIKActive()
+    {
+        return enableRightHandIK && currentRightHandIKWeight > 0.01f && rightHandIKTarget;
+    }
+
+    public float GetHandIKWeight()
+    {
+        return currentRightHandIKWeight;
+    }
+
+    public void SetFootIKEnabled(bool enabled)
+    {
+        enableFootIK = enabled;
     }
 }
