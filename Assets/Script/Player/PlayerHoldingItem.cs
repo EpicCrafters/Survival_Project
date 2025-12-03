@@ -14,7 +14,7 @@ public class PlayerHoldingItem : NetworkBehaviour
     [SerializeField] private WeaponAnimatorHandler weaponHandler;
     //[SerializeField] private GameObject hammerPrefab;
 
-    private GameObject currentHoldingItem;
+    [SerializeField] private GameObject currentHoldingItem;
     private bool isHolding;
     private bool isWeapon;
     private bool isRangedWeapon;

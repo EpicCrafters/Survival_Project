@@ -62,6 +62,10 @@ public class UVMapResourceDataGenerator : MonoBehaviour
         public float maxScale = 1.1f;
         public float minYaw = 0f;
         public float maxYaw = 360f;
+        public float minPitch = 0f;
+        public float maxPitch = 360f;
+        public float minRoll = 0f;
+        public float maxRoll = 360f;
 
         [Header("Placement Filters")]
         [Tooltip("Reject points steeper than this (0=flat, 90=vertical).")]
@@ -95,6 +99,7 @@ public class UVMapResourceDataGenerator : MonoBehaviour
 
         // runtime state (your simple boolean)
         public bool isChopped = false;
+        public int curHealth = 100;
     }
 
     [System.Serializable]
@@ -226,6 +231,10 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                 float maxScale = group.maxScale;
                 float minYaw = group.minYaw;
                 float maxYaw = group.maxYaw;
+                float minPitch = group.minPitch;
+                float maxPitch = group.maxPitch;
+                float minRoll = group.minRoll;
+                float maxRoll = group.maxRoll;
                 float maxSlope = group.maxSlope;
                 bool useEuclidean = group.useEuclideanColorTolerance;
 
@@ -350,7 +359,9 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                     else
                     {
                         float yaw = Random.Range(minYaw, maxYaw);
-                        worldRotation = Quaternion.Euler(0f, yaw, 0f);
+                        float pitch = Random.Range(minPitch, maxPitch);
+                        float roll = Random.Range(minRoll, maxRoll);
+                        worldRotation = Quaternion.Euler(pitch, yaw, roll);
                     }
 
                     // Scale (with optional parent-scale compensation)
@@ -392,7 +403,8 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                             position = storedPos,
                             rotation = storedRot,
                             scale = localScaleVec,
-                            isChopped = false
+                            isChopped = false,
+                            curHealth = 100
                         });
 
                         grid.Add(worldPlacedPos);
@@ -443,7 +455,8 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                             position = storedPos2,
                             rotation = storedRot2,
                             scale = obj.transform.localScale,
-                            isChopped = false
+                            isChopped = false,
+                            curHealth = 100
                         });
 
                         grid.Add(obj.transform.position);
@@ -521,7 +534,8 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                 position = child.localPosition,
                 rotation = child.localRotation,
                 scale = child.localScale,
-                isChopped = false
+                isChopped = false,
+                curHealth = 100
             });
         }
 
@@ -602,8 +616,7 @@ public class UVMapResourceDataGenerator : MonoBehaviour
             sb.Append(']');
         }
         sb.Append("],");
-
-        // instances array: [ [prefabIndex, px,py,pz, qx,qy,qz,qw, sx,sy,sz], ... ]
+        // instances array: [ [prefabIndex, px,py,pz, qx,qy,qz,qw, sx,sy,sz, health, chopped], ... ]
         sb.Append("\"instances\":[");
         for (int i = 0; i < records.Count; i++)
         {
@@ -631,7 +644,11 @@ public class UVMapResourceDataGenerator : MonoBehaviour
             // scale
             sb.Append(r.scale.x.ToString(fmt, ci)).Append(',');
             sb.Append(r.scale.y.ToString(fmt, ci)).Append(',');
-            sb.Append(r.scale.z.ToString(fmt, ci));
+            sb.Append(r.scale.z.ToString(fmt, ci)).Append(',');
+
+            // ✅ ADD HEALTH AND CHOPPED STATE
+            sb.Append(r.curHealth).Append(',');
+            sb.Append(r.isChopped ? 1 : 0); // convert bool to int for compactness
 
             sb.Append(']');
         }

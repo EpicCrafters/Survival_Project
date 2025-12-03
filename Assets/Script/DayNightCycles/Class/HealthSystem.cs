@@ -1,4 +1,6 @@
+using Mirror;
 using System;
+using UnityEngine;
 
 public class HealthSystem
 {
@@ -16,6 +18,7 @@ public class HealthSystem
 
     public int GetHealth() => health;
     public int GetHealthMax() => healthMax;
+    public void SetHealth(int curHealth) { health = curHealth; }
 
     public float GetHealthPercent() => (float)health / healthMax;
 

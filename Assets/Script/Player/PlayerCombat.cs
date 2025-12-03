@@ -108,6 +108,57 @@ public class PlayerCombat : NetworkBehaviour
 
         Debug.Log($"[Server] {name} dealt {damage} damage to {targetIdentity.name} with {itemData.itemName}");
     }
+    [Command]
+    public void CmdDamageResource(string uniqueId, int damage, int toolId, ResourceType resourceType)
+    {
+        // Server validates and processes the mining
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        // Find the ResourceManager that owns this resource
+        ResourceManager rm = ResourceManager.GetManagerForUniqueId(uniqueId);
+        if (rm == null)
+        {
+            Debug.LogWarning($"[PlayerCombat] No ResourceManager found for uniqueId: {uniqueId}");
+            return;
+        }
+
+        // Get current record
+        if (rm.core.TryGetRecord(uniqueId, out var record))
+        {
+            int newHealth = record.curHealth - damage;
+
+            if (newHealth <= 0)
+            {
+                // Resource destroyed - handle rewards
+                GiveMiningRewards(connectionToClient.identity, resourceType, toolId);
+
+                // Update resource state to destroyed
+                rm.ApplyResourceStateChange(uniqueId, true, 0, ResourceChangeSource.Network);
+            }
+            else
+            {
+                // Just update health
+                rm.ApplyResourceStateChange(uniqueId, record.isChopped, newHealth, ResourceChangeSource.Network);
+            }
+
+            Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged: {damage} -> health {newHealth}");
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerCombat] No record found for uniqueId: {uniqueId}");
+        }
+    }
+
+    private void GiveMiningRewards(NetworkIdentity player, ResourceType resourceType, int toolId)
+    {
+        // Your existing reward logic here
+        // This runs on server, so you can safely add items to player's inventory
+        Debug.Log($"[PlayerCombat] Granting rewards for mining {resourceType} with tool {toolId}");
+
+        // Example:
+        // PlayerInventory inventory = player.GetComponent<PlayerInventory>();
+        // inventory.AddItem(rewardItem, rewardCount);
+    }
 
     // ------------------ Animation event callbacks ------------------
     public void OpenComboWindow()

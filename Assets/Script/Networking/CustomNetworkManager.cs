@@ -3,7 +3,7 @@ using System.Text;
 using UnityEngine;
 using Mirror;
 
-public class CustomNetworkManager : NetworkManager
+/*public class CustomNetworkManager : NetworkManager
 {
     public override void OnStartServer()
     {
@@ -100,4 +100,4 @@ public class CustomNetworkManager : NetworkManager
         }
         return new byte[0];
     }
-}
+}*/

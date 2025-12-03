@@ -21,7 +21,7 @@ namespace Mirror
         [Header("Configuration")]
         [FormerlySerializedAs("m_DontDestroyOnLoad")]
         [Tooltip("Should the Network Manager object be persisted through scene changes?")]
-        public bool dontDestroyOnLoad = true;
+        public bool dontDestroyOnLoad = false;
 
         /// <summary>Multiplayer games should always run in the background so the network doesn't time out.</summary>
         [FormerlySerializedAs("m_RunInBackground")]

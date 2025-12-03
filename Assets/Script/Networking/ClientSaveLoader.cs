@@ -8,7 +8,7 @@ using Mirror;
 /// Client helper: loads/unloads scenes additively when instructed by server (via TargetRpc).
 /// After scene load it waits for that scene's ResourceManager to register and then requests a snapshot.
 /// </summary>
-public class ClientSceneLoader : MonoBehaviour
+/*public class ClientSceneLoader : MonoBehaviour
 {
     [Tooltip("Seconds to wait for a ResourceManager to appear after scene load")]
     public float managerWaitTimeout = 5f;
@@ -107,3 +107,4 @@ public class ClientSceneLoader : MonoBehaviour
         return false;
     }
 }
+*/

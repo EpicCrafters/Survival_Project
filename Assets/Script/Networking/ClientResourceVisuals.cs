@@ -82,20 +82,16 @@ public class ClientResourceVisuals : MonoBehaviour
             vis.transform.position = state.position;
             vis.transform.rotation = state.rotation;
             vis.transform.localScale = state.scale;
-            return;
-        }
 
-        // No local visual found — try to find by GameObject name or create placeholder
-        var go = GameObject.Find(state.uniqueId);
-        if (go != null)
-        {
-            var v = go.GetComponent<ResourceInstanceVisual>();
-            if (v != null)
+            // NEW: Initialize health for client-side display
+            var baseResource = vis.GetComponent<BaseResource>();
+            if (baseResource != null && baseResource.GetHealthSystem() != null)
             {
-                visuals[state.uniqueId] = v;
-                v.SetChoppedLocal(state.isChopped);
-                return;
+                // Set initial health from snapshot (for health bar display)
+                // Note: This doesn't sync real-time, just sets initial state
+                baseResource.GetHealthSystem().SetHealth(state.curHealth);
             }
+            return;
         }
 
         // Optionally instantiate a placeholder (you probably don't want this unless deterministic)
@@ -104,28 +100,61 @@ public class ClientResourceVisuals : MonoBehaviour
 
     IEnumerator RequestSnapshotWhenReadyCoroutine()
     {
-        // wait for Mirror client
-        while (!NetworkClient.active) yield return null;
-
-        // wait for relay to exist
-        NetworkSnapshotRelay relay = null;
-        while (relay == null)
+        // Wait for Mirror client to be fully ready
+        while (!NetworkClient.active || !NetworkClient.isConnected)
         {
-            relay = FindObjectOfType<NetworkSnapshotRelay>();
-            if (relay == null) yield return null;
+            yield return new WaitForSeconds(0.5f);
         }
 
-        // wait until local map ready (if you need it)
-        while (!isLocalMapReady) yield return null;
+        // Additional stability wait
+        yield return new WaitForSeconds(1f);
+
+        // Wait for relay to exist with timeout
+        NetworkSnapshotRelay relay = null;
+        float timeout = 10f;
+        float startTime = Time.time;
+
+        while (relay == null && (Time.time - startTime) < timeout)
+        {
+            relay = FindObjectOfType<NetworkSnapshotRelay>();
+            if (relay == null)
+            {
+                yield return new WaitForSeconds(0.5f);
+            }
+        }
+
+        if (relay == null)
+        {
+            Debug.LogError("[ClientResourceVisuals] NetworkSnapshotRelay not found after timeout");
+            yield break;
+        }
+
+        // Wait until local map ready (with timeout)
+        startTime = Time.time;
+        while (!isLocalMapReady && (Time.time - startTime) < timeout)
+        {
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        if (!isLocalMapReady)
+        {
+            Debug.LogWarning("[ClientResourceVisuals] Local map not ready after timeout, proceeding anyway");
+        }
 
         if (hasRequestedSnapshot) yield break;
         hasRequestedSnapshot = true;
 
-        // get current scene name (or pass your ground id)
         string sceneName = gameObject.scene.name;
 
-        // send request (server will respond by calling ResourceManager.SendInitialStateTo with scene filter)
-        relay.Cmd_RequestSnapshotFromClient(sceneName);
-        Debug.Log($"[ClientResourceVisuals] Requested snapshot for scene '{sceneName}'");
+        // Verify connection is still alive before sending
+        if (NetworkClient.isConnected)
+        {
+            relay.Cmd_RequestSnapshotFromClient(sceneName);
+            Debug.Log($"[ClientResourceVisuals] Requested snapshot for scene '{sceneName}'");
+        }
+        else
+        {
+            Debug.LogError("[ClientResourceVisuals] Connection lost before snapshot request");
+        }
     }
 }

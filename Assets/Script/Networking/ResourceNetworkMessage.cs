@@ -1,9 +1,10 @@
 using Mirror;
 
-public struct ChangeRequestMessage : NetworkMessage
+/*public struct ChangeRequestMessage : NetworkMessage
 {
     public string uniqueId;
     public bool isChopped;
+    public int curHealth;
     // optionally: playerId / auth token etc.
 }
 
@@ -16,4 +17,4 @@ public struct SnapshotResponseMessage : NetworkMessage
 {
     public string sceneName;
     public string json; // serialized SpawnRecordCollection (could be large)
-}
+}*/

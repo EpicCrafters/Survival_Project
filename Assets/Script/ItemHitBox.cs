@@ -106,32 +106,16 @@ public class ItemHitBox : MonoBehaviour
 
         Debug.Log($"[ItemHitBox] Va chạm: {other.name}, Tag: {other.tag}, Layer: {LayerMask.LayerToName(other.gameObject.layer)}");
 
-        // Tìm IDamageable trên đối tượng bị đánh
-        IDamageable target = other.GetComponent<IDamageable>();
-        if (target == null)
-            target = other.GetComponentInParent<IDamageable>();
-
-        if (target == null)
-        {
-            Debug.Log($"[ItemHitBox] Không tìm thấy IDamageable trên {other.name}");
-            return;
-        }
-
-        int dmg = 0; // damage sẽ được tính theo item loại Tool hoặc Weapon
-
-
         // -----------------------------------------------------------
-        // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…)
+        // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…) - XỬ LÝ TÀI NGUYÊN
         // -----------------------------------------------------------
         if (itemData.type == ItemType.Tool)
         {
-            // Kiểm tra object có phải là tài nguyên khai thác được (cây, đá...)
             if (other.TryGetComponent<IMinenable>(out var minable))
             {
-                // Kiểm tra ToolType có phù hợp ResourceType hay không
                 if (IsToolValidForResource(itemData.tool.toolType, minable.GetResourceType()))
                 {
-                    dmg = itemData.tool.damage;
+                    int dmg = itemData.tool.damage;
                     Debug.Log($"[ItemHitBox] Tool hợp lệ → gây damage {dmg}");
                 }
                 else
@@ -148,78 +132,85 @@ public class ItemHitBox : MonoBehaviour
         }
 
         // -----------------------------------------------------------
-        // TRƯỜNG HỢP 2: ITEM LÀ WEAPON (Kiếm, Gậy…)
+        // TRƯỜNG HỢP 2: ITEM LÀ WEAPON (Kiếm, Gậy…) - XỬ LÝ KẺ ĐỊCH
         // -----------------------------------------------------------
         else if (itemData.type == ItemType.Weapon)
         {
-            dmg = itemData.weapon.damage;
+            int dmg = itemData.weapon.damage;
             Debug.Log($"[ItemHitBox] Weapon gây damage {dmg}");
-        }
 
-        // Nếu damage bằng 0 → coi như không hợp lệ
-        if (dmg <= 0)
-        {
-            Debug.LogWarning($"[ItemHitBox] Damage = 0 cho item {itemData.itemName}");
-            return;
-        }
+            // Tìm IDamageable trên đối tượng bị đánh
+            IDamageable target = other.GetComponent<IDamageable>();
+            if (target == null)
+                target = other.GetComponentInParent<IDamageable>();
 
-
-        // -----------------------------------------------------------
-        // LẤY NETWORK IDENTITY để server biết target nào bị đánh
-        // -----------------------------------------------------------
-        NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
-        if (targetNetId == null)
-            targetNetId = other.GetComponentInParent<NetworkIdentity>();
-
-
-        // Lấy thông tin vị trí va chạm để gởi qua server (để knockback chính xác)
-        Vector3 hitPoint = other.ClosestPoint(transform.position);
-        Vector3 hitNormal = (other.transform.position - transform.position).normalized;
-        KnockbackSettings knockback = itemData.GetKnockbackSettings();
-
-
-        // -----------------------------------------------------------
-        // Gửi damage lên server qua PlayerCombat
-        // -----------------------------------------------------------
-        if (playerCombat != null)
-        {
-            if (targetNetId != null)
+            if (target == null)
             {
-                // SERVER OBJECT → dùng CMD để sync cho tất cả client
-                playerCombat.CmdDealDamage(
-                    targetNetId.netId,
-                    dmg,
-                    hitPoint,
-                    hitNormal,
-                    itemData.id,
-                    knockback.horizontalForce,
-                    knockback.boneSearchRadius,
-                    knockback.enableKnockback
-                );
+                Debug.Log($"[ItemHitBox] Không tìm thấy IDamageable trên {other.name}");
+                return;
+            }
 
-                Debug.Log($"[ItemHitBox] Gửi CmdDealDamage: {dmg} đến netId={targetNetId.netId}");
+            // Nếu damage bằng 0 → coi như không hợp lệ
+            if (dmg <= 0)
+            {
+                Debug.LogWarning($"[ItemHitBox] Damage = 0 cho item {itemData.itemName}");
+                return;
+            }
+
+            // -----------------------------------------------------------
+            // LẤY NETWORK IDENTITY để server biết target nào bị đánh
+            // -----------------------------------------------------------
+            NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
+            if (targetNetId == null)
+                targetNetId = other.GetComponentInParent<NetworkIdentity>();
+
+            // Lấy thông tin vị trí va chạm để gởi qua server (để knockback chính xác)
+            Vector3 hitPoint = other.ClosestPoint(transform.position);
+            Vector3 hitNormal = (other.transform.position - transform.position).normalized;
+            KnockbackSettings knockback = itemData.GetKnockbackSettings();
+
+            // -----------------------------------------------------------
+            // Gửi damage lên server qua PlayerCombat
+            // -----------------------------------------------------------
+            if (playerCombat != null)
+            {
+                if (targetNetId != null)
+                {
+                    // SERVER OBJECT → dùng CMD để sync cho tất cả client
+                    playerCombat.CmdDealDamage(
+                        targetNetId.netId,
+                        dmg,
+                        hitPoint,
+                        hitNormal,
+                        itemData.id,
+                        knockback.horizontalForce,
+                        knockback.boneSearchRadius,
+                        knockback.enableKnockback
+                    );
+
+                    Debug.Log($"[ItemHitBox] Gửi CmdDealDamage: {dmg} đến netId={targetNetId.netId}");
+                }
+                else
+                {
+                    // LOCAL OBJECT → client xử lý trực tiếp
+                    Debug.Log($"[ItemHitBox] Không có NetworkIdentity → gây damage local");
+                    target.Damage(dmg);
+                }
             }
             else
             {
-                // LOCAL OBJECT (cây, đá) → client xử lý trực tiếp
-                Debug.Log($"[ItemHitBox] Không có NetworkIdentity → gây damage local");
-                target.Damage(dmg);
+                Debug.LogError("[ItemHitBox] playerCombat bị null!");
             }
-        }
-        else
-        {
-            Debug.LogError("[ItemHitBox] playerCombat bị null!");
-        }
 
-
-        // -----------------------------------------------------------
-        // HIT STOP EFFECT – hiệu ứng game feel khi đánh trúng
-        // -----------------------------------------------------------
-        if (target.CanTriggerHitStop())
-        {
-            var hitStop = GetComponentInParent<LocalHitStop>();
-            if (hitStop != null && target.IsDead())
-                hitStop.DoHitStop(0.08f);
+            // -----------------------------------------------------------
+            // HIT STOP EFFECT – hiệu ứng game feel khi đánh trúng
+            // -----------------------------------------------------------
+            if (target.CanTriggerHitStop())
+            {
+                var hitStop = GetComponentInParent<LocalHitStop>();
+                if (hitStop != null && target.IsDead())
+                    hitStop.DoHitStop(0.08f);
+            }
         }
     }
 

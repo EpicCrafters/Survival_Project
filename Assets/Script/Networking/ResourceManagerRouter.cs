@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
 using System.Collections;
 using UnityEngine;
 using Mirror;
+using System.Linq;
 
 /// <summary>
 /// Central server-side router for ResourceManager operations.
@@ -50,24 +51,6 @@ public class ResourceManagerRouter : NetworkBehaviour
         {
             Debug.LogError($"[Router] CmdRequestSnapshot failed: {ex}");
             SendSnapshotChunked(sender, new byte[0], compressed: false);
-        }
-    }
-
-    [Command(requiresAuthority = false)]
-    public void CmdRequestChange(string uniqueId, bool isChopped, NetworkConnectionToClient sender = null)
-    {
-        if (!isServer) return;
-        if (string.IsNullOrEmpty(uniqueId)) return;
-
-        var rm = ResourceManager.GetManagerForUniqueId(uniqueId);
-        if (rm != null)
-        {
-            try { rm.RequestResourceStateChange(uniqueId, isChopped); }
-            catch (Exception ex) { Debug.LogWarning($"[Router] Failed to apply change to manager '{rm.name}' for id={uniqueId}: {ex}"); }
-        }
-        else
-        {
-            Debug.LogWarning($"[Router] CmdRequestChange: no manager found for uniqueId {uniqueId}");
         }
     }
 
@@ -129,20 +112,6 @@ public class ResourceManagerRouter : NetworkBehaviour
             Debug.LogError($"[Router] RpcReceiveSnapshotAll JSON->obj failed: {ex}");
             NetworkMessageBus.RaiseSnapshotReceived(null);
         }
-    }
-
-    [ClientRpc]
-    public void RpcReceiveChange(string uniqueId, bool isChopped)
-    {
-        if (isServer) return;
-        NetworkMessageBus.RaiseChangeReceived(uniqueId, isChopped);
-    }
-
-    public void BroadcastChangeToClients(string uniqueId, bool isChopped)
-    {
-        if (!isServer) return;
-        try { RpcReceiveChange(uniqueId, isChopped); }
-        catch (Exception ex) { Debug.LogWarning($"[Router] BroadcastChangeToClients failed: {ex}"); }
     }
 
     public void BroadcastSnapshotToClients(SpawnRecordCollection container)

@@ -257,13 +257,6 @@ public class LocalJsonPersistence: IResourcePersistence
         {
             // release lock (dispose FileStream)
             try { lockFs?.Dispose(); } catch { }
-#if UNITY_EDITOR
-            // Refresh asset DB if saving inside project Assets
-            if (!string.IsNullOrEmpty(_targetPath) && _targetPath.StartsWith(Application.dataPath, StringComparison.Ordinal))
-            {
-                try { AssetDatabase.Refresh(); } catch { }
-            }
-#endif
             if (_verbose) UnityEngine.Debug.Log("[LocalJsonPersistence] Save complete (attempted atomic swap + fallbacks).");
         }
     }

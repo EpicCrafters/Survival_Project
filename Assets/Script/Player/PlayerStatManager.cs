@@ -65,7 +65,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     public event Action<float, float> OnStaminaChanged;
     public event Action<float, float> OnHungerChanged;
 
-    private void Awake()
+    private void Start()
     {
         if (hurtbox == null)
         {

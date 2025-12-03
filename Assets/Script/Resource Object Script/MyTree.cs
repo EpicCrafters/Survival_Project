@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Mirror;
+using System;
+using Unity.Mathematics;
+using Unity.VisualScripting;
 using UnityEngine;
 
 /// <summary>
@@ -52,7 +55,12 @@ public class MyTree : BaseResource, IMinenable
 
     protected override void OnResourceDestroyed()
     {
-        DebugLog($"OnResourceDestroyed called. isBeingDestroyed={isBeingDestroyed}, isDestroyed={isDestroyed}, UniqueId='{UniqueId}', treeType={treeType}, instanceID={GetInstanceID()}");
+        ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
+        // Update health to 0 before doing anything else
+        if (!string.IsNullOrEmpty(UniqueId))
+        {
+            rm.RequestResourceStateChange(UniqueId, true, 0); // isChopped=true, health=0
+        }
 
         // Defensive early return: don't re-run if already destroying or destroyed.
         // IMPORTANT: Do NOT set isBeingDestroyed here unconditionally; let the base method set it when
@@ -63,7 +71,7 @@ public class MyTree : BaseResource, IMinenable
             return;
         }
 
-        DebugLog($"{gameObject.name}: Tree destruction starting - Type: {treeType}");
+        //DebugLog($"{gameObject.name}: Tree destruction starting - Type: {treeType}");
 
         // Ensure we have an id for persistence flows
         if (string.IsNullOrEmpty(UniqueId))
@@ -72,15 +80,11 @@ public class MyTree : BaseResource, IMinenable
             Debug.LogWarning($"{gameObject.name}: UniqueId missing — generated '{UniqueId}' for persistence.");
         }
 
-        // Decide persistence path: if ResourceManager exists, use it; otherwise do local-only fallback.
-        var rm = FindFirstObjectByType<ResourceManager>();
-        bool rmPresent = rm != null;
-
         // Spawn drops & non-stump byproducts first so they use the original transform/scale.
-        SpawnTreeComponentsImmediate(spawnStump: !rmPresent);
+        SpawnTreeComponentsImmediate(spawnStump: (rm == null));
 
         // If ResourceManager present -> request authoritative change and apply immediate visual feedback on this object.
-        if (rmPresent)
+        if (rm != null)
         {
             GameObject replacementPrefab = treeStumpPrefab != null ? treeStumpPrefab.gameObject : null;
 
@@ -151,71 +155,7 @@ public class MyTree : BaseResource, IMinenable
             DebugLog($"Instantiated log prefab '{treeLogPrefab.name}' at {logPos} rot={logRot.eulerAngles} -> instanceID={logObj.GetInstanceID()}");
             TryAddPhysicsTo(logObj.gameObject);
         }
-
-        // spawn stump (persistent replacement) only if explicitly requested (no ResourceManager present)
-        if (spawnStump && treeType == TreeType.Tree && treeStumpPrefab != null)
-        {
-            DebugLog($"Instantiating local stump fallback '{treeStumpPrefab.name}' (local-only)");
-            var stumpTransform = Instantiate(treeStumpPrefab);
-
-            // Match world position & rotation first
-            stumpTransform.SetPositionAndRotation(transform.position, transform.rotation);
-
-            // Set the same parent, but preserve world transform to avoid skewing
-            stumpTransform.SetParent(transform.parent, worldPositionStays: true);
-
-            // Finally, copy the world-scale-equivalent of the original tree
-            try
-            {
-                // Convert the original's world scale into what the stump's localScale should be
-                Vector3 worldScale = transform.lossyScale;
-                Vector3 parentScale = transform.parent ? transform.parent.lossyScale : Vector3.one;
-                stumpTransform.localScale = new Vector3(
-                    worldScale.x / parentScale.x,
-                    worldScale.y / parentScale.y,
-                    worldScale.z / parentScale.z
-                );
-
-                Debug.Log($"Preserved world scale on stump: {stumpTransform.localScale}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"{gameObject.name}: Failed to copy localScale to stump: {ex.Message}");
-            }
-
-            var stumpGo = stumpTransform.gameObject;
-            DebugLog($"Stump instantiated -> name='{stumpGo.name}' instanceID={stumpGo.GetInstanceID()}");
-
-            // assign uniqueId so loader recognizes this stump as the same record (chopped)
-            try
-            {
-                var vis = stumpGo.GetComponent<ResourceInstanceVisual>() ?? stumpGo.AddComponent<ResourceInstanceVisual>();
-                vis.SetUniqueId(UniqueId);
-                vis.isChopped = true;
-                vis.ApplyState(forceTreatAsReplacement: true);
-                DebugLog($"Assigned ResourceInstanceVisual(uniqueId='{UniqueId}', isChopped=true) and called ApplyState(treatAsReplacement:true)");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"{gameObject.name}: Exception while assigning ResourceInstanceVisual on stump: {ex}");
-            }
-
-            // transfer BaseResource id if stump prefab has one
-            var br = stumpGo.GetComponent<BaseResource>();
-            if (br != null)
-            {
-                try
-                {
-                    br.SetUniqueId(UniqueId);
-                    DebugLog($"Called SetUniqueId on stump's BaseResource (instanceID={stumpGo.GetInstanceID()})");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"{gameObject.name}: Exception calling SetUniqueId on stump's BaseResource: {ex}");
-                }
-            }
-        }
-
+        
         // log halves for Log type
         if (treeType == TreeType.Log && treeLogHalfPrefab != null)
         {
@@ -235,6 +175,7 @@ public class MyTree : BaseResource, IMinenable
                 // preserve localScale of the original log if desired
                 try { half.localScale = transform.localScale; } catch { }
             }
+
         }
 
         // sticks for LogHalf or Stump types
@@ -251,6 +192,12 @@ public class MyTree : BaseResource, IMinenable
                 var stick = Instantiate(stickPrefab, transform.position + offset, Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0));
                 DebugLog($"Instantiated stick {i} at {transform.position + offset} -> instanceID={stick.GetInstanceID()}");
                 TryAddPhysicsTo(stick.gameObject);
+
+                try
+                {
+                    NetworkServer.Spawn(stick.gameObject);
+                }
+                catch (Exception ex) { Debug.LogException(ex); }
             }
         }
 

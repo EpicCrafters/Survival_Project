@@ -1,4 +1,5 @@
 // ResourceInstanceVisual.cs
+using Mirror;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -11,6 +12,9 @@ public class ResourceInstanceVisual : MonoBehaviour
     [Header("Identity / state (set by ResourceManager)")]
     [Tooltip("Unique id assigned by ResourceManager")]
     public string uniqueId;
+
+    [Tooltip("Current Health assigned by ResourceManager")]
+    public int curHealth;
 
     [Tooltip("Authoritative state (set by ResourceManager).")]
     public bool isChopped = false;
@@ -54,6 +58,7 @@ public class ResourceInstanceVisual : MonoBehaviour
 
     /// <summary>Set unique id (ResourceManager uses this).</summary>
     public void SetUniqueId(string id) => uniqueId = id;
+    public void SetCurHealth(int health) => curHealth = health;
 
     /// <summary>
     /// Called by ResourceManager right after instantiation to register this visual.
@@ -98,7 +103,7 @@ public class ResourceInstanceVisual : MonoBehaviour
         ResourceManager rm = _cachedManager != null ? _cachedManager : UnityEngine.Object.FindObjectOfType<ResourceManager>();
         if (rm != null)
         {
-            rm.RequestResourceStateChange(uniqueId, true);
+            rm.RequestResourceStateChange(uniqueId, true, curHealth);
             // optimistic local visual update is intentionally *not* performed here by default.
             // If you want optimistic local feedback, set isChopped = true and ApplyState() here.
             if (optimistic)
@@ -180,8 +185,8 @@ public class ResourceInstanceVisual : MonoBehaviour
                 else if (destroyedReplacementPrefab != null)
                 {
                     EnsureInstantiatedReplacementExists();
-                    if (_instantiatedReplacement != null)
-                        ToggleCollidersInHierarchy(_instantiatedReplacement, enableDestroyedCollidersWhenChopped, afterFixedUpdate: true);
+                    //if (_instantiatedReplacement != null)
+                    //    ToggleCollidersInHierarchy(_instantiatedReplacement, enableDestroyedCollidersWhenChopped, afterFixedUpdate: true);
                 }
 
                 _stateApplied = true;
@@ -345,7 +350,7 @@ public class ResourceInstanceVisual : MonoBehaviour
 
         // Instantiate under this transform
         _instantiatedReplacement = Instantiate(destroyedReplacementPrefab, transform);
-        _instantiatedReplacement.name = kReplacementChildName;
+        //_instantiatedReplacement.name = kReplacementChildName;
 
         if (!preserveReplacementLocalTransform)
         {
@@ -353,11 +358,10 @@ public class ResourceInstanceVisual : MonoBehaviour
             _instantiatedReplacement.transform.localRotation = Quaternion.identity;
             _instantiatedReplacement.transform.localScale = Vector3.one;
         }
-
         // Disable replacement colliders initially — we'll enable them later if configured
-        ToggleCollidersInHierarchy(_instantiatedReplacement, enable: false);
+        //ToggleCollidersInHierarchy(_instantiatedReplacement, enable: false);
 
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
         // Sanity: warn if replacement contains NetworkIdentity-like components which could be problematic as a child visual
         var allComp = _instantiatedReplacement.GetComponentsInChildren<Component>(true);
         foreach (var c in allComp)
@@ -370,7 +374,7 @@ public class ResourceInstanceVisual : MonoBehaviour
                 break;
             }
         }
-#endif
+#endif*/
     }
 
     /// <summary>

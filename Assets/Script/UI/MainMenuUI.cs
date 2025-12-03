@@ -1,8 +1,4 @@
-// Put this into your existing MainMenuUI script � replace the old file with this version.
-// Changes: debug wrapper for EnvLoadedMessage sending (actual send is commented out by default).
-// ... rest of header unchanged ...
-
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using Mirror;
+using TMPro;
 
 public class MainMenuUI : MonoBehaviour
 {
@@ -20,7 +17,11 @@ public class MainMenuUI : MonoBehaviour
     public Button HostButton;
     public Button ClientButton;
     public Button QuitButton;
-    public InputField ServerAddressInput;
+    public TMP_InputField ServerAddressInput;
+    public TMP_InputField PortInput; // Added for port configuration
+
+    [Header("Optional Status Display")]
+    public TMP_Text NetworkStatusText; // Optional - create if you want status display
 
     [Header("Environment scenes to load (additive)")]
     [Tooltip("Add one or more environment/ground scenes here (they must be in Build Settings).")]
@@ -33,19 +34,36 @@ public class MainMenuUI : MonoBehaviour
     public float clientConnectTimeout = 10f;
 
     [Header("Client behaviour")]
-    [Tooltip("If true, a client that successfully connects will locally load the environment scenes (same\nbehaviour as Host). If false, client will wait for\nserver's LoadEnvMessage.")]
+    [Tooltip("If true, a client that successfully connects will locally load the environment scenes (same behaviour as Host). If false, client will wait for server's LoadEnvMessage.")]
     public bool clientLoadEnvironmentOnConnect = true;
 
+    private NetworkManager manager;
     private Coroutine clientConnectCoroutine;
+    private bool isConnecting = false;
 
     private void Awake()
     {
+        manager = NetworkManager.singleton;
+        if (manager == null)
+        {
+            Debug.LogError("[Menu] NetworkManager.singleton is null. Put NetworkManager in bootstrap scene.");
+            return;
+        }
+
         if (MenuUI == null) MenuUI = gameObject;
         if (GameplayUI != null) GameplayUI.SetActive(false);
 
+        // Setup button listeners
         if (HostButton != null) { HostButton.onClick.RemoveAllListeners(); HostButton.onClick.AddListener(OnHostClicked); }
         if (ClientButton != null) { ClientButton.onClick.RemoveAllListeners(); ClientButton.onClick.AddListener(OnClientClicked); }
         if (QuitButton != null) { QuitButton.onClick.RemoveAllListeners(); QuitButton.onClick.AddListener(OnQuitClicked); }
+
+        // Initialize port input with current port
+        if (PortInput != null && Transport.active is PortTransport portTransport)
+        {
+            PortInput.text = portTransport.Port.ToString();
+            PortInput.onEndEdit.AddListener(OnPortChanged);
+        }
 
         // register handler for server->client LoadEnvMessage
         NetworkClient.RegisterHandler<LoadEnvMessage>(OnLoadEnvMessage, false);
@@ -56,6 +74,9 @@ public class MainMenuUI : MonoBehaviour
         if (HostButton != null) HostButton.onClick.RemoveListener(OnHostClicked);
         if (ClientButton != null) ClientButton.onClick.RemoveListener(OnClientClicked);
         if (QuitButton != null) QuitButton.onClick.RemoveListener(OnQuitClicked);
+
+        if (PortInput != null) PortInput.onEndEdit.RemoveListener(OnPortChanged);
+
         if (clientConnectCoroutine != null) StopCoroutine(clientConnectCoroutine);
 
         if (NetworkClient.active)
@@ -64,17 +85,48 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        // Update network status display if you have one
+        UpdateNetworkStatus();
+    }
+
+    private void UpdateNetworkStatus()
+    {
+        if (NetworkStatusText == null) return;
+
+        if (NetworkServer.active && NetworkClient.isConnected)
+        {
+            NetworkStatusText.text = $"<b>Host</b>: running via {Transport.active}";
+        }
+        else if (NetworkServer.active)
+        {
+            NetworkStatusText.text = $"<b>Server</b>: running via {Transport.active}";
+        }
+        else if (NetworkClient.isConnected)
+        {
+            NetworkStatusText.text = $"<b>Client</b>: connected to {manager.networkAddress} via {Transport.active}";
+        }
+        else if (isConnecting)
+        {
+            NetworkStatusText.text = $"Connecting to {manager.networkAddress}...";
+        }
+        else
+        {
+            NetworkStatusText.text = "Disconnected";
+        }
+    }
+
     // ----------------- Button handlers -----------------
     private void OnHostClicked()
     {
-        var nm = NetworkManager.singleton;
-        if (nm == null)
-        {
-            Debug.LogError("[Menu] NetworkManager.singleton is null. Put NetworkManager in bootstrap scene.");
-            return;
-        }
+        if (manager == null) return;
 
-        if (nm.isNetworkActive)
+        // Update network address from input field
+        if (ServerAddressInput != null && !string.IsNullOrWhiteSpace(ServerAddressInput.text))
+            manager.networkAddress = ServerAddressInput.text.Trim();
+
+        if (manager.isNetworkActive)
         {
             Debug.LogWarning("[Menu] NetworkManager already active. Entering gameplay UI.");
             EnterGameplayUI();
@@ -83,12 +135,56 @@ public class MainMenuUI : MonoBehaviour
             return;
         }
 
+#if UNITY_WEBGL
+        Debug.Log("[Menu] Starting Single Player (WebGL build)...");
+        NetworkServer.listen = false;
+        manager.StartHost();
+#else
         Debug.Log("[Menu] Starting Host (server + local client)...");
-        nm.StartHost();
+        manager.StartHost();
+#endif
 
         StartCoroutine(WaitForHostThenEnter());
     }
 
+    private void OnClientClicked()
+    {
+        if (manager == null) return;
+
+        string addr = "localhost";
+        if (ServerAddressInput != null && !string.IsNullOrWhiteSpace(ServerAddressInput.text))
+            addr = ServerAddressInput.text.Trim();
+
+        manager.networkAddress = addr;
+
+        Debug.Log($"[Menu] Client connecting to {manager.networkAddress}");
+
+        if (clientConnectCoroutine != null) StopCoroutine(clientConnectCoroutine);
+        clientConnectCoroutine = StartCoroutine(ClientConnectRoutine(manager));
+    }
+
+    private void OnPortChanged(string newPort)
+    {
+        if (PortInput != null && Transport.active is PortTransport portTransport)
+        {
+            if (ushort.TryParse(newPort, out ushort port))
+            {
+                portTransport.Port = port;
+                Debug.Log($"[Menu] Port changed to: {port}");
+            }
+        }
+    }
+
+    private void OnQuitClicked()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
+    // ----------------- Network Operations -----------------
     private IEnumerator WaitForHostThenEnter()
     {
         float timer = 0f;
@@ -119,40 +215,14 @@ public class MainMenuUI : MonoBehaviour
         if (p != null) p.ForceActivate();
     }
 
-    private void OnClientClicked()
-    {
-        var nm = NetworkManager.singleton;
-        if (nm == null)
-        {
-            Debug.LogError("[Menu] NetworkManager.singleton is null. Put NetworkManager in bootstrap scene.");
-            return;
-        }
-
-        if (NetworkServer.active)
-        {
-            Debug.LogWarning("[Menu] This instance is running as server/host. Use StartHost instead of StartClient.");
-            EnterGameplayUI();
-            var p = FindObjectOfType<PlayerFreezeUntilReady>();
-            if (p != null) p.ForceActivate();
-            return;
-        }
-
-        string addr = "localhost";
-        if (ServerAddressInput != null && !string.IsNullOrWhiteSpace(ServerAddressInput.text))
-            addr = ServerAddressInput.text.Trim();
-
-        nm.networkAddress = addr;
-        Debug.Log($"[Menu] Client connecting to {nm.networkAddress}");
-
-        if (clientConnectCoroutine != null) StopCoroutine(clientConnectCoroutine);
-        clientConnectCoroutine = StartCoroutine(ClientConnectRoutine(nm));
-    }
-
     private IEnumerator ClientConnectRoutine(NetworkManager nm)
     {
+        isConnecting = true;
+
         if (nm.transport == null)
         {
             Debug.LogError("[Menu] NetworkManager.transport is null! Assign a transport (KcpTransport/Telepathy) in the NetworkManager inspector.");
+            isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
         }
@@ -160,6 +230,7 @@ public class MainMenuUI : MonoBehaviour
         if (NetworkClient.isConnecting)
         {
             Debug.LogWarning("[Menu] NetworkClient already connecting.");
+            isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
         }
@@ -171,22 +242,25 @@ public class MainMenuUI : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"[Menu] StartClient threw exception: {ex}");
+            isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
         }
 
         float timer = 0f;
-        while (!NetworkClient.isConnected && timer < clientConnectTimeout)
+        while (!NetworkClient.isConnected && timer < clientConnectTimeout && isConnecting)
         {
             timer += Time.deltaTime;
             yield return null;
         }
 
+        isConnecting = false;
+
         if (NetworkClient.isConnected)
         {
             Debug.Log("[Menu] Client successfully connected to server.");
 
-            // NEW: Optionally load environment scenes locally for client (same as Host)
+            // Optionally load environment scenes locally for client (same as Host)
             if (clientLoadEnvironmentOnConnect)
             {
                 Debug.Log("[Menu] Client will load environment scenes locally (clientLoadEnvironmentOnConnect = true).");
@@ -195,9 +269,7 @@ public class MainMenuUI : MonoBehaviour
                 // After local load, notify server that we're ready if you expect server handshakes.
                 if (NetworkClient.isConnected)
                 {
-                    // DEBUG: replaced send with debug wrapper (actual send is commented out)
                     DebugSendEnvLoadedMessage();
-                    // NetworkClient.Send(new EnvLoadedMessage()); // <-- original (COMMENTED)
                     Debug.Log("[ClientDebug] (send commented) EnvLoadedMessage debug wrapper executed (clientConnect).");
                 }
 
@@ -242,9 +314,7 @@ public class MainMenuUI : MonoBehaviour
         if (allLoaded)
         {
             Debug.Log("[Client] All requested scenes already loaded locally. Would send EnvLoadedMessage (but sending is commented).");
-            // DEBUG: replaced send with debug wrapper (actual send is commented out)
             DebugSendEnvLoadedMessage();
-            // NetworkClient.Send(new EnvLoadedMessage()); // <-- original (COMMENTED)
             Debug.Log("[ClientDebug] (send commented) EnvLoadedMessage debug wrapper executed (OnLoadEnvMessage).");
             return;
         }
@@ -260,23 +330,12 @@ public class MainMenuUI : MonoBehaviour
         // when done, notify server that client finished loading
         if (NetworkClient.isConnected)
         {
-            // DEBUG: replaced send with debug wrapper (actual send is commented out)
             DebugSendEnvLoadedMessage();
-            // NetworkClient.Send(new EnvLoadedMessage()); // <-- original (COMMENTED)
             Debug.Log("[ClientDebug] (send commented) EnvLoadedMessage debug wrapper executed (ClientLoadScenesAndNotifyServer).");
         }
     }
 
-    private void OnQuitClicked()
-    {
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
-    }
-
-    // ----------------- Scene loading helper (modified) -----------------
+    // ----------------- Scene loading helper -----------------
     private IEnumerator LoadMultipleScenesAdditive(List<string> scenes)
     {
         if (scenes == null || scenes.Count == 0)
@@ -291,7 +350,7 @@ public class MainMenuUI : MonoBehaviour
 
             if (!Application.CanStreamedLevelBeLoaded(scene))
             {
-                Debug.LogError($"[Menu] Scene '{scene}' cannot be loaded � make sure it's added to Build Settings. Skipping.");
+                Debug.LogError($"[Menu] Scene '{scene}' cannot be loaded — make sure it's added to Build Settings. Skipping.");
                 continue;
             }
             if (IsSceneLoaded(scene))
@@ -323,8 +382,17 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    // search the named scene for ResourceManager components and, when found, try switch to client role
-    // SAFE: only change ResourceManager role on pure client processes
+    // ----------------- UI State Management -----------------
+    private void EnterGameplayUI()
+    {
+        if (MenuUI != null) MenuUI.SetActive(false);
+        if (GameplayUI != null) GameplayUI.SetActive(true);
+        // Khoá và ẩn trỏ chuột
+        //Cursor.lockState = CursorLockMode.Locked;
+        //Cursor.visible = false;
+    }
+
+    // ----------------- Resource Manager Handling -----------------
     private void TrySwitchResourceManagersInLoadedScene(string sceneName)
     {
         try
@@ -437,23 +505,12 @@ public class MainMenuUI : MonoBehaviour
         return false;
     }
 
-    // ----------------- Helpers ----------------    -----------------
-    private void EnterGameplayUI()
-    {
-        if (MenuUI != null) MenuUI.SetActive(false);
-        if (GameplayUI != null) GameplayUI.SetActive(true);
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-    }
-
-    // ----------------- Debug send wrapper ----------------
-    // This prints the Type.FullName, Assembly.FullName and AssemblyQualifiedName for EnvLoadedMessage.
-    // The actual NetworkClient.Send call is intentionally commented out so you can inspect assemblies first.
+    // ----------------- Debug send wrapper -----------------
     private void DebugSendEnvLoadedMessage()
     {
         try
         {
-            var envMsg = new EnvLoadedMessage(); // keep minimal
+            var envMsg = new EnvLoadedMessage();
             var t = typeof(EnvLoadedMessage);
             Debug.Log($"[ClientDebug] (wrapper) Would send EnvLoadedMessage. Type.FullName={t.FullName} Assembly={t.Assembly.FullName}");
             Debug.Log($"[ClientDebug] (wrapper) AssemblyQualifiedName={t.AssemblyQualifiedName}");

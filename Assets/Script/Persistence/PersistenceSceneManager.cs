@@ -132,11 +132,7 @@ public class PersistenceSceneManager : MonoBehaviour
 
         try
         {
-#if UNITY_2020_1_OR_NEWER
             var monos = FindObjectsOfType<MonoBehaviour>(true); // include inactive
-#else
-            var monos = Resources.FindObjectsOfTypeAll<MonoBehaviour>(); // older Unity fallback
-#endif
             foreach (var m in monos)
             {
                 if (m == null) continue;
@@ -173,14 +169,4 @@ public class PersistenceSceneManager : MonoBehaviour
             Debug.LogError($"[PersistenceSceneManager] Exception while saving '{s.SaveableName}': {ex}");
         }
     }
-
-#if UNITY_EDITOR
-    [ContextMenu("Debug: Print Found ISaveables")]
-    private void Editor_PrintFoundSaveables()
-    {
-        var list = GatherSaveables();
-        Debug.Log($"[PersistenceSceneManager] Editor_PrintFoundSaveables: found {list.Count}");
-        foreach (var s in list) Debug.Log($" - {s.SaveableName} (scene={s.SceneName})");
-    }
-#endif
 }

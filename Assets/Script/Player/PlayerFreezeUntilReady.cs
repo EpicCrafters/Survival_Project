@@ -9,17 +9,21 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
 {
     private Player player;
     private CharacterController controller;
+    private PlayerStatManager playerStatManager;
     private bool isReady = false;
 
     private void Awake()
     {
         player = GetComponent<Player>();
         controller = GetComponent<CharacterController>();
+        playerStatManager = GetComponent<PlayerStatManager>();
 
         if (player == null)
             Debug.LogError("[PlayerFreezeUntilReady] No Player component found on this GameObject!");
         if (controller == null)
             Debug.LogError("[PlayerFreezeUntilReady] No CharacterController found on this GameObject!");
+        if (playerStatManager == null)
+            Debug.LogError("[PlayerFreezeUntilReady] No PlayerStatManager found on this GameObject!");
     }
 
     public override void OnStartLocalPlayer()
@@ -33,6 +37,7 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         // Freeze player
         if (player != null) player.enabled = false;
         if (controller != null) controller.enabled = false;
+        if (playerStatManager != null) playerStatManager.enabled = false;
         Debug.Log("[PlayerFreezeUntilReady] Player frozen until all scenes loaded.");
 
         // Wait for MainMenuUI to exist
@@ -55,6 +60,7 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         // Unfreeze player
         if (player != null) player.enabled = true;
         if (controller != null) controller.enabled = true;
+        if (playerStatManager != null) playerStatManager.enabled = true;
         Debug.Log("[PlayerFreezeUntilReady] Player unfrozen. Ready to move!");
 
         isReady = true;

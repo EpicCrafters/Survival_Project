@@ -14,6 +14,7 @@ public class SpawnRecord
     public Quaternion rotation;
     public Vector3 scale = Vector3.one;
     public bool isChopped;
+    public int curHealth;
 }
 
 
