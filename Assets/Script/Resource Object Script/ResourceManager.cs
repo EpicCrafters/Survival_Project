@@ -1102,6 +1102,18 @@ public class ResourceManager : MonoBehaviour, ISaveable
                     inst.isChopped = isInteracted;
                     inst.ApplyState();
                 }
+
+                // Update BaseResource HealthSystem for UI feedback
+                var baseResource = instanceGo?.GetComponent<BaseResource>() ?? instanceGo?.GetComponentInChildren<BaseResource>();
+                if (baseResource != null)
+                {
+                    var healthSystem = baseResource.GetHealthSystem();
+                    if (healthSystem != null)
+                    {
+                        // This will now trigger the OnHealthChanged event
+                        healthSystem.SetHealth(curHealth);
+                    }
+                }
             }
 
             // Fire unified event for other systems

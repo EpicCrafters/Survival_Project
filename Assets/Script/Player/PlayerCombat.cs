@@ -142,6 +142,18 @@ public class PlayerCombat : NetworkBehaviour
             }
 
             Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged: {damage} -> health {newHealth}");
+
+            // --- CRITICAL: BROADCAST TO ALL CLIENTS ---
+            // Find the ResourceManagerRouter in the scene and broadcast the change
+            ResourceManagerRouter router = FindObjectOfType<ResourceManagerRouter>();
+            if (router != null)
+            {
+                router.BroadcastResourceChange(uniqueId, record.isChopped, newHealth);
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerCombat] No ResourceManagerRouter found to broadcast resource change!");
+            }
         }
         else
         {

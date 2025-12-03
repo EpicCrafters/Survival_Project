@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Mirror;
+using UnityEngine;
 
 /// <summary>
 /// MyBush - simple harvestable bush.
@@ -51,27 +52,6 @@ public class MyBush : BaseResource, Iinteractable
         resourceType = ResourceType.Bush;
     }
 
-    /// <summary>
-    /// Player interaction entry: attempt to harvest one item.
-    /// </summary>
-    public virtual void Interact()
-    {
-        // Do not allow interactions while the object is already being destroyed/removed.
-        if (isDestroyed || isBeingDestroyed)
-        {
-            Debug.Log($"{name}: Cannot interact - bush is being removed.");
-            return;
-        }
-
-        if (!hasHarvestableItems || currentHarvestCount <= 0)
-        {
-            Debug.Log($"No more {bushType} to harvest.");
-            return;
-        }
-
-        HarvestFromBush();
-    }
-
     private void HarvestFromBush()
     {
         // decrement and spawn one harvested item
@@ -88,36 +68,15 @@ public class MyBush : BaseResource, Iinteractable
         UpdateVisuals();
     }
 
-    /// <summary>
-    /// Spawn one harvested item according to bush type.
-    /// </summary>
-    private void SpawnHarvestedItem()
+    protected override void OnResourceDestroyed()
     {
-        Transform dropPrefab = bushType switch
+        // --- CRITICAL: Only run visual effects on server ---
+        if (!NetworkServer.active)
         {
-            BushType.BerryBush => berryDropPrefab,
-            BushType.FlowerBush => flowerDropPrefab,
-            BushType.HerbBush => herbDropPrefab,
-            _ => berryDropPrefab
-        };
-
-        if (dropPrefab == null)
-        {
-            Debug.LogWarning($"{name}: No drop prefab assigned for {bushType} (cannot spawn harvested item).");
+            Debug.Log($"{name}: OnResourceDestroyed called on client, skipping drops (server will handle)");
             return;
         }
 
-        Vector3 spawnPos = transform.position + Vector3.up * 1.0f;
-        Instantiate(dropPrefab, spawnPos, Quaternion.identity);
-    }
-
-    /// <summary>
-    /// Called by the base health system when the bush is destroyed.
-    /// Drops remaining harvestable items (one per remaining harvest) and some sticks.
-    /// Uses RequestDestroyAndReplace(null) so BaseResource can route to ResourceManager if present.
-    /// </summary>
-    protected override void OnResourceDestroyed()
-    {
         // Drop remaining harvest items if any (spawn one per remaining harvest)
         if (hasHarvestableItems && currentHarvestCount > 0)
         {
@@ -140,8 +99,7 @@ public class MyBush : BaseResource, Iinteractable
             Debug.LogWarning($"{name}: stickDropPrefab not assigned - cannot spawn sticks on destroy.");
         }
 
-        // Ask base class to handle authoritative destroy/replace (if ResourceManager exists).
-        // Passing null means "no replacement prefab" — manager may still persist destroyed state.
+        // Ask base class to handle authoritative destroy/replace
         try
         {
             RequestDestroyAndReplace(null);
@@ -151,6 +109,59 @@ public class MyBush : BaseResource, Iinteractable
             Debug.LogError($"{name}: Exception while requesting destroy/replace: {ex}. Falling back to local destroy.");
             DestroyResource();
         }
+    }
+
+    /// <summary>
+    /// Spawn one harvested item according to bush type.
+    /// </summary>
+    private void SpawnHarvestedItem()
+    {
+        Transform dropPrefab = bushType switch
+        {
+            BushType.BerryBush => berryDropPrefab,
+            BushType.FlowerBush => flowerDropPrefab,
+            BushType.HerbBush => herbDropPrefab,
+            _ => berryDropPrefab
+        };
+
+        if (dropPrefab == null)
+        {
+            Debug.LogWarning($"{name}: No drop prefab assigned for {bushType} (cannot spawn harvested item).");
+            return;
+        }
+
+        Vector3 spawnPos = transform.position + Vector3.up * 1.0f;
+        var drop = Instantiate(dropPrefab, spawnPos, Quaternion.identity);
+
+        // Network spawn the drop
+        NetworkServer.Spawn(drop.gameObject);
+    }
+
+    // Also update the Interact method to be server-authoritative:
+    public virtual void Interact()
+    {
+        // Do not allow interactions while the object is already being destroyed/removed.
+        if (isDestroyed || isBeingDestroyed)
+        {
+            Debug.Log($"{name}: Cannot interact - bush is being removed.");
+            return;
+        }
+
+        if (!hasHarvestableItems || currentHarvestCount <= 0)
+        {
+            Debug.Log($"No more {bushType} to harvest.");
+            return;
+        }
+
+        // If we're a client, we should send a command to the server
+        if (!NetworkServer.active)
+        {
+            // You'll need to add a NetworkBehaviour component or use existing network system
+            Debug.Log($"{name}: Client attempting to harvest bush - needs network command.");
+            return;
+        }
+
+        HarvestFromBush();
     }
 
     private void UpdateVisuals()

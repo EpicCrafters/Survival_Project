@@ -117,6 +117,35 @@ public class ItemHitBox : MonoBehaviour
                 {
                     int dmg = itemData.tool.damage;
                     Debug.Log($"[ItemHitBox] Tool hợp lệ → gây damage {dmg}");
+
+                    // Tìm BaseResource để lấy uniqueId
+                    BaseResource baseResource = other.GetComponent<BaseResource>();
+                    if (baseResource == null)
+                        baseResource = other.GetComponentInParent<BaseResource>();
+
+                    if (baseResource != null && !string.IsNullOrEmpty(baseResource.UniqueId))
+                    {
+                        // Gửi damage đến server qua CmdDamageResource
+                        if (playerCombat != null)
+                        {
+                            playerCombat.CmdDamageResource(
+                                baseResource.UniqueId,
+                                dmg,
+                                itemData.id,
+                                minable.GetResourceType()
+                            );
+
+                            Debug.Log($"[ItemHitBox] Gửi CmdDamageResource: {dmg} đến resource {baseResource.UniqueId}");
+                        }
+                        else
+                        {
+                            Debug.LogError("[ItemHitBox] playerCombat bị null!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[ItemHitBox] Không tìm thấy BaseResource hoặc UniqueId trên {other.name}");
+                    }
                 }
                 else
                 {

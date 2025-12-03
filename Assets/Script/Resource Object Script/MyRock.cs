@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Mirror;
+using UnityEngine;
 
 /// <summary>
 /// MyRock - simple breakable rock.
@@ -42,6 +43,10 @@ public class MyRock : BaseResource, IMinenable
     /// Called when the health system reports death.
     /// Spawn immediate visual feedback then request authoritative destroy/replace via BaseResource.
     /// </summary>
+    /// <summary>
+    /// Called when the health system reports death.
+    /// Spawn immediate visual feedback then request authoritative destroy/replace via BaseResource.
+    /// </summary>
     protected override void OnResourceDestroyed()
     {
         // Defensive early return: don't run twice if destruction already in progress
@@ -51,14 +56,20 @@ public class MyRock : BaseResource, IMinenable
             return;
         }
 
-        // 1) spawn fragments with simple physics
+        // --- CRITICAL: Only run visual effects on server ---
+        if (!NetworkServer.active)
+        {
+            Debug.Log($"{name}: OnResourceDestroyed called on client, skipping visual effects (server will handle)");
+            return;
+        }
+
+        // 1) spawn fragments with simple physics - SERVER ONLY
         SpawnStonesWithPhysics();
 
-        // 2) spawn dust effect if assigned
+        // 2) spawn dust effect if assigned - SERVER ONLY
         SpawnDustEffect();
 
         // 3) request manager-driven destroy/replace (if manager exists).
-        //    This lets ResourceManager handle persistence/networking.
         try
         {
             RequestDestroyAndReplace(null); // no visual replacement prefab for rock by default
@@ -76,6 +87,9 @@ public class MyRock : BaseResource, IMinenable
     /// </summary>
     private void SpawnStonesWithPhysics()
     {
+        // Only server should spawn physics objects
+        if (!NetworkServer.active) return;
+
         if (stonePrefab == null)
         {
             Debug.LogWarning($"{name}: stonePrefab not assigned - no fragments will be spawned.");
@@ -93,7 +107,6 @@ public class MyRock : BaseResource, IMinenable
 
         for (int i = 0; i < stoneCount; i++)
         {
-            // random spawn offset around the rock using BaseResource's dropRadius / dropHeight if helpful
             Vector3 offset = new Vector3(
                 Random.Range(-dropRadius, dropRadius),
                 dropHeight + Random.Range(0f, 0.3f),
@@ -111,6 +124,9 @@ public class MyRock : BaseResource, IMinenable
 
             GameObject fragGo = frag.gameObject;
 
+            // Network spawn the fragment
+            NetworkServer.Spawn(fragGo);
+
             // Ensure it has a Rigidbody so physics applies
             var rb = fragGo.GetComponent<Rigidbody>() ?? fragGo.AddComponent<Rigidbody>();
 
@@ -124,8 +140,14 @@ public class MyRock : BaseResource, IMinenable
 
     private void SpawnDustEffect()
     {
+        // Only server should spawn effects
+        if (!NetworkServer.active) return;
+
         if (dustEffectPrefab == null) return;
-        Instantiate(dustEffectPrefab, transform.position, transform.rotation);
+        var dust = Instantiate(dustEffectPrefab, transform.position, transform.rotation);
+
+        // Network spawn the dust effect
+        NetworkServer.Spawn(dust.gameObject);
     }
 
     protected override void OnDamageReceived(int amount)

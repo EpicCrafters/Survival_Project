@@ -65,6 +65,30 @@ public class ResourceManagerRouter : NetworkBehaviour
         }
     }
 
+    [ClientRpc]
+    public void RpcBroadcastResourceChange(string uniqueId, bool isChopped, int curHealth)
+    {
+        // This runs on ALL clients when host calls it
+        if (isServer) return; // Host already processed it
+
+        Debug.Log($"[Router] Client received resource change: {uniqueId} -> chopped={isChopped}, health={curHealth}");
+
+        // Apply the change locally on all clients
+        var rm = ResourceManager.GetManagerForUniqueId(uniqueId);
+        if (rm != null)
+        {
+            rm.ApplyResourceStateChange(uniqueId, isChopped, curHealth, ResourceChangeSource.Network);
+        }
+    }
+
+    public void BroadcastResourceChange(string uniqueId, bool isChopped, int curHealth)
+    {
+        if (isServer)
+        {
+            RpcBroadcastResourceChange(uniqueId, isChopped, curHealth);
+        }
+    }
+
     // ================= Server -> Client replies / broadcasts =================
 
     // Keep old small-payload TargetReceiveSnapshot for compatibility
