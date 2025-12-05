@@ -161,6 +161,45 @@ public class PlayerCombat : NetworkBehaviour
         }
     }
 
+    [Command]
+    public void CmdDamageNonPersistent(uint targetNetId, int damage, Vector3 hitPoint, Vector3 hitNormal, int itemId)
+    {
+        // Use Mirror's NetworkServer to find spawned objects
+        if (!NetworkServer.spawned.TryGetValue(targetNetId, out NetworkIdentity targetIdentity))
+        {
+            Debug.LogWarning($"[Server] Target netId {targetNetId} not found in spawned objects");
+            return;
+        }
+
+        // Find the IDamageable component
+        IDamageable target = targetIdentity.GetComponent<IDamageable>();
+        if (target == null)
+            target = targetIdentity.GetComponentInChildren<IDamageable>();
+
+        if (target == null)
+        {
+            Debug.LogWarning($"[Server] No IDamageable found on {targetIdentity.name}");
+            return;
+        }
+
+        // Get item data for HitInfo
+        ItemData itemData = ItemDatabase.Get(itemId);
+        if (itemData == null)
+        {
+            Debug.LogWarning($"[Server] ItemData with id {itemId} not found");
+            return;
+        }
+
+        // Create HitInfo
+        Vector3 hitDirection = (targetIdentity.transform.position - transform.position).normalized;
+        HitInfo hit = new HitInfo(hitPoint, hitNormal, hitDirection, gameObject, itemData);
+
+        // Apply damage (this triggers OnDamageReceived on the log)
+        target.Damage(damage, hit);
+
+        Debug.Log($"[Server] {name} dealt {damage} damage to non-persistent resource {targetIdentity.name}");
+    }
+
     private void GiveMiningRewards(NetworkIdentity player, ResourceType resourceType, int toolId)
     {
         // Your existing reward logic here

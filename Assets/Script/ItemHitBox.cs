@@ -109,6 +109,7 @@ public class ItemHitBox : MonoBehaviour
         // -----------------------------------------------------------
         // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…) - XỬ LÝ TÀI NGUYÊN
         // -----------------------------------------------------------
+        // In the tool section after checking for IMinenable:
         if (itemData.type == ItemType.Tool)
         {
             if (other.TryGetComponent<IMinenable>(out var minable))
@@ -123,40 +124,59 @@ public class ItemHitBox : MonoBehaviour
                     if (baseResource == null)
                         baseResource = other.GetComponentInParent<BaseResource>();
 
-                    if (baseResource != null && !string.IsNullOrEmpty(baseResource.UniqueId))
+                    if (baseResource != null)
                     {
-                        // Gửi damage đến server qua CmdDamageResource
-                        if (playerCombat != null)
+                        // --- CHECK IF IT'S A LOG ---
+                        bool isLog = false;
+                        MyTree myTree = baseResource as MyTree;
+                        if (myTree != null)
                         {
+                            // Check if it's a log type (not a full tree or stump)
+                            isLog = (myTree.GetTreeType() == MyTree.TreeType.Log ||
+                                    myTree.GetTreeType() == MyTree.TreeType.LogHalf);
+                        }
+
+                        if (isLog)
+                        {
+                            // LOGS: Use CmdDamageNonPersistent with NetworkIdentity
+                            NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
+                            if (targetNetId == null)
+                                targetNetId = other.GetComponentInParent<NetworkIdentity>();
+
+                            if (targetNetId != null && playerCombat != null)
+                            {
+                                Vector3 hitPoint = other.ClosestPoint(transform.position);
+                                Vector3 hitNormal = (other.transform.position - transform.position).normalized;
+
+                                // NEW COMMAND for logs
+                                playerCombat.CmdDamageNonPersistent(
+                                    targetNetId.netId,
+                                    dmg,
+                                    hitPoint,
+                                    hitNormal,
+                                    itemData.id
+                                );
+
+                                Debug.Log($"[ItemHitBox] Gửi CmdDamageNonPersistent cho log: netId={targetNetId.netId}");
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(baseResource.UniqueId))
+                        {
+                            // PERSISTENT RESOURCES: Use CmdDamageResource with uniqueId
                             playerCombat.CmdDamageResource(
                                 baseResource.UniqueId,
                                 dmg,
                                 itemData.id,
                                 minable.GetResourceType()
                             );
-
-                            Debug.Log($"[ItemHitBox] Gửi CmdDamageResource: {dmg} đến resource {baseResource.UniqueId}");
+                            Debug.Log($"[ItemHitBox] Gửi CmdDamageResource: {dmg} đến {baseResource.UniqueId}");
                         }
                         else
                         {
-                            Debug.LogError("[ItemHitBox] playerCombat bị null!");
+                            Debug.LogWarning($"[ItemHitBox] BaseResource không có UniqueId và không phải log: {other.name}");
                         }
                     }
-                    else
-                    {
-                        Debug.LogWarning($"[ItemHitBox] Không tìm thấy BaseResource hoặc UniqueId trên {other.name}");
-                    }
                 }
-                else
-                {
-                    Debug.Log($"[ItemHitBox] Tool không phù hợp với loại tài nguyên!");
-                    return;
-                }
-            }
-            else
-            {
-                Debug.Log($"[ItemHitBox] Object {other.name} KHÔNG phải tài nguyên khai thác");
-                return;
             }
         }
 
