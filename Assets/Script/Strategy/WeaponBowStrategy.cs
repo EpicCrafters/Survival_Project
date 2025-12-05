@@ -68,12 +68,25 @@ public class WeaponBowStrategy : IItemUseStrategy
         // Nếu lực kéo đủ để bắn
         if (chargePercent >= 0.2f)
         {
-            // Animation thả dây
-            if (bowController != null)
-                bowController.Release();
+            // ✅ CALCULATE AIM ON CLIENT BEFORE SENDING TO SERVER
+            Vector3 clientAimDir = Vector3.forward;
+            Vector3 clientSpawnPos = handler.transform.position;
 
-            // Bắn tên (server xử lý)
-            handler.CmdFireArrow(itemData.id, chargePercent);
+            if (bowController != null)
+            {
+                // Get realistic aim data from client's camera
+                var aimData = bowController.GetRealisticArrowSpawnData();
+                clientSpawnPos = aimData.spawnPos;
+                clientAimDir = aimData.shootDir;
+
+                Debug.Log($"[Bow] CLIENT calculated aim: pos={clientSpawnPos}, dir={clientAimDir}");
+
+                // Animation thả dây
+                bowController.Release();
+            }
+
+            // ✅ Send to server with CLIENT's aim data
+            handler.CmdFireArrow(itemData.id, chargePercent, clientAimDir, clientSpawnPos);
 
             Debug.Log($"[Bow] Released arrow at {chargePercent * 100}% charge");
         }

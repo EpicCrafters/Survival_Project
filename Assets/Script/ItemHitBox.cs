@@ -4,188 +4,357 @@ using System.Collections.Generic;
 
 public class ItemHitBox : MonoBehaviour
 {
-    [Header("Hitbox collider của vũ khí / công cụ")]
-    public Collider hitbox;
-    // Collider dùng để kiểm tra va chạm khi vung vũ khí (chỉ bật khi swing)
+    [Header("Multi-Sphere Detection Settings")]
+    public int sphereCount = 5; // Số lượng sphere dùng để phát hiện va chạm
+    public float sphereRadius = 0.35f; // Bán kính của mỗi sphere
 
-    private ItemHeld itemHeld;       // Script chứa thông tin item mà người chơi đang cầm
-    private ItemData itemData;       // Dữ liệu item (damage, loại tool, loại weapon...)
-    private HashSet<GameObject> alreadyHit = new HashSet<GameObject>();
-    // Dùng HashSet để lưu những đối tượng đã trúng trong 1 cú đánh → tránh đánh nhiều lần
+    [Header("Blade Position Settings")]
+    public Transform startPoint; // Điểm bắt đầu của lưỡi kiếm/công cụ
+    public Transform endPoint; // Điểm kết thúc của lưỡi kiếm/công cụ
 
-    private PlayerCombat playerCombat;  // Script xử lý damage (CmdDealDamage gửi lên server)
+    [Header("Fallback Offsets")]
+    public Vector3 startOffset = new Vector3(0f, 0f, 0.2f); // Offset dự phòng nếu không có startPoint
+    public Vector3 endOffset = new Vector3(0f, 0f, 1.5f); // Offset dự phòng nếu không có endPoint
 
+    [Header("Detection Layers")]
+    [Tooltip("Set to 'Mineable' for resources (trees/rocks) and 'Damageable' for enemies/players")]
+    public LayerMask hitLayers; // Layer mask để xác định đối tượng nào có thể bị đánh
 
-    // -----------------------------------------------------------
-    // Gọi khi object được tạo hoặc bật
-    // -----------------------------------------------------------
+    public int maxHitsPerCheck = 15; // Số lượng collider tối đa có thể phát hiện trong 1 lần check
+
+    [Header("Hit Behavior")]
+    [Tooltip("Nếu bật, hitbox chỉ gây damage 1 lần cho đến khi disable và enable lại")]
+    public bool singleHitPerActivation = true; // CHẾ ĐỘ 1 ĐÒNH = 1 DAMAGE
+
+    [Header("Visual Debug")]
+    public bool showDebugGizmos = true; // Hiển thị Gizmos để debug
+    public Color inactiveColor = new Color(1f, 1f, 0f, 0.5f); // Màu khi hitbox chưa active
+    public Color activeColor = new Color(1f, 0f, 0f, 0.8f); // Màu khi hitbox đang active
+    public Color exhaustedColor = new Color(0.5f, 0.5f, 0.5f, 0.5f); // Màu khi đã hit và hết hiệu lực
+
+    private ItemHeld itemHeld;
+    private ItemData itemData;
+    private PlayerCombat playerCombat;
+    private HashSet<uint> alreadyHitNetIds = new HashSet<uint>(); // Lưu các đối tượng đã hit để tránh hit lặp
+    private bool isHitboxActive = false; // Trạng thái hitbox có đang hoạt động không
+    private bool hasHitSomething = false; // ĐÃ ĐÁNH TRÚNG GÌ ĐÓ CHƯA? (cho chế độ single hit)
+    private Collider[] hitBuffer; // Buffer để lưu các collider phát hiện được
+    private Vector3[] spherePositions; // Vị trí các sphere dùng để phát hiện
+
     private void Awake()
     {
-        // Luôn đảm bảo collider tắt khi khởi tạo
-        if (hitbox != null) hitbox.enabled = false;
-
-        // Hitbox nằm trong prefab của item nên lấy từ parent
+        // Giới hạn số lượng sphere và hit buffer trong khoảng hợp lý
+        sphereCount = Mathf.Clamp(sphereCount, 1, 50);
+        maxHitsPerCheck = Mathf.Clamp(maxHitsPerCheck, 1, 50);
+        spherePositions = new Vector3[sphereCount];
+        hitBuffer = new Collider[maxHitsPerCheck];
         itemHeld = GetComponentInParent<ItemHeld>();
     }
 
-
     private void Start()
     {
-        // Tìm PlayerCombat ở parent nếu chưa được gán
         if (playerCombat == null)
             playerCombat = GetComponentInParent<PlayerCombat>();
 
-        // Báo lỗi nếu không tìm thấy → rất quan trọng đối với Mirror
         if (playerCombat == null)
-            Debug.LogError($"[ItemHitBox] Không tìm thấy PlayerCombat trong parent của {gameObject.name}");
+            Debug.LogError($"[ItemHitBox] Không tìm thấy PlayerCombat component");
     }
 
-
-    // Hàm được gọi từ ItemHeld để gán đúng PlayerCombat
     public void SetPlayerCombat(PlayerCombat combat)
     {
         playerCombat = combat;
     }
 
-
-    // Cập nhật dữ liệu item mỗi khi swing (phòng trường hợp đổi item khi đang cầm)
+    
+    // Cập nhật thông tin item data từ ItemHeld
+ 
     private void UpdateItemData()
     {
         if (itemHeld != null)
+        {
             itemData = itemHeld.itemData;
+            if (itemData != null)
+            {
+                Debug.Log($"[ItemHitBox] UpdateItemData: {itemData.itemName} (Loại: {itemData.type})");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[ItemHitBox] itemHeld là NULL!");
+        }
     }
 
-
-    // -----------------------------------------------------------
-    // Bật hitbox – gọi khi animation bắt đầu vung
-    // -----------------------------------------------------------
+    // BẬT HITBOX - Được gọi từ Animation Event khi bắt đầu đòn tấn công
+   
     public void EnableHitbox()
     {
         UpdateItemData();
-
-        if (hitbox != null)
-        {
-            hitbox.enabled = true;
-            hitbox.isTrigger = true;   // trigger để không tạo va chạm vật lý thật
-        }
-
-        // Reset danh sách đã trúng
-        alreadyHit.Clear();
+        isHitboxActive = true;
+        alreadyHitNetIds.Clear();
+        hasHitSomething = false; // RESET: Chưa đánh trúng gì cả, sẵn sàng cho đòn mới
+        Debug.Log($"[ItemHitBox] Hitbox được bật cho {itemData?.itemName ?? "UNKNOWN"}");
     }
 
-
-    // Tắt hitbox – gọi khi animation kết thúc
+   
+    // TẮT HITBOX - Được gọi từ Animation Event khi kết thúc đòn tấn công
+  
     public void DisableHitbox()
     {
-        if (hitbox != null)
-        {
-            hitbox.enabled = false;
-            hitbox.isTrigger = false;
-        }
-
-        alreadyHit.Clear();
+        isHitboxActive = false;
+        alreadyHitNetIds.Clear();
+        hasHitSomething = false; // RESET: Chuẩn bị cho đòn tấn công tiếp theo
+        Debug.Log($"[ItemHitBox] Hitbox bị tắt");
     }
 
+    private void FixedUpdate()
+    {
+        // Nếu hitbox không active thì không làm gì cả
+        if (!isHitboxActive) return;
 
-    // -----------------------------------------------------------
-    // Xử lý logic khi hitbox va chạm với vật thể khác
-    // -----------------------------------------------------------
-    private void OnTriggerEnter(Collider other)
+        // KIỂM TRA CHẾ ĐỘ SINGLE HIT: Nếu đã đánh trúng rồi thì dừng ngay
+        if (singleHitPerActivation && hasHitSomething)
+        {
+            return; // Đã đánh trúng 1 lần rồi, không check nữa cho đến khi disable
+        }
+
+        PerformMultiSphereDetection();
+    }
+
+    // Thực hiện phát hiện va chạm bằng nhiều sphere dọc theo lưỡi vũ khí
+    
+    private void PerformMultiSphereDetection()
     {
         UpdateItemData();
-
         if (itemData == null)
         {
-            Debug.LogWarning("[ItemHitBox] itemData bị null, có thể do itemHeld chưa gán.");
+            Debug.LogWarning("[ItemHitBox] itemData là null trong PerformMultiSphereDetection");
             return;
         }
 
-        // --- Ngăn đánh trúng một đối tượng nhiều lần trong cùng một swing ---
-        if (alreadyHit.Contains(other.gameObject)) return;
-        alreadyHit.Add(other.gameObject);
+        // Lấy vị trí đầu và cuối của lưỡi kiếm/công cụ
+        Vector3 bladeStart = GetBladeStartPosition();
+        Vector3 bladeEnd = GetBladeEndPosition();
 
-        Debug.Log($"[ItemHitBox] Va chạm: {other.name}, Tag: {other.tag}, Layer: {LayerMask.LayerToName(other.gameObject.layer)}");
-
-        // Tìm IDamageable trên đối tượng bị đánh
-        IDamageable target = other.GetComponent<IDamageable>();
-        if (target == null)
-            target = other.GetComponentInParent<IDamageable>();
-
-        if (target == null)
+        // Tính toán vị trí của từng sphere dọc theo lưỡi
+        for (int i = 0; i < sphereCount; i++)
         {
-            Debug.Log($"[ItemHitBox] Không tìm thấy IDamageable trên {other.name}");
-            return;
+            float t = sphereCount > 1 ? (float)i / (sphereCount - 1) : 0f;
+            spherePositions[i] = Vector3.Lerp(bladeStart, bladeEnd, t);
         }
 
-        int dmg = 0; // damage sẽ được tính theo item loại Tool hoặc Weapon
+        // Kiểm tra va chạm tại mỗi vị trí sphere
+        for (int i = 0; i < sphereCount; i++)
+        {
+            int hitCount = Physics.OverlapSphereNonAlloc(
+                spherePositions[i],
+                sphereRadius,
+                hitBuffer,
+                hitLayers,
+                QueryTriggerInteraction.Collide
+            );
 
+            if (hitCount > 0)
+            {
+                Debug.Log($"[ItemHitBox] Sphere {i} phát hiện {hitCount} colliders");
+            }
 
-        // -----------------------------------------------------------
-        // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…)
-        // -----------------------------------------------------------
+            // Xử lý từng collider được phát hiện
+            for (int j = 0; j < hitCount; j++)
+            {
+                Debug.Log($"[ItemHitBox] Phát hiện va chạm: {hitBuffer[j].name}, Layer: {LayerMask.LayerToName(hitBuffer[j].gameObject.layer)}");
+                ProcessHit(hitBuffer[j], spherePositions[i]);
+
+                // KIỂM TRA: Nếu chế độ single hit và đã đánh trúng, DỪNG NGAY
+                if (singleHitPerActivation && hasHitSomething)
+                {
+                    Debug.Log($"[ItemHitBox] Đã đánh trúng 1 lần - hitbox tạm ngưng cho đến khi được enable lại");
+                    return; // Thoát khỏi vòng lặp hoàn toàn
+                }
+            }
+        }
+    }
+
+    private Vector3 GetBladeStartPosition()
+    {
+        if (startPoint != null)
+            return startPoint.position;
+        return transform.position + transform.TransformDirection(startOffset);
+    }
+
+    private Vector3 GetBladeEndPosition()
+    {
+        if (endPoint != null)
+            return endPoint.position;
+        return transform.position + transform.TransformDirection(endOffset);
+    }
+
+  
+    // Xử lý khi phát hiện va chạm với một đối tượng
+   
+    private void ProcessHit(Collider other, Vector3 hitSpherePosition)
+    {
+        Debug.Log($"[ProcessHit] VÀO HÀM XỬ LÝ cho: {other.name}");
+
+        int dmg = 0;
+
+        // ============================================================
+        // TRƯỜNG HỢP 1: ITEM LÀ TOOL (Rìu, Cuốc…) - XỬ LÝ TÀI NGUYÊN
+        // ============================================================
         if (itemData.type == ItemType.Tool)
         {
-            // Kiểm tra object có phải là tài nguyên khai thác được (cây, đá...)
+            Debug.Log($"[ProcessHit] Item là CÔNG CỤ: {itemData.tool.toolType}");
+
+            // Kiểm tra xem đối tượng có phải là tài nguyên có thể đào/chặt không
             if (other.TryGetComponent<IMinenable>(out var minable))
             {
-                // Kiểm tra ToolType có phù hợp ResourceType hay không
+                Debug.Log($"[ProcessHit] ✅ Tìm thấy IMinenable: {minable.GetResourceType()}");
+
+                // Kiểm tra công cụ có phù hợp với loại tài nguyên không (rìu cho cây, cuốc cho đá)
                 if (IsToolValidForResource(itemData.tool.toolType, minable.GetResourceType()))
                 {
                     dmg = itemData.tool.damage;
-                    Debug.Log($"[ItemHitBox] Tool hợp lệ → gây damage {dmg}");
+                    Debug.Log($"[ItemHitBox] ✅ Công cụ hợp lệ → gây damage {dmg}");
+
+                    // Tìm BaseResource để lấy uniqueId (ID duy nhất của tài nguyên)
+                    BaseResource baseResource = other.GetComponent<BaseResource>();
+                    if (baseResource == null)
+                        baseResource = other.GetComponentInParent<BaseResource>();
+
+                    if (baseResource != null)
+                    {
+                        Debug.Log($"[ProcessHit] ✅ Tìm thấy BaseResource: {baseResource.name}, UniqueId: {baseResource.UniqueId}");
+
+                        
+                        uint uniqueIdHash = (uint)baseResource.UniqueId.GetHashCode();
+                        if (alreadyHitNetIds.Contains(uniqueIdHash))
+                        {
+                            Debug.Log($"[ProcessHit] Đã đánh tài nguyên UniqueId={baseResource.UniqueId} rồi, bỏ qua");
+                            return;
+                        }
+                        alreadyHitNetIds.Add(uniqueIdHash);
+
+                        // --- KIỂM TRA XEM CÓ PHẢI LÀ KHÚC GỖ (LOG) KHÔNG ---
+                        bool isLog = false;
+                        MyTree myTree = baseResource as MyTree;
+                        if (myTree != null)
+                        {
+                            // Kiểm tra xem có phải là dạng log (không phải cây đứng hay gốc cây)
+                            isLog = (myTree.GetTreeType() == MyTree.TreeType.Log ||
+                                    myTree.GetTreeType() == MyTree.TreeType.LogHalf);
+                            Debug.Log($"[ProcessHit] Phát hiện MyTree, isLog={isLog}, TreeType={myTree.GetTreeType()}");
+                        }
+
+                        if (isLog)
+                        {
+                            // KHÚC GỖ: Dùng CmdDamageNonPersistent với NetworkIdentity
+                            
+                            NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
+                            if (targetNetId == null)
+                                targetNetId = other.GetComponentInParent<NetworkIdentity>();
+
+                            if (targetNetId != null && playerCombat != null)
+                            {
+                                Vector3 hitPoint = other.ClosestPoint(hitSpherePosition);
+                                Vector3 hitNormal = (other.transform.position - hitSpherePosition).normalized;
+
+                                // Gửi lệnh damage cho khúc gỗ
+                                playerCombat.CmdDamageNonPersistent(
+                                    targetNetId.netId,
+                                    dmg,
+                                    hitPoint,
+                                    hitNormal,
+                                    itemData.id
+                                );
+
+                                Debug.Log($"[ItemHitBox] ✅ Gửi CmdDamageNonPersistent cho log: netId={targetNetId.netId}, damage={dmg}");
+
+                                // ĐÁ TRÚNG RỒI! Đánh dấu để không đánh nữa (nếu bật single hit mode)
+                                hasHitSomething = true;
+                            }
+                            else
+                            {
+                                Debug.LogError($"[ItemHitBox] ❌ Log cần NetworkIdentity nhưng không tìm thấy!");
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(baseResource.UniqueId))
+                        {
+                            // TÀI NGUYÊN CỐ ĐỊNH: Dùng CmdDamageResource với uniqueId
+                            // (Cây, đá cố định sẽ được lưu trong database)
+                            if (playerCombat != null)
+                            {
+                                playerCombat.CmdDamageResource(
+                                    baseResource.UniqueId,
+                                    dmg,
+                                    itemData.id,
+                                    minable.GetResourceType()
+                                );
+                                Debug.Log($"[ItemHitBox] ✅ Gửi CmdDamageResource: damage={dmg} đến UniqueId={baseResource.UniqueId}");
+
+                               
+                                hasHitSomething = true;
+                            }
+                           
+                        }
+                       
+                    }
+                  
                 }
-                else
-                {
-                    Debug.Log($"[ItemHitBox] Tool không phù hợp với loại tài nguyên!");
-                    return;
-                }
+               
             }
-            else
-            {
-                Debug.Log($"[ItemHitBox] Object {other.name} KHÔNG phải tài nguyên khai thác");
-                return;
-            }
+          
+
+            return; // Kết thúc sớm cho trường hợp công cụ
         }
 
-        // -----------------------------------------------------------
-        // TRƯỜNG HỢP 2: ITEM LÀ WEAPON (Kiếm, Gậy…)
-        // -----------------------------------------------------------
+        // ============================================================
+        // TRƯỜNG HỢP 2: ITEM LÀ WEAPON (Kiếm, Gậy…) - XỬ LÝ KẺ ĐỊCH
+        // ============================================================
         else if (itemData.type == ItemType.Weapon)
         {
             dmg = itemData.weapon.damage;
-            Debug.Log($"[ItemHitBox] Weapon gây damage {dmg}");
-        }
+            Debug.Log($"[ItemHitBox] Vũ khí gây damage {dmg}");
 
-        // Nếu damage bằng 0 → coi như không hợp lệ
-        if (dmg <= 0)
-        {
-            Debug.LogWarning($"[ItemHitBox] Damage = 0 cho item {itemData.itemName}");
-            return;
-        }
+            // Tìm NetworkIdentity cho vũ khí (quái/người chơi cần nó để đồng bộ qua mạng)
+            NetworkIdentity targetNetId = other.GetComponentInParent<NetworkIdentity>();
+            if (targetNetId == null)
+                targetNetId = other.GetComponent<NetworkIdentity>();
 
-
-        // -----------------------------------------------------------
-        // LẤY NETWORK IDENTITY để server biết target nào bị đánh
-        // -----------------------------------------------------------
-        NetworkIdentity targetNetId = other.GetComponent<NetworkIdentity>();
-        if (targetNetId == null)
-            targetNetId = other.GetComponentInParent<NetworkIdentity>();
-
-
-        // Lấy thông tin vị trí va chạm để gởi qua server (để knockback chính xác)
-        Vector3 hitPoint = other.ClosestPoint(transform.position);
-        Vector3 hitNormal = (other.transform.position - transform.position).normalized;
-        KnockbackSettings knockback = itemData.GetKnockbackSettings();
-
-
-        // -----------------------------------------------------------
-        // Gửi damage lên server qua PlayerCombat
-        // -----------------------------------------------------------
-        if (playerCombat != null)
-        {
-            if (targetNetId != null)
+            if (targetNetId == null)
             {
-                // SERVER OBJECT → dùng CMD để sync cho tất cả client
+                Debug.LogError($"[ItemHitBox] ❌ Mục tiêu vũ khí cần NetworkIdentity nhưng không tìm thấy trên {other.name}");
+                return;
+            }
+
+            // Ngăn chặn đánh trúng 2 lần cùng 1 đối tượng trong 1 đòn
+            if (alreadyHitNetIds.Contains(targetNetId.netId))
+            {
+                Debug.Log($"[ProcessHit] Đã đánh netId={targetNetId.netId} rồi, bỏ qua");
+                return;
+            }
+            alreadyHitNetIds.Add(targetNetId.netId);
+
+            // Tìm component IDamageable để có thể gây sát thương
+            IDamageable target = other.GetComponentInParent<IDamageable>();
+            if (target == null)
+            {
+                Debug.LogWarning($"[ItemHitBox] Không tìm thấy IDamageable trên {other.name}");
+                return;
+            }
+
+            if (dmg <= 0)
+            {
+                Debug.LogWarning($"[ItemHitBox] Damage = 0 cho vũ khí {itemData.itemName}");
+                return;
+            }
+
+            // Tính toán điểm va chạm và hướng đánh
+            Vector3 hitPoint = other.ClosestPoint(hitSpherePosition);
+            Vector3 hitNormal = (other.transform.position - hitSpherePosition).normalized;
+            KnockbackSettings knockback = itemData.GetKnockbackSettings();
+
+            if (playerCombat != null)
+            {
+                // Gửi lệnh gây sát thương qua mạng
                 playerCombat.CmdDealDamage(
                     targetNetId.netId,
                     dmg,
@@ -197,39 +366,71 @@ public class ItemHitBox : MonoBehaviour
                     knockback.enableKnockback
                 );
 
-                Debug.Log($"[ItemHitBox] Gửi CmdDealDamage: {dmg} đến netId={targetNetId.netId}");
+                Debug.Log($"[ItemHitBox] ✅ Gửi CmdDealDamage: {dmg} đến netId={targetNetId.netId}");
+
+              
+                hasHitSomething = true;
             }
             else
             {
-                // LOCAL OBJECT (cây, đá) → client xử lý trực tiếp
-                Debug.Log($"[ItemHitBox] Không có NetworkIdentity → gây damage local");
-                target.Damage(dmg);
+                Debug.LogError("[ItemHitBox] ❌ playerCombat là NULL!");
             }
+
+            // Hiệu ứng hit stop nếu mục tiêu chết
+            if (target.CanTriggerHitStop())
+            {
+                var hitStop = GetComponentInParent<LocalHitStop>();
+                if (hitStop != null && target.IsDead())
+                    hitStop.DoHitStop(0.08f);
+            }
+        }
+    }
+
+    // Kiểm tra công cụ có hợp lệ với loại tài nguyên không
+    // Ví dụ: Rìu cho Cây, Cuốc cho Đá
+   
+    private bool IsToolValidForResource(ToolType tool, ResourceType resource)
+    {
+        bool isValid = (tool == ToolType.Axe && resource == ResourceType.Tree) ||
+                       (tool == ToolType.Pickaxe && resource == ResourceType.Rock);
+
+        Debug.Log($"[IsToolValidForResource] {tool} vs {resource} = {isValid}");
+        return isValid;
+    }
+
+    //Vẽ Gizmos trong Scene view để debug hitbox
+    
+    private void OnDrawGizmos()
+    {
+        if (!showDebugGizmos) return;
+
+        // Chọn màu dựa trên trạng thái hitbox
+        if (isHitboxActive && singleHitPerActivation && hasHitSomething)
+        {
+            Gizmos.color = exhaustedColor; // Màu xám: đã đánh trúng, hết hiệu lực
         }
         else
         {
-            Debug.LogError("[ItemHitBox] playerCombat bị null!");
+            Gizmos.color = isHitboxActive ? activeColor : inactiveColor; // Đỏ: active, Vàng: inactive
         }
 
+        Vector3 bladeStart = GetBladeStartPosition();
+        Vector3 bladeEnd = GetBladeEndPosition();
 
-        // -----------------------------------------------------------
-        // HIT STOP EFFECT – hiệu ứng game feel khi đánh trúng
-        // -----------------------------------------------------------
-        if (target.CanTriggerHitStop())
+        // Vẽ các sphere dọc theo lưỡi vũ khí/công cụ
+        for (int i = 0; i < sphereCount; i++)
         {
-            var hitStop = GetComponentInParent<LocalHitStop>();
-            if (hitStop != null && target.IsDead())
-                hitStop.DoHitStop(0.08f);
+            float t = sphereCount > 1 ? (float)i / (sphereCount - 1) : 0f;
+            Vector3 spherePos = Vector3.Lerp(bladeStart, bladeEnd, t);
+            Gizmos.DrawWireSphere(spherePos, sphereRadius);
         }
+
+        // Vẽ điểm đầu (xanh lá) và điểm cuối (đỏ) của lưỡi
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(bladeStart, 0.05f);
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(bladeEnd, 0.05f);
     }
 
-
-    // -----------------------------------------------------------
-    // Kiểm tra loại công cụ có phù hợp loại tài nguyên không
-    // -----------------------------------------------------------
-    private bool IsToolValidForResource(ToolType tool, ResourceType resource)
-    {
-        return (tool == ToolType.Axe && resource == ResourceType.Tree)
-            || (tool == ToolType.Pickaxe && resource == ResourceType.Rock);
-    }
+   
 }

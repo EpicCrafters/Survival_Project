@@ -37,14 +37,53 @@ public class WeaponStats
 
     [Header("Combo Settings")]
     public ComboData[] combos;
-    [Header("Bow Settings (Only for Bow/Crossbow)")]
-    public GameObject arrowProjectilePrefab; // Server-spawned projectile
-    public GameObject arrowVisualPrefab;     // Visual on string
+
+    [Header("Bow/Ranged Settings (Only for Bow/Crossbow)")]
+    [Tooltip("Projectile data containing damage ranges, speed, and prefabs")]
+    public ProjectileData projectileData;
+
+    [Tooltip("Maximum time to fully charge the bow (affects charge percentage)")]
     public float maxChargeTime = 1.5f;
+
+    [Header("Legacy Bow Settings (Deprecated - Use ProjectileData instead)")]
+    [Tooltip("⚠️ DEPRECATED: Use projectileData.projectilePrefab instead")]
+    public GameObject arrowProjectilePrefab; // Server-spawned projectile
+
+    [Tooltip("⚠️ DEPRECATED: Use projectileData.visualPrefab instead")]
+    public GameObject arrowVisualPrefab;     // Visual on string
+
     [Header("Knockback Settings")]
     public KnockbackSettings knockback = new KnockbackSettings();
 
+    /// <summary>
+    /// Get the projectile data with fallback to legacy prefabs
+    /// </summary>
+    public ProjectileData GetProjectileData()
+    {
+        // If we have projectile data, use it
+        if (projectileData != null)
+            return projectileData;
 
+        // Fallback: Create temporary projectile data from legacy fields
+        if (arrowProjectilePrefab != null)
+        {
+            Debug.LogWarning("[WeaponStats] Using legacy arrow prefabs. Please migrate to ProjectileData!");
+
+            // Create a runtime-only ProjectileData (not saved to disk)
+            ProjectileData tempData = ScriptableObject.CreateInstance<ProjectileData>();
+            tempData.projectileName = "Legacy Arrow";
+            tempData.projectilePrefab = arrowProjectilePrefab;
+            tempData.visualPrefab = arrowVisualPrefab;
+            tempData.minDamage = damage * 0.5f;
+            tempData.maxDamage = damage;
+            tempData.minSpeed = 15f;
+            tempData.maxSpeed = 30f;
+
+            return tempData;
+        }
+
+        return null;
+    }
 }
 
 [System.Serializable]
@@ -120,7 +159,9 @@ public class ItemData : ScriptableObject
     [Header("Building")]
     public BuildingStats building;
 
-    // ✅ Helper method để lấy knockback settings
+    /// <summary>
+    /// Helper method to get knockback settings
+    /// </summary>
     public KnockbackSettings GetKnockbackSettings()
     {
         if (type == ItemType.Weapon && weapon != null)
@@ -129,8 +170,20 @@ public class ItemData : ScriptableObject
         if (type == ItemType.Tool && tool != null)
             return tool.knockback;
 
-        // Default knockback nếu không có settings
+        // Default knockback if no settings
         return new KnockbackSettings();
+    }
+
+    /// <summary>
+    /// Helper method to get projectile data for ranged weapons
+    /// </summary>
+    public ProjectileData GetProjectileData()
+    {
+        if (type == ItemType.Weapon && weapon != null && weapon.weaponType == WeaponType.Bow)
+        {
+            return weapon.GetProjectileData();
+        }
+        return null;
     }
 
 #if UNITY_EDITOR
@@ -140,6 +193,7 @@ public class ItemData : ScriptableObject
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("id"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("itemName"));
             UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("image"));
@@ -158,16 +212,49 @@ public class ItemData : ScriptableObject
             {
                 case ItemType.Weapon:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("weapon"), true);
+
+                    // Show helpful info for bow weapons
+                    var weaponProp = serializedObject.FindProperty("weapon");
+                    var weaponTypeProp = weaponProp.FindPropertyRelative("weaponType");
+                    if (weaponTypeProp.enumValueIndex == (int)WeaponType.Bow)
+                    {
+                        var projectileDataProp = weaponProp.FindPropertyRelative("projectileData");
+                        if (projectileDataProp.objectReferenceValue == null)
+                        {
+                            UnityEditor.EditorGUILayout.HelpBox(
+                                "⚠️ No ProjectileData assigned! Bow weapons need ProjectileData to define damage ranges and projectile behavior.\n\n" +
+                                "Create one: Right-click → Create → Combat → Projectile Data",
+                                UnityEditor.MessageType.Warning
+                            );
+                        }
+                        else
+                        {
+                            ProjectileData pData = projectileDataProp.objectReferenceValue as ProjectileData;
+                            if (pData != null)
+                            {
+                                UnityEditor.EditorGUILayout.HelpBox(
+                                    $"✅ Projectile: {pData.projectileName}\n" +
+                                    $"Damage Range: {pData.minDamage} - {pData.maxDamage}\n" +
+                                    $"Speed Range: {pData.minSpeed} - {pData.maxSpeed}",
+                                    UnityEditor.MessageType.Info
+                                );
+                            }
+                        }
+                    }
                     break;
+
                 case ItemType.Tool:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("tool"), true);
                     break;
+
                 case ItemType.Consumable:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("consumable"), true);
                     break;
+
                 case ItemType.Resource:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("resource"), true);
                     break;
+
                 case ItemType.BuildingPart:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("building"), true);
                     break;

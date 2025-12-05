@@ -222,9 +222,6 @@ public class PlayerInteract : NetworkBehaviour
 
     // Kiểm tra mining (cây/đá)
 
-    // Replace your TrySetMineable method with this version
-    // This fixes the tool detection by getting ItemData from PlayerHoldingItem.ItemData
-
     private bool TrySetMineable(RaycastHit hit)
     {
         if (!hit.collider.TryGetComponent(out IMinenable minenable)) return false;
@@ -232,25 +229,27 @@ public class PlayerInteract : NetworkBehaviour
         rayColor = Color.red;
         isReadyToMine = false;
 
-        // FIX: Get ItemData directly from PlayerHoldingItem instead of from Item component
         ItemData heldItemData = null;
-        if (playerHoldingItem != null && playerHoldingItem.IsHolding())
-        {
-            // Use the ItemData property that's already stored in PlayerHoldingItem
-            heldItemData = playerHoldingItem.ItemData;
 
-            // Fallback: if ItemData is null, try to get from Item component
-            if (heldItemData == null)
+        if (playerHoldingItem != null)
+        {
+            GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
+
+            if (heldObject != null)
             {
-                GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
-                if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
-                    heldItemData = heldItem.itemData;
+                if (heldObject.TryGetComponent<ItemHeld>(out var held))
+                    heldItemData = held.itemData;
+                else if (heldObject.TryGetComponent<Item>(out var item))
+                    heldItemData = item.itemData;
+            }
+            else if (playerHoldingItem.ItemData != null)
+            {
+                heldItemData = playerHoldingItem.ItemData;
             }
         }
 
-        // Early return if no tool held
-        if (heldItemData == null || heldItemData.type != ItemType.Tool)
-            return false;
+        if (heldItemData == null) return false;
+        if (heldItemData.type != ItemType.Tool) return false;
 
         ToolType heldTool = heldItemData.tool.toolType;
         ResourceType resourceType = minenable.GetResourceType();
@@ -260,30 +259,21 @@ public class PlayerInteract : NetworkBehaviour
 
         if (!valid) return false;
 
-        // Tool is correct - enable mining
         isReadyToMine = true;
-        currentInteractable = minenable as Iinteractable;
-
         isTree = resourceType == ResourceType.Tree;
         isRock = resourceType == ResourceType.Rock;
 
-        // Display health bar on screen UI
         if (isTree && hit.collider.TryGetComponent(out MyTree tree))
-        {
             uiManager.healthBar.SetTarget(tree.GetHealthSystem());
-            
-        }
         else if (isRock && hit.collider.TryGetComponent(out MyRock rock))
-        {
             uiManager.healthBar.SetTarget(rock.GetHealthSystem());
-           
-        }
 
         uiManager.ShowInteractUI();
         uiManager.ChangeInteractText("E: Mine");
 
         return true;
     }
+
 
 
     // Nhặt vật phẩm
@@ -304,6 +294,11 @@ public class PlayerInteract : NetworkBehaviour
             {
                 Debug.Log("Inventory đầy!");
             }
+        }
+        else
+        {
+            // Trường hợp hiếm: world pickup không có Item component (không nên), log để debug
+            Debug.LogWarning("[TryPickupCurrentItem] currentPickup has no Item component.");
         }
     }
 

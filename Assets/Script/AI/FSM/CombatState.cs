@@ -149,9 +149,12 @@ public class ChaseState : State
 
         public override void OnEnter()
         {
+        if (controller.agent != null && controller.agent.enabled && controller.agent.isOnNavMesh)
+        {
             controller.agent.isStopped = true;
             controller.animator.PlayIdleAnimation();
             Debug.Log($"{controller.name} is recovering for {timer} seconds...");
+        }
         }
 
         public override void Update()
@@ -168,8 +171,11 @@ public class ChaseState : State
         }
 
         public override void OnExit()
+    {
+        if (controller.agent != null && controller.agent.enabled && controller.agent.isOnNavMesh)
         {
             controller.agent.isStopped = false;
+        }
         }
     }
 

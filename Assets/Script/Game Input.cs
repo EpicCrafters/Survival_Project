@@ -84,14 +84,14 @@ public class GameInput : MonoBehaviour
         aimAction.Enable();
         aimAction.started += AimAction_started;
         aimAction.canceled += AimAction_canceled;
-
+        
 
         dropAction = inputActions.FindAction("DropItem");
         dropAction.Enable();
         dropAction.performed += DropAction_performed;
     }
 
-
+  
 
     private void Update()
     {

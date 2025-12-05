@@ -39,7 +39,7 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         MainMenuUI menuUI = null;
         while (menuUI == null)
         {
-            menuUI = FindObjectOfType<MainMenuUI>();
+            menuUI = FindObjectOfType<MainMenuUI>(true);
             yield return null;
         }
 

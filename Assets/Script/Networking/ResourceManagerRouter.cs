@@ -5,6 +5,7 @@ using System.Text;
 using System.Collections;
 using UnityEngine;
 using Mirror;
+using System.Linq;
 
 /// <summary>
 /// Central server-side router for ResourceManager operations.
@@ -54,24 +55,6 @@ public class ResourceManagerRouter : NetworkBehaviour
     }
 
     [Command(requiresAuthority = false)]
-    public void CmdRequestChange(string uniqueId, bool isChopped, NetworkConnectionToClient sender = null)
-    {
-        if (!isServer) return;
-        if (string.IsNullOrEmpty(uniqueId)) return;
-
-        var rm = ResourceManager.GetManagerForUniqueId(uniqueId);
-        if (rm != null)
-        {
-            try { rm.RequestResourceStateChange(uniqueId, isChopped); }
-            catch (Exception ex) { Debug.LogWarning($"[Router] Failed to apply change to manager '{rm.name}' for id={uniqueId}: {ex}"); }
-        }
-        else
-        {
-            Debug.LogWarning($"[Router] CmdRequestChange: no manager found for uniqueId {uniqueId}");
-        }
-    }
-
-    [Command(requiresAuthority = false)]
     public void CmdRequestHostSave(NetworkConnectionToClient sender = null)
     {
         if (!isServer) return;
@@ -79,6 +62,30 @@ public class ResourceManagerRouter : NetworkBehaviour
         {
             try { rm.SaveNow(); }
             catch (Exception ex) { Debug.LogError($"[Router] CmdRequestHostSave SaveNow failed for {rm?.name}: {ex}"); }
+        }
+    }
+
+    [ClientRpc]
+    public void RpcBroadcastResourceChange(string uniqueId, bool isChopped, int curHealth)
+    {
+        // This runs on ALL clients when host calls it
+        if (isServer) return; // Host already processed it
+
+        Debug.Log($"[Router] Client received resource change: {uniqueId} -> chopped={isChopped}, health={curHealth}");
+
+        // Apply the change locally on all clients
+        var rm = ResourceManager.GetManagerForUniqueId(uniqueId);
+        if (rm != null)
+        {
+            rm.ApplyResourceStateChange(uniqueId, isChopped, curHealth, ResourceChangeSource.Network);
+        }
+    }
+
+    public void BroadcastResourceChange(string uniqueId, bool isChopped, int curHealth)
+    {
+        if (isServer)
+        {
+            RpcBroadcastResourceChange(uniqueId, isChopped, curHealth);
         }
     }
 
@@ -129,20 +136,6 @@ public class ResourceManagerRouter : NetworkBehaviour
             Debug.LogError($"[Router] RpcReceiveSnapshotAll JSON->obj failed: {ex}");
             NetworkMessageBus.RaiseSnapshotReceived(null);
         }
-    }
-
-    [ClientRpc]
-    public void RpcReceiveChange(string uniqueId, bool isChopped)
-    {
-        if (isServer) return;
-        NetworkMessageBus.RaiseChangeReceived(uniqueId, isChopped);
-    }
-
-    public void BroadcastChangeToClients(string uniqueId, bool isChopped)
-    {
-        if (!isServer) return;
-        try { RpcReceiveChange(uniqueId, isChopped); }
-        catch (Exception ex) { Debug.LogWarning($"[Router] BroadcastChangeToClients failed: {ex}"); }
     }
 
     public void BroadcastSnapshotToClients(SpawnRecordCollection container)

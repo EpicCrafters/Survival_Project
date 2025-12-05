@@ -9,7 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 418378585602506339}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear01.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44,7 +44,7 @@ GameObject:
   - component: {fileID: 119986643122109588}
   - component: {fileID: 8549667787525074895}
   - component: {fileID: 6785160332518815694}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg01.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -175,7 +175,7 @@ GameObject:
   - component: {fileID: 774930533598254485}
   - component: {fileID: 8907325964710722521}
   - component: {fileID: 1770662551355336635}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -303,7 +303,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6727056796246406807}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg02.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -450,7 +450,7 @@ CapsuleCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
@@ -519,8 +519,6 @@ MonoBehaviour:
   agent: {fileID: 3311042824306368283}
   ragdollRootBone: {fileID: 2494469351106818098}
   baseRigidbody: {fileID: 7239389506590741340}
-  hurtBox: {fileID: -8101811524407365310}
-  hitEffectPrefab: {fileID: 0}
   healthBarUI: {fileID: 8677973972105019991}
   enemySpotted: 0
   isPredator: 0
@@ -594,6 +592,8 @@ MonoBehaviour:
   - {fileID: 119986643122109588}
   - {fileID: 8907325964710722521}
   baseCol: {fileID: -8101811524407365310}
+  bodyParts: []
+  showGizmos: 1
 --- !u!1 &854498610503104236
 GameObject:
   m_ObjectHideFlags: 0
@@ -603,7 +603,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2285272168143389522}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: Bone.003
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -639,7 +639,7 @@ GameObject:
   - component: {fileID: 4445814393166004825}
   - component: {fileID: 3866087278189758794}
   - component: {fileID: 2927903535370339676}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: Bone.002
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -960,7 +960,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3599790701905422238}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.R_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -991,7 +991,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5071121367024194363}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1023,7 +1023,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1698944091249467898}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.L_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1056,7 +1056,7 @@ GameObject:
   - component: {fileID: 2494469351106818098}
   - component: {fileID: 7009431977952194425}
   - component: {fileID: 3434155264852675187}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: Bone.001
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1140,7 +1140,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6618607949927731126}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.R_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1171,7 +1171,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8610284018336085951}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.L_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1202,7 +1202,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3951552718043926915}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: Armature.001
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1234,7 +1234,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1636962503452248171}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.R_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1266,7 +1266,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6889613276622193217}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1298,7 +1298,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8294484403138556342}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear01.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1333,7 +1333,7 @@ GameObject:
   - component: {fileID: 1813372167345050481}
   - component: {fileID: 6494175669435877857}
   - component: {fileID: 6920712866785494491}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg02.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1536,7 +1536,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6707400724091321912}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg02.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1568,7 +1568,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8901095377264076315}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.L_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1603,7 +1603,7 @@ GameObject:
   - component: {fileID: 8888871333247640559}
   - component: {fileID: 4117481240143258881}
   - component: {fileID: 7247175587349037989}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: Bone
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1736,7 +1736,7 @@ GameObject:
   - component: {fileID: 2518333157806238282}
   - component: {fileID: 2542662223287285505}
   - component: {fileID: 5710274639904044805}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.L_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1867,7 +1867,7 @@ GameObject:
   - component: {fileID: 2689117735067299493}
   - component: {fileID: 1699770146593089113}
   - component: {fileID: 1039698512129318489}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg01.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1995,7 +1995,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4933355833841741963}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.R_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2029,7 +2029,7 @@ GameObject:
   - component: {fileID: 4091287395198655985}
   - component: {fileID: 3410206100973734129}
   - component: {fileID: 4406701802042655515}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2157,7 +2157,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4818298378228476966}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg03.L_end_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2191,7 +2191,7 @@ GameObject:
   - component: {fileID: 2637090250489183260}
   - component: {fileID: 8120040072681133473}
   - component: {fileID: 2675802227476327662}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: fleg01.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2319,7 +2319,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3268120925047616501}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.L_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2351,7 +2351,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4373040781505137720}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2449,7 +2449,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1464197539788399782}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: ear02.R_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2481,7 +2481,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 7495288757274656179}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2516,7 +2516,7 @@ GameObject:
   - component: {fileID: 5119002042606251549}
   - component: {fileID: 6561967997212594122}
   - component: {fileID: 3611799351359288571}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg01.L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2763,7 +2763,7 @@ GameObject:
   - component: {fileID: 4752255109211571417}
   - component: {fileID: 7340836078929009129}
   - component: {fileID: 5119381953176467721}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg02.R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2894,7 +2894,7 @@ GameObject:
   - component: {fileID: 830610063991957403}
   - component: {fileID: 4474287834542142916}
   - component: {fileID: 8010097859469773419}
-  m_Layer: 0
+  m_Layer: 12
   m_Name: bleg03.R_end
   m_TagString: Untagged
   m_Icon: {fileID: 0}

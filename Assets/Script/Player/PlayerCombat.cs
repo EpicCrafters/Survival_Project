@@ -108,6 +108,108 @@ public class PlayerCombat : NetworkBehaviour
 
         Debug.Log($"[Server] {name} dealt {damage} damage to {targetIdentity.name} with {itemData.itemName}");
     }
+    [Command]
+    public void CmdDamageResource(string uniqueId, int damage, int toolId, ResourceType resourceType)
+    {
+        // Server validates and processes the mining
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        // Find the ResourceManager that owns this resource
+        ResourceManager rm = ResourceManager.GetManagerForUniqueId(uniqueId);
+        if (rm == null)
+        {
+            Debug.LogWarning($"[PlayerCombat] No ResourceManager found for uniqueId: {uniqueId}");
+            return;
+        }
+
+        // Get current record
+        if (rm.core.TryGetRecord(uniqueId, out var record))
+        {
+            int newHealth = record.curHealth - damage;
+
+            if (newHealth <= 0)
+            {
+                // Resource destroyed - handle rewards
+                GiveMiningRewards(connectionToClient.identity, resourceType, toolId);
+
+                // Update resource state to destroyed
+                rm.ApplyResourceStateChange(uniqueId, true, 0, ResourceChangeSource.Network);
+            }
+            else
+            {
+                // Just update health
+                rm.ApplyResourceStateChange(uniqueId, record.isChopped, newHealth, ResourceChangeSource.Network);
+            }
+
+            Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged: {damage} -> health {newHealth}");
+
+            // --- CRITICAL: BROADCAST TO ALL CLIENTS ---
+            // Find the ResourceManagerRouter in the scene and broadcast the change
+            ResourceManagerRouter router = FindObjectOfType<ResourceManagerRouter>();
+            if (router != null)
+            {
+                router.BroadcastResourceChange(uniqueId, record.isChopped, newHealth);
+            }
+            else
+            {
+                Debug.LogWarning("[PlayerCombat] No ResourceManagerRouter found to broadcast resource change!");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[PlayerCombat] No record found for uniqueId: {uniqueId}");
+        }
+    }
+
+    [Command]
+    public void CmdDamageNonPersistent(uint targetNetId, int damage, Vector3 hitPoint, Vector3 hitNormal, int itemId)
+    {
+        // Use Mirror's NetworkServer to find spawned objects
+        if (!NetworkServer.spawned.TryGetValue(targetNetId, out NetworkIdentity targetIdentity))
+        {
+            Debug.LogWarning($"[Server] Target netId {targetNetId} not found in spawned objects");
+            return;
+        }
+
+        // Find the IDamageable component
+        IDamageable target = targetIdentity.GetComponent<IDamageable>();
+        if (target == null)
+            target = targetIdentity.GetComponentInChildren<IDamageable>();
+
+        if (target == null)
+        {
+            Debug.LogWarning($"[Server] No IDamageable found on {targetIdentity.name}");
+            return;
+        }
+
+        // Get item data for HitInfo
+        ItemData itemData = ItemDatabase.Get(itemId);
+        if (itemData == null)
+        {
+            Debug.LogWarning($"[Server] ItemData with id {itemId} not found");
+            return;
+        }
+
+        // Create HitInfo
+        Vector3 hitDirection = (targetIdentity.transform.position - transform.position).normalized;
+        HitInfo hit = new HitInfo(hitPoint, hitNormal, hitDirection, gameObject, itemData);
+
+        // Apply damage (this triggers OnDamageReceived on the log)
+        target.Damage(damage, hit);
+
+        Debug.Log($"[Server] {name} dealt {damage} damage to non-persistent resource {targetIdentity.name}");
+    }
+
+    private void GiveMiningRewards(NetworkIdentity player, ResourceType resourceType, int toolId)
+    {
+        // Your existing reward logic here
+        // This runs on server, so you can safely add items to player's inventory
+        Debug.Log($"[PlayerCombat] Granting rewards for mining {resourceType} with tool {toolId}");
+
+        // Example:
+        // PlayerInventory inventory = player.GetComponent<PlayerInventory>();
+        // inventory.AddItem(rewardItem, rewardCount);
+    }
 
     // ------------------ Animation event callbacks ------------------
     public void OpenComboWindow()

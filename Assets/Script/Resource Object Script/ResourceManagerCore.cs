@@ -47,7 +47,7 @@ public class ResourceManagerCore
         recordsById[r.uniqueId] = r;
     }
 
-    public void ApplyLocalChange(string uniqueId, bool isChopped)
+    public void ApplyChange(string uniqueId, bool isChopped, int curHealth)
     {
         if (!recordsById.TryGetValue(uniqueId, out var rec))
         {
@@ -55,22 +55,7 @@ public class ResourceManagerCore
             return;
         }
         rec.isChopped = isChopped;
-        OnRecordChanged?.Invoke(rec);
-        OnRecordChangedRaw?.Invoke(uniqueId, isChopped);
-    }
-
-    /// <summary>
-    /// Apply authority change (used by clients when host broadcasts).
-    /// Behavior mirrors ApplyLocalChange.
-    /// </summary>
-    public void ApplyAuthorityChange(string uniqueId, bool isChopped)
-    {
-        if (!recordsById.TryGetValue(uniqueId, out var rec))
-        {
-            Debug.LogWarning($"[Core] ApplyAuthorityChange: unknown id {uniqueId}");
-            return;
-        }
-        rec.isChopped = isChopped;
+        rec.curHealth = curHealth;
         OnRecordChanged?.Invoke(rec);
         OnRecordChangedRaw?.Invoke(uniqueId, isChopped);
     }

@@ -1,6 +1,6 @@
 using Mirror;
-using Unity.VisualScripting;
 using UnityEngine;
+using System.Collections;
 
 public class PlayerSetup : NetworkBehaviour
 {
@@ -8,41 +8,38 @@ public class PlayerSetup : NetworkBehaviour
     public GameInput gameInput;
     public PlayerHoldingItem holdingItem;
     public CameraManager cameraManager;
+    public PlayableAnimationBlender playableAnimationBlender;
+    public PlayerIKController playerIKController;
+    private Transform aimTarget;
+
 
     public override void OnStartLocalPlayer()
     {
-
         base.OnStartLocalPlayer();
         name = $"Player[{netId}] (Local)";
+
         // Cache components
         player = GetComponent<Player>();
         holdingItem = GetComponent<PlayerHoldingItem>();
-        player.enabled = true;
 
-
-        
         // UI hooks
-        FindObjectOfType<GameSceneUI>()?.SetPlayer(player);
+        UIManager.Instance.HookPlayer(GetComponent<PlayerStatManager>());
+    
         InventoryManager.instance?.SetPlayerHolding(holdingItem);
         InventoryManager.instance.SetGameInput(gameInput);
-        // Camera hook
+
+        // ============ 1. Assign Camera to Player ============
         cameraManager = FindObjectOfType<CameraManager>();
         if (cameraManager != null)
-            cameraManager.AssignCameraTargets(transform); // assign this player's transform
+            cameraManager.AssignCameraTargets(transform);
+        GameObject aimObj = new GameObject($"AimTarget_{netId}");
+        aimTarget = aimObj.transform;
 
-      
-
-        //InventoryManager.instance.AddItem(InventoryManager.instance.stick);
-        //InventoryManager.instance.AddItem(InventoryManager.instance.stone);
+        player.SetAimTarget(aimTarget);
+        playerIKController.SetAimTargetIK(aimTarget);
+        if (playableAnimationBlender != null)
+            playableAnimationBlender.SetLookAtTarget(aimTarget);
     }
 
-    public override void OnStartServer()
-    {
-        Debug.Log($"Player spawned on SERVER: {gameObject.name}");
-    }
-
-    public override void OnStartClient()
-    {
-        Debug.Log($"Player spawned on CLIENT: {gameObject.name}");
-    }
+   
 }

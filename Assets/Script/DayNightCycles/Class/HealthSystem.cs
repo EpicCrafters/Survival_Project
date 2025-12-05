@@ -1,4 +1,6 @@
+using Mirror;
 using System;
+using UnityEngine;
 
 public class HealthSystem
 {
@@ -16,6 +18,22 @@ public class HealthSystem
 
     public int GetHealth() => health;
     public int GetHealthMax() => healthMax;
+    public void SetHealth(int curHealth)
+    {
+        if (health == curHealth) return;
+
+        int oldHealth = health;
+        health = curHealth;
+
+        // Trigger health changed event for UI
+        OnHealthChanged?.Invoke(health, healthMax);
+
+        // Trigger death event if health dropped to 0
+        if (oldHealth > 0 && health <= 0)
+        {
+            OnDead?.Invoke();
+        }
+    }
 
     public float GetHealthPercent() => (float)health / healthMax;
 

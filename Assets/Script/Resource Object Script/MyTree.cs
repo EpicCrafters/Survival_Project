@@ -1,4 +1,7 @@
-﻿using System;
+﻿using Mirror;
+using System;
+using Unity.Mathematics;
+using Unity.VisualScripting;
 using UnityEngine;
 
 /// <summary>
@@ -52,11 +55,22 @@ public class MyTree : BaseResource, IMinenable
 
     protected override void OnResourceDestroyed()
     {
-        DebugLog($"OnResourceDestroyed called. isBeingDestroyed={isBeingDestroyed}, isDestroyed={isDestroyed}, UniqueId='{UniqueId}', treeType={treeType}, instanceID={GetInstanceID()}");
+        ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
 
-        // Defensive early return: don't re-run if already destroying or destroyed.
-        // IMPORTANT: Do NOT set isBeingDestroyed here unconditionally; let the base method set it when
-        // calling RequestDestroyAndReplace (so manager flows happen correctly). Only set it for local-only fallback.
+        // Update health to 0 before doing anything else
+        if (!string.IsNullOrEmpty(UniqueId))
+        {
+            rm.RequestResourceStateChange(UniqueId, true, 0); // isChopped=true, health=0
+        }
+
+        // --- CRITICAL: Only run visual effects on server ---
+        if (!NetworkServer.active)
+        {
+            DebugLog($"{gameObject.name}: OnResourceDestroyed called on client, skipping visual effects (server will handle)");
+            return;
+        }
+
+        // Defensive early return
         if (isBeingDestroyed || isDestroyed)
         {
             Debug.LogWarning($"{gameObject.name}: OnResourceDestroyed called multiple times or already destroyed!");
@@ -72,74 +86,39 @@ public class MyTree : BaseResource, IMinenable
             Debug.LogWarning($"{gameObject.name}: UniqueId missing — generated '{UniqueId}' for persistence.");
         }
 
-        // Decide persistence path: if ResourceManager exists, use it; otherwise do local-only fallback.
-        var rm = FindFirstObjectByType<ResourceManager>();
-        bool rmPresent = rm != null;
-
         // Spawn drops & non-stump byproducts first so they use the original transform/scale.
-        SpawnTreeComponentsImmediate(spawnStump: !rmPresent);
+        SpawnTreeComponentsImmediate(spawnStump: (rm == null));
 
-        // If ResourceManager present -> request authoritative change and apply immediate visual feedback on this object.
-        if (rmPresent)
+        // If ResourceManager present -> request authoritative change
+        if (rm != null)
         {
             GameObject replacementPrefab = treeStumpPrefab != null ? treeStumpPrefab.gameObject : null;
 
-            // RequestDestroyAndReplace is implemented on the base; it will set isBeingDestroyed and route to manager.
             try
             {
                 RequestDestroyAndReplace(replacementPrefab);
-                DebugLog($"{gameObject.name}: Requested destroy/replace via ResourceManager for UniqueId='{UniqueId}' (replacement={(replacementPrefab != null ? replacementPrefab.name : "<null>")})");
+                DebugLog($"{gameObject.name}: Requested destroy/replace via ResourceManager for UniqueId='{UniqueId}'");
             }
             catch (Exception ex)
             {
                 Debug.LogError($"{gameObject.name}: RequestDestroyAndReplace threw: {ex}");
             }
-
-            // Immediate visual feedback: set destroyed replacement on the existing visual and apply chopped state.
-            try
-            {
-                var vis = GetComponent<ResourceInstanceVisual>() ?? gameObject.AddComponent<ResourceInstanceVisual>();
-                if (replacementPrefab != null)
-                {
-                    vis.SetDestroyedReplacementPrefab(replacementPrefab);
-                    vis.SetChoppedLocal(true);
-                    DebugLog($"{gameObject.name}: Applied visual replacement (no object destruction).");
-                }
-                else
-                {
-                    vis.SetChoppedLocal(true);
-                    DebugLog($"{gameObject.name}: Applied visual chopped state (no replacement prefab available).");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"{gameObject.name}: Failed to apply immediate visual via ResourceInstanceVisual: {ex}");
-            }
-
-            // Do NOT destroy this GameObject: ResourceManager is authoritative and will handle persistence + any instanced replacement policy.
-            return;
         }
-
-        // No ResourceManager present => local-only fallback: instantiate stump (preserve localScale & uniqueId) and destroy original.
-        // SpawnTreeComponentsImmediate already created the stump (spawnStump==true). Now mark being destroyed and remove this.
-        DebugLog($"{gameObject.name}: No ResourceManager found - performing local-only replacement and destroy.");
-
-        // Mark being destroyed to prevent re-entry (base would have done this if a manager existed).
-        isBeingDestroyed = true;
-
-        DestroyResource();
+        else
+        {
+            // No ResourceManager present => local-only fallback
+            DebugLog($"{gameObject.name}: No ResourceManager found - performing local-only replacement and destroy.");
+            isBeingDestroyed = true;
+            DestroyResource();
+        }
     }
 
-    /// <summary>
-    /// Immediate spawn logic — spawns log + stump (only when spawnStump==true) + halves/sticks.
-    /// When ResourceManager is present we call this with spawnStump=false (so manager handles persistent visuals).
-    /// </summary>
     private void SpawnTreeComponentsImmediate(bool spawnStump)
     {
         DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate start (treeType={treeType}, spawnStump={spawnStump})");
 
-        // spawn log (non-persistent drop)
-        if (treeType == TreeType.Tree && treeLogPrefab != null)
+        // spawn log (non-persistent drop) - SERVER ONLY
+        if (treeType == TreeType.Tree && treeLogPrefab != null && NetworkServer.active)
         {
             Vector3 logPos = transform.position + transform.up * 0.2f;
             Quaternion logRot = Quaternion.Euler(
@@ -148,113 +127,47 @@ public class MyTree : BaseResource, IMinenable
                 UnityEngine.Random.Range(-2f, 2f)
             );
             var logObj = Instantiate(treeLogPrefab, logPos, logRot);
-            DebugLog($"Instantiated log prefab '{treeLogPrefab.name}' at {logPos} rot={logRot.eulerAngles} -> instanceID={logObj.GetInstanceID()}");
-            TryAddPhysicsTo(logObj.gameObject);
+
+            // Network spawn the log
+            NetworkServer.Spawn(logObj.gameObject);
         }
 
-        // spawn stump (persistent replacement) only if explicitly requested (no ResourceManager present)
-        if (spawnStump && treeType == TreeType.Tree && treeStumpPrefab != null)
-        {
-            DebugLog($"Instantiating local stump fallback '{treeStumpPrefab.name}' (local-only)");
-            var stumpTransform = Instantiate(treeStumpPrefab);
-
-            // Match world position & rotation first
-            stumpTransform.SetPositionAndRotation(transform.position, transform.rotation);
-
-            // Set the same parent, but preserve world transform to avoid skewing
-            stumpTransform.SetParent(transform.parent, worldPositionStays: true);
-
-            // Finally, copy the world-scale-equivalent of the original tree
-            try
-            {
-                // Convert the original's world scale into what the stump's localScale should be
-                Vector3 worldScale = transform.lossyScale;
-                Vector3 parentScale = transform.parent ? transform.parent.lossyScale : Vector3.one;
-                stumpTransform.localScale = new Vector3(
-                    worldScale.x / parentScale.x,
-                    worldScale.y / parentScale.y,
-                    worldScale.z / parentScale.z
-                );
-
-                Debug.Log($"Preserved world scale on stump: {stumpTransform.localScale}");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"{gameObject.name}: Failed to copy localScale to stump: {ex.Message}");
-            }
-
-            var stumpGo = stumpTransform.gameObject;
-            DebugLog($"Stump instantiated -> name='{stumpGo.name}' instanceID={stumpGo.GetInstanceID()}");
-
-            // assign uniqueId so loader recognizes this stump as the same record (chopped)
-            try
-            {
-                var vis = stumpGo.GetComponent<ResourceInstanceVisual>() ?? stumpGo.AddComponent<ResourceInstanceVisual>();
-                vis.SetUniqueId(UniqueId);
-                vis.isChopped = true;
-                vis.ApplyState(forceTreatAsReplacement: true);
-                DebugLog($"Assigned ResourceInstanceVisual(uniqueId='{UniqueId}', isChopped=true) and called ApplyState(treatAsReplacement:true)");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"{gameObject.name}: Exception while assigning ResourceInstanceVisual on stump: {ex}");
-            }
-
-            // transfer BaseResource id if stump prefab has one
-            var br = stumpGo.GetComponent<BaseResource>();
-            if (br != null)
-            {
-                try
-                {
-                    br.SetUniqueId(UniqueId);
-                    DebugLog($"Called SetUniqueId on stump's BaseResource (instanceID={stumpGo.GetInstanceID()})");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"{gameObject.name}: Exception calling SetUniqueId on stump's BaseResource: {ex}");
-                }
-            }
-        }
-
-        // log halves for Log type
-        if (treeType == TreeType.Log && treeLogHalfPrefab != null)
+        // log halves for Log type - SERVER ONLY
+        if (treeType == TreeType.Log && treeLogHalfPrefab != null && NetworkServer.active)
         {
             int halfCount = treeSize switch { TreeSize.Small => 2, TreeSize.Medium => 4, TreeSize.Large => 6, _ => 4 };
             float len = GetLogLength();
             Vector3 dir = GetLogLengthDirection().normalized;
             float spacing = Mathf.Max(halfLogSpacing, len * 0.5f);
-            DebugLog($"Spawning {halfCount} log halves (length={len} spacing={spacing} dir={dir})");
+
             for (int i = 0; i < halfCount; i++)
             {
                 Vector3 pos = transform.position + dir * spacing * i;
                 Quaternion rot = Quaternion.LookRotation(transform.forward, transform.up) * Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0);
                 var half = Instantiate(treeLogHalfPrefab, pos, rot);
-                DebugLog($"Instantiated log half {i} at {pos} rot={rot.eulerAngles} -> instanceID={half.GetInstanceID()}");
-                AddPhysicsToHalfLog(half.gameObject, dir);
 
-                // preserve localScale of the original log if desired
-                try { half.localScale = transform.localScale; } catch { }
+                // Network spawn
+                NetworkServer.Spawn(half.gameObject);
             }
         }
 
-        // sticks for LogHalf or Stump types
-        if ((treeType == TreeType.LogHalf || treeType == TreeType.Stump) && stickPrefab != null)
+        // sticks for LogHalf or Stump types - SERVER ONLY
+        if ((treeType == TreeType.LogHalf || treeType == TreeType.Stump) && stickPrefab != null && NetworkServer.active)
         {
             int minC = overrideMinDropCount >= 0 ? overrideMinDropCount : minDropCount;
             int maxC = overrideMaxDropCount >= 0 ? overrideMaxDropCount : maxDropCount;
-            if (minC > maxC) maxC = minC; // safety clamp
+            if (minC > maxC) maxC = minC;
             int count = UnityEngine.Random.Range(minC, maxC + 1);
-            DebugLog($"Spawning {count} sticks (min={minC} max={maxC})");
+
             for (int i = 0; i < count; i++)
             {
                 Vector3 offset = new Vector3(UnityEngine.Random.Range(-dropRadius, dropRadius), dropHeight, UnityEngine.Random.Range(-dropRadius, dropRadius));
                 var stick = Instantiate(stickPrefab, transform.position + offset, Quaternion.Euler(0, UnityEngine.Random.Range(0f, 360f), 0));
-                DebugLog($"Instantiated stick {i} at {transform.position + offset} -> instanceID={stick.GetInstanceID()}");
-                TryAddPhysicsTo(stick.gameObject);
+
+                // Network spawn
+                NetworkServer.Spawn(stick.gameObject);
             }
         }
-
-        DebugLog($"{gameObject.name}: SpawnTreeComponentsImmediate end.");
     }
 
     // ---------- Physics & spawn helpers ----------

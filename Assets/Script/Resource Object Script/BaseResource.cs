@@ -1,5 +1,7 @@
 ﻿using System;
 using UnityEngine;
+using Mirror;
+
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -34,9 +36,8 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
     public string UniqueId => uniqueId;
     public void SetUniqueId(string id) { uniqueId = id; }
 
-    // cached components
-    private ResourceInstanceNet _resourceNet;
-    private ResourceInstanceVisual _resourceVisual;
+    [Tooltip("Maximum allowed chop distance from player's root (server-side validation).")]
+    public float maxInteractDistance = 3.0f;
 
     // Awake: initialize health and hook death callback
     protected virtual void Awake()
@@ -48,8 +49,26 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
 
         if (healthSystem != null)
         {
-            // subscribe to death event (ensure your HealthSystem exposes OnDead)
             healthSystem.OnDead += OnResourceDestroyed_Internal;
+
+            // Try to load health from record, but don't override if health system has better data
+            if (!string.IsNullOrEmpty(uniqueId))
+            {
+                ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
+                if (rm != null && rm.core.TryGetRecord(uniqueId, out var record))
+                {
+                    // Only set health from record if it makes sense
+                    if (record.curHealth > 0 && record.curHealth <= healthSystem.GetHealth())
+                    {
+                        healthSystem.SetHealth(record.curHealth);
+                    }
+                    else if (record.curHealth <= 0)
+                    {
+                        // Record says it's dead/destroyed - mark accordingly
+                        healthSystem.SetHealth(0);
+                    }
+                }
+            }
         }
         else
         {
@@ -57,10 +76,6 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         }
 
         ValidateComponents();
-
-        // cache optional network/visual facades (may be null)
-        _resourceNet = GetComponent<ResourceInstanceNet>();
-        _resourceVisual = GetComponent<ResourceInstanceVisual>();
     }
 
     // Ensure we clean up subscription to avoid stray references
@@ -86,13 +101,17 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         if (isDestroyed || isBeingDestroyed || healthSystem == null) return;
         healthSystem.Damage(amount);
         OnDamageReceived(amount);
+
+        UpdateSpawnRecordHealth();
     }
+
     public virtual void Damage(int amount, HitInfo hit)
     {
         if (isDestroyed || isBeingDestroyed || healthSystem == null) return;
-
         healthSystem.Damage(amount);
         OnDamageReceived(amount);
+
+        UpdateSpawnRecordHealth();
 
         if (hit.point != Vector3.zero)
         {
@@ -101,6 +120,30 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
     }
 
     public bool CanTriggerHitStop() => false; // Resources never trigger hit stop
+
+    private void UpdateSpawnRecordHealth()
+    {
+        if (string.IsNullOrEmpty(uniqueId))
+        {
+            return;
+        }
+
+        int currentHealth = healthSystem?.GetHealth() ?? 0;
+
+        ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
+        if (rm != null)
+        {
+            rm.RequestResourceStateChange(uniqueId, IsBeingDestroyed, currentHealth);
+
+            // Mark this object as having changed health
+            rm.MarkHealthChanged(uniqueId);
+        }
+        else
+        {
+            Debug.LogWarning($"{gameObject.name}: No ResourceManager found for health update!");
+        }
+    }
+
     public bool IsDead() => isDestroyed || (healthSystem != null && healthSystem.GetHealth() <= 0);
     /// <summary>
     /// Override to respond to damage events (e.g. play hit fx)
@@ -154,118 +197,108 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         catch (Exception ex) { Debug.LogError($"[BaseResource] Exception in OnResourceDestroyed override for {name}: {ex}"); }
     }
 
-    /// <summary>
-    /// Ask the authoritative manager to mark this resource destroyed and optionally replace it with a replacement prefab.
-    /// Behavior:
-    /// - If a ResourceManager exists:
-    ///      - If we're a client, route via ResourceInstanceNet (ClientRequestChop) if present (server handles authority).
-    ///      - Else (host/standalone): register a runtime destroyed replacement prefab with the manager (if provided),
-    ///        then request state change via ResourceManager.RequestResourceStateChange(uniqueId, true).
-    /// - Else fallback: local-only replacement + destroy (with logs).
-    /// </summary>
-    /// <param name="replacementPrefab">Optional non-networked visual prefab to use as the stump/replacement.</param>
     public void RequestDestroyAndReplace(GameObject replacementPrefab = null)
     {
-        // Defensive early return with helpful log
-        if (isBeingDestroyed || isDestroyed)
-        {
-            Debug.LogWarning($"{name}: RequestDestroyAndReplace skipped because isBeingDestroyed={isBeingDestroyed}, isDestroyed={isDestroyed}");
-            return;
-        }
+        if (isBeingDestroyed || isDestroyed) return;
 
-        // Mark that we're in the destruction flow (prevents re-entry).
         isBeingDestroyed = true;
 
-        // Ensure we have an id for persistent-managed resources; if missing, generate a temp id (helpful for runtime spawn cases)
         if (string.IsNullOrEmpty(uniqueId))
         {
             GenerateUniqueIdIfMissing();
-            Debug.LogWarning($"{name}: UniqueId was empty when requesting destroy - generated temporary id '{uniqueId}'. In persistent flows prefer manager-assigned ids.");
+            Debug.LogWarning($"{name}: UniqueId was empty - generated '{uniqueId}'.");
         }
 
-        // Try to find a ResourceManager (authoritative). Use FindFirstObjectByType for safety in different setups.
-        var rm = FindFirstObjectByType<ResourceManager>();
-        if (rm != null)
-        {
-            // If client role, route via network facade if available (to reach server)
-            if (rm.role == ResourceManagerRole.Client)
-            {
-                if (_resourceNet != null)
-                {
-                    _resourceNet.ClientRequestChop(/*optimistic=*/ false);
-                    return;
-                }
-                else
-                {
-                    Debug.LogWarning($"{name}: Client-side destroy requested but ResourceInstanceNet not present; cannot send request to server. Falling back to local-only behavior.");
-                    // fall through to local fallback
-                }
-            }
-            else
-            {
-                // Host or Standalone: register replacement (runtime only) then request authoritative state change
-                if (replacementPrefab != null)
-                {
-                    Debug.Log($"[BaseResource] {name} is requesting ResourceManager to destroy UniqueId={uniqueId} (role={rm.role}).");
-
-                    try { rm.SetDestroyedReplacementPrefab(uniqueId, replacementPrefab); }
-                    catch (Exception ex) { Debug.LogWarning($"[BaseResource] Failed to SetDestroyedReplacementPrefab on ResourceManager: {ex}"); }
-                }
-
-                // Request authoritative change (ResourceManager will apply core update, visuals and broadcast/persist)
-                try { rm.RequestResourceStateChange(uniqueId, true); }
-                catch (Exception ex) { Debug.LogError($"[BaseResource] RequestResourceStateChange failed: {ex}"); }
-
-                // Manager will handle visuals/persistence; do not destroy locally here.
-                return;
-            }
-        }
-
-        // Last-resort fallback: local replacement + destroy (no persistence)
-        if (replacementPrefab != null)
-        {
-            var r = Instantiate(replacementPrefab, transform.position, transform.rotation, transform.parent);
-            // if replacement has a resource/visual, try set ids to keep the scene tied to the same unique id
-            var br = r.GetComponent<BaseResource>();
-            if (br != null) br.SetUniqueId(uniqueId);
-
-            var rv = r.GetComponent<ResourceInstanceVisual>() ?? r.GetComponentInChildren<ResourceInstanceVisual>();
-            if (rv != null)
-            {
-                rv.SetUniqueId(uniqueId);
-                rv.isChopped = true;
-                rv.ApplyState(/*treatAsReplacement=*/ true);
-            }
-        }
-
-        Debug.LogWarning($"{name}: RequestDestroyAndReplace performed local-only replacement (no persistence). UniqueId={uniqueId}");
-        DestroyResource();
+        // Fallback: local-only behavior
+        ApplyLocalFallback(replacementPrefab);
     }
 
-    /// <summary>
-    /// Ask authoritative manager to persist a state change (e.g. isChopped=true) without replacing the object.
-    /// Preference order:
-    /// - ResourceManager (network aware) via RequestResourceStateChange
-    /// - Log and no-op
-    /// </summary>
-    /*public void RequestPersistState(bool newIsChopped)
+    private void ApplyLocalFallback(GameObject replacementPrefab)
     {
-        if (string.IsNullOrEmpty(uniqueId))
+        if (replacementPrefab != null)
         {
-            Debug.LogWarning($"{name}: RequestPersistState called but UniqueId is empty.");
-            return;
+            // Prefer using ResourceInstanceVisual on this GameObject to create/manage the replacement
+            var localVis = GetComponent<ResourceInstanceVisual>();
+            if (localVis != null)
+            {
+                try
+                {
+                    localVis.SetDestroyedReplacementPrefab(replacementPrefab);
+                    localVis.SetUniqueId(uniqueId);
+                    localVis.isChopped = true;
+                    localVis.ApplyState(forceTreatAsReplacement: true);
+                    Debug.Log($"[BaseResource] Used ResourceInstanceVisual to apply replacement for {name} (UniqueId={uniqueId}).");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[BaseResource] Failed to apply replacement via ResourceInstanceVisual: {ex.Message}. Falling back to instantiate.");
+                }
+            }
+            /*
+            // Final fallback: instantiate as a child named "__destroyed_replacement" so ResourceInstanceVisual / ResourceManager can detect and adopt it.
+            var replacementTransform = Instantiate(replacementPrefab).transform;
+
+            // Match world position & rotation first
+            replacementTransform.SetPositionAndRotation(transform.position, transform.rotation);
+
+            // Parent under this transform so visuals/reconciler can detect it consistently
+            replacementTransform.SetParent(transform, worldPositionStays: true);
+
+            // Explicit marker name for detection
+            replacementTransform.name = "__destroyed_replacement";
+
+            // Copy the world-scale-equivalent of the original
+            try
+            {
+                Vector3 worldScale = transform.lossyScale;
+                Vector3 parentScale = transform.parent ? transform.parent.lossyScale : Vector3.one;
+                replacementTransform.localScale = new Vector3(
+                    worldScale.x / parentScale.x,
+                    worldScale.y / parentScale.y,
+                    worldScale.z / parentScale.z
+                );
+
+                Debug.Log($"[BaseResource] Preserved world scale on replacement: {replacementTransform.localScale}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[BaseResource] Failed to copy localScale to replacement: {ex.Message}");
+            }
+
+            var replacementGo = replacementTransform.gameObject;
+
+            // assign uniqueId so loader recognizes this as the same record
+            try
+            {
+                var vis = replacementGo.GetComponent<ResourceInstanceVisual>() ?? replacementGo.AddComponent<ResourceInstanceVisual>();
+                vis.SetUniqueId(uniqueId);
+                vis.isChopped = true;
+                vis.ApplyState(forceTreatAsReplacement: true);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[BaseResource] Exception while assigning ResourceInstanceVisual on replacement: {ex}");
+            }
+
+            // transfer BaseResource id if replacement prefab has one
+            var br = replacementGo.GetComponent<BaseResource>();
+            if (br != null)
+            {
+                try
+                {
+                    br.SetUniqueId(uniqueId);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[BaseResource] Exception calling SetUniqueId on replacement's BaseResource: {ex}");
+                }
+            }*/
         }
 
-        var rm = FindFirstObjectByType<ResourceManager>();
-        if (rm != null)
-        {
-            try { rm.RequestResourceStateChange(uniqueId, newIsChopped); }
-            catch (Exception ex) { Debug.LogError($"[BaseResource] RequestPersistState failed via ResourceManager: {ex}"); }
-            return;
-        }
-
-        Debug.LogWarning($"{name}: RequestPersistState called but no ResourceManager found. No persistence will occur.");
-    }*/
+        /*Debug.LogWarning($"{name}: RequestDestroyAndReplace performed local-only replacement (no persistence). UniqueId={uniqueId}");
+        DestroyResource();*/
+    }
 
     // Expose status for other systems / debugging
     public bool IsDestroyed => isDestroyed;
@@ -279,18 +312,4 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
             uniqueId = Guid.NewGuid().ToString("N");
         }
     }
-
-    #region Editor/Validation helpers (optional)
-
-#if UNITY_EDITOR
-    [ContextMenu("Generate UniqueId")]
-    private void Editor_GenerateUniqueId()
-    {
-        GenerateUniqueIdIfMissing();
-        UnityEditor.EditorUtility.SetDirty(this);
-        Debug.Log($"[BaseResource] Generated UniqueId: {uniqueId} for {name}");
-    }
-#endif
-
-    #endregion
 }

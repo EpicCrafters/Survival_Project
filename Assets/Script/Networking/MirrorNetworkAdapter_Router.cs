@@ -18,7 +18,7 @@ public class MirrorNetworkAdapter_Router : MonoBehaviour, INetworkAdapter
     public bool IsClient => NetworkClient.isConnected;
 
     // Events required by the interface
-    public event Action<string, bool> OnChangeReceived;
+    public event Action<string, bool, int> OnChangeReceived;
     public event Action<SpawnRecordCollection> OnSnapshotReceived;
 
     private ResourceManager rm;
@@ -40,13 +40,11 @@ public class MirrorNetworkAdapter_Router : MonoBehaviour, INetworkAdapter
 
         // subscribe to global bus for incoming RPCs
         NetworkMessageBus.OnSnapshotReceived += HandleBusSnapshot;
-        NetworkMessageBus.OnChangeReceived += HandleBusChange;
     }
 
     void OnDestroy()
     {
         NetworkMessageBus.OnSnapshotReceived -= HandleBusSnapshot;
-        NetworkMessageBus.OnChangeReceived -= HandleBusChange;
     }
 
     // ---------------- INetworkAdapter API ----------------
@@ -94,40 +92,6 @@ public class MirrorNetworkAdapter_Router : MonoBehaviour, INetworkAdapter
     }
 
     /// <summary>
-    /// Client requests a change; host applies and broadcasts.
-    /// </summary>
-    public void RequestChange(string uniqueId, bool isChopped)
-    {
-        // Client -> router Cmd
-        if (NetworkClient.isConnected && router != null)
-        {
-            try { router.CmdRequestChange(uniqueId, isChopped); }
-            catch (Exception ex) { Debug.LogWarning($"[MirrorNetworkAdapter] CmdRequestChange failed call: {ex}"); }
-            return;
-        }
-
-        // Host/Standalone local path
-        OnChangeReceived?.Invoke(uniqueId, isChopped);
-    }
-
-    /// <summary>
-    /// Host broadcasts a change to clients.
-    /// </summary>
-    public void BroadcastChange(string uniqueId, bool isChopped)
-    {
-        if (NetworkServer.active)
-        {
-            if (router != null) router.BroadcastChangeToClients(uniqueId, isChopped);
-            else Debug.LogWarning("[MirrorNetworkAdapter] BroadcastChange: router not found on server.");
-        }
-        else
-        {
-            // In standalone or as a fallback, raise locally
-            OnChangeReceived?.Invoke(uniqueId, isChopped);
-        }
-    }
-
-    /// <summary>
     /// Request host to save all managers (single RPC).
     /// </summary>
     public void RequestHostSave()
@@ -157,10 +121,5 @@ public class MirrorNetworkAdapter_Router : MonoBehaviour, INetworkAdapter
     private void HandleBusSnapshot(SpawnRecordCollection snap)
     {
         try { OnSnapshotReceived?.Invoke(snap); } catch (Exception ex) { Debug.LogError($"[MirrorNetworkAdapter] Bus snapshot handler threw: {ex}"); }
-    }
-
-    private void HandleBusChange(string uniqueId, bool isChopped)
-    {
-        try { OnChangeReceived?.Invoke(uniqueId, isChopped); } catch (Exception ex) { Debug.LogError($"[MirrorNetworkAdapter] Bus change handler threw: {ex}"); }
     }
 }

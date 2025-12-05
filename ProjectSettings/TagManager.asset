@@ -6,6 +6,8 @@ TagManager:
   tags:
   - Floor
   - Target
+  - AIBase
+  - AIBodyPart
   layers:
   - Default
   - TransparentFX
@@ -16,13 +18,13 @@ TagManager:
   - Ground
   - Pickupable
   - Mineable
-  - Player
+  - PlayerDamageable
   - PickupableAndMineable
   - buildLayer
-  - HurtBox
-  - 
-  - 
-  - 
+  - AIDamageable
+  - Damageable
+  - AIBody
+  - Projectile
   - 
   - 
   - 

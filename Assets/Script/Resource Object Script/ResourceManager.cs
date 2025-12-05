@@ -25,6 +25,7 @@ public class ResourceState
     public Quaternion rotation;
     public Vector3 scale;
     public bool isChopped;
+    public int curHealth;
 
     public ResourceState() { }
 
@@ -38,6 +39,7 @@ public class ResourceState
         rotation = r.rotation;
         scale = r.scale;
         isChopped = r.isChopped;
+        curHealth = r.curHealth;
     }
 
     // Optional: convert back to SpawnRecord (fills minimal fields)
@@ -53,7 +55,8 @@ public class ResourceState
             position = position,
             rotation = rotation,
             scale = scale,
-            isChopped = isChopped
+            isChopped = isChopped,
+            curHealth = curHealth
         };
     }
 }
@@ -229,10 +232,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
     [Header("Debug")]
     public bool verboseLogs = true;
 
-    [Header("Runtime Prefab Registry (for builds)")]
-    public List<GameObject> runtimePrefabs = new List<GameObject>();
-    private Dictionary<string, GameObject> runtimePrefabMap;
-
     // Core + adapters
     public ResourceManagerCore core;
     IResourcePersistence persistence;
@@ -268,9 +267,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
     // preloading flag (skip per-instance Mirror-enqueue during host preload)
     private bool isPreloading = false;
 
-    // guard to avoid registering runtime prefabs multiple times
-    private bool runtimePrefabsRegisteredWithMirror = false;
-
     // small helpers
     void LogV(string s) { /*if (verboseLogs) Debug.Log(s);*/ }
     void LogW(string s) { /*if (verboseLogs) Debug.LogWarning(s);*/ }
@@ -281,6 +277,9 @@ public class ResourceManager : MonoBehaviour, ISaveable
     [Header("Prefab Registry (ScriptableObject)")]
     public ResourcePrefabDatabase resourcePrefabDatabase;
 
+    private readonly HashSet<string> healthChangedIds = new HashSet<string>();
+    private readonly object healthChangedLock = new object();
+
     #region Unity lifecycle
 
     void Awake()
@@ -289,25 +288,13 @@ public class ResourceManager : MonoBehaviour, ISaveable
         mainThreadId = Thread.CurrentThread.ManagedThreadId;
         core = new ResourceManagerCore();
 
-        // Build runtime prefab map (use names/paths as keys if needed).
-        runtimePrefabMap = new Dictionary<string, GameObject>();
-        if (runtimePrefabs != null)
-        {
-            foreach (var p in runtimePrefabs)
-            {
-                if (p == null) continue;
-                var key = p.name;
-                if (!runtimePrefabMap.ContainsKey(key)) runtimePrefabMap[key] = p;
-            }
-        }
-
         // adapters
         if (network == null)
         {
             var found = GetComponents<MonoBehaviour>().OfType<INetworkAdapter>().FirstOrDefault();
             if (found != null) network = found;
         }
-        if (network == null) network = new NoNetworkAdapter();
+        //if (network == null) network = new NoNetworkAdapter();
 
         if (persistence == null)
         {
@@ -323,9 +310,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
         // wire network events
         network.OnChangeReceived += HandleNetworkChange;
         network.OnSnapshotReceived += HandleSnapshotReceived;
-
-        // register runtime prefabs with Mirror early (best-effort)
-        if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
 
         // register this manager instance for its scene
         try
@@ -344,43 +328,8 @@ public class ResourceManager : MonoBehaviour, ISaveable
     }
 
     // Replace the existing void Start() with this coroutine Start()
-    IEnumerator Start()
+    void Start()
     {
-        // Re-attempt Mirror registration in case Mirror wasn't ready in Awake.
-        if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
-
-        // Small, deterministic wait loop to avoid startup races in builds.
-        // Wait until either:
-        //  - runtimePrefabMap has entries (we have runtime prefabs)
-        //  - runtimePrefabsRegisteredWithMirror == true (registration finished)
-        //  - or until Mirror registration is not recommended (no network support)
-        // Timeout after a bounded number of frames to avoid hanging startup.
-        int maxFramesToWait = 30; // ~0.5s at 60fps — adjust if you need shorter/longer
-        int waited = 0;
-        while (waited < maxFramesToWait)
-        {
-            bool havePrefabs = (runtimePrefabMap != null && runtimePrefabMap.Count > 0);
-            bool registrationDone = runtimePrefabsRegisteredWithMirror; // internal guard set by TryRegisterRuntimePrefabsWithMirror
-            bool skipMirror = !useMirrorRegistrationRecommended();
-
-            if (havePrefabs || registrationDone || skipMirror) break;
-
-            // re-try registration once per frame in case Mirror finishes up
-            if (useMirrorRegistrationRecommended()) TryRegisterRuntimePrefabsWithMirror();
-
-            waited++;
-            yield return null;
-        }
-
-        if (waited >= maxFramesToWait)
-        {
-            Debug.LogWarning($"[ResourceManager] Start: waited {maxFramesToWait} frames for prefab/registration readiness and timed out. runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror}");
-        }
-        else
-        {
-            Debug.Log($"[ResourceManager] Start: readiness achieved after {waited} frames. runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror}");
-        }
-
         // Now proceed with the existing load/spawn logic (unchanged, just delayed)
         if (!deferLoadUntilManualStart && (role == ResourceManagerRole.Standalone || role == ResourceManagerRole.Host))
         {
@@ -392,8 +341,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 // Host/Standalone: spawn synchronously (fast local spawn)
                 // Clients are throttled in HandleSnapshotReceived
                 core.RequestSpawnAll();
-                Debug.Log($"[RM Start BEFORE RequestSpawnAll] runtimePrefabs count={(runtimePrefabs != null ? runtimePrefabs.Count : 0)} runtimePrefabMap.count={(runtimePrefabMap != null ? runtimePrefabMap.Count : 0)} runtimePrefabsRegisteredWithMirror={runtimePrefabsRegisteredWithMirror} instanceID={this.GetInstanceID()}");
-
                 // If host and Mirror active, spawn network Identities now (if any)
                 if (role == ResourceManagerRole.Host && useMirrorRegistrationRecommended() && NetworkServer.active)
                 {
@@ -497,7 +444,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
         {
             try { network.OnChangeReceived -= HandleNetworkChange; network.OnSnapshotReceived -= HandleSnapshotReceived; } catch { }
         }
-        network = adapter ?? new NoNetworkAdapter();
+        //network = adapter ?? new NoNetworkAdapter();
         try { network.OnChangeReceived += HandleNetworkChange; network.OnSnapshotReceived += HandleSnapshotReceived; } catch { }
         LogV("[ResourceManager] Network adapter set.");
     }
@@ -530,12 +477,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                     var rv = child.GetComponent<ResourceInstanceVisual>() ?? child.GetComponentInChildren<ResourceInstanceVisual>();
                     if (rv != null && !string.IsNullOrEmpty(rv.uniqueId) && core.recordsById.ContainsKey(rv.uniqueId))
                         continue;
-#if UNITY_EDITOR
-                    if (Application.isPlaying) Destroy(child);
-                    else DestroyImmediate(child);
-#else
-                    Destroy(child);
-#endif
                 }
             }
 
@@ -603,15 +544,15 @@ public class ResourceManager : MonoBehaviour, ISaveable
         }
     }
 
-    void HandleNetworkChange(string uniqueId, bool isChopped)
+    void HandleNetworkChange(string uniqueId, bool isChopped, int curHealth)
     {
-        EnqueueOrExecute(() => HandleNetworkChangeMainThread(uniqueId, isChopped));
+        EnqueueOrExecute(() => HandleNetworkChangeMainThread(uniqueId, isChopped, curHealth));
     }
 
     // Network-originated changes use the centralized apply path
-    void HandleNetworkChangeMainThread(string uniqueId, bool isChopped)
+    void HandleNetworkChangeMainThread(string uniqueId, bool isChopped, int curHealth)
     {
-        ApplyResourceStateChange(uniqueId, isChopped, ResourceChangeSource.Network);
+        ApplyResourceStateChange(uniqueId, isChopped, curHealth, ResourceChangeSource.Network);
     }
 
     void HandleSnapshotReceived(SpawnRecordCollection container)
@@ -643,12 +584,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 var rv = child.GetComponent<ResourceInstanceVisual>() ?? child.GetComponentInChildren<ResourceInstanceVisual>();
                 if (rv != null && !string.IsNullOrEmpty(rv.uniqueId) && core.recordsById.ContainsKey(rv.uniqueId))
                     continue;
-#if UNITY_EDITOR
-                if (Application.isPlaying) Destroy(child);
-                else DestroyImmediate(child);
-#else
-                Destroy(child);
-#endif
             }
         }
 
@@ -744,17 +679,82 @@ public class ResourceManager : MonoBehaviour, ISaveable
             return;
         }
 
+        // OPTIMIZED: Only sync objects that have changed health
+        SyncChangedHealthToCoreRecords();
+
         var container = core.GetSnapshot();
         DrainMainThreadQueueImmediately();
         try
         {
             persistence.Save(container);
             SetDirty(false);
+
+            // Clear the changed health tracking after successful save
+            ClearHealthChangedTracking();
+
             LogV("[ResourceManager] SaveNow completed.");
         }
         catch (Exception ex)
         {
             Debug.LogError($"[ResourceManager] SaveNow failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// Only sync health for objects that have reported health changes
+    /// Much more efficient than scanning all objects
+    /// </summary>
+    private void SyncChangedHealthToCoreRecords()
+    {
+        if (core?.recordsById == null) return;
+
+        string[] changedIds;
+        lock (healthChangedLock)
+        {
+            changedIds = healthChangedIds.ToArray();
+        }
+
+        int updatedCount = 0;
+
+        foreach (string uniqueId in changedIds)
+        {
+            if (instancesById.TryGetValue(uniqueId, out GameObject instance) && instance != null)
+            {
+                var baseResource = instance.GetComponent<BaseResource>();
+                if (baseResource != null && !baseResource.IsDestroyed)
+                {
+                    var healthSystem = baseResource.GetHealthSystem();
+                    if (healthSystem != null)
+                    {
+                        int currentHealth = healthSystem.GetHealth();
+
+                        if (core.recordsById.TryGetValue(uniqueId, out SpawnRecord record))
+                        {
+                            if (record.curHealth != currentHealth)
+                            {
+                                record.curHealth = currentHealth;
+                                updatedCount++;
+
+                                if (verboseLogs)
+                                    Debug.Log($"[ResourceManager] Synced changed health: {uniqueId} -> {currentHealth}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (updatedCount > 0)
+        {
+            Debug.Log($"[ResourceManager] SyncChangedHealthToCoreRecords: Updated {updatedCount} health values from {changedIds.Length} changed objects");
+        }
+    }
+
+    private void ClearHealthChangedTracking()
+    {
+        lock (healthChangedLock)
+        {
+            healthChangedIds.Clear();
         }
     }
 
@@ -815,7 +815,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
 
     void SpawnRecordVisual(SpawnRecord r)
     {
-        //Debug.Log($"[SpawnRecordVisual START] uniqueId={r.uniqueId} prefabPath='{r.prefabPath}'");
         if (r == null) return;
 
         // Prevent duplicate spawn attempts for same id
@@ -833,9 +832,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 LogV($"[ResourceManager] Client suppressed SpawnRecordVisual for {r.uniqueId} (Mirror-managed).");
                 return;
             }
-
-            LogV($"[RM] SpawnRecordVisual: id={r?.uniqueId} spawnParent={(spawnParent ? spawnParent.name : "NULL")} " +
-                $"spawnParentScene={(spawnParent ? spawnParent.gameObject.scene.name : "<null>")} resourceManagerScene={gameObject.scene.name}");
 
             GameObject prefab = ResolvePrefabFromRecord(r);
             if (prefab == null) { LogW($"Prefab missing for record {r.uniqueId}"); }
@@ -922,6 +918,27 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 visual.SetUniqueId(r.uniqueId);
                 visual.isChopped = r.isChopped;
 
+                var baseResource = go.GetComponent<BaseResource>();
+                if (baseResource != null)
+                {
+                    var healthSystem = baseResource.GetHealthSystem();
+                    if (healthSystem != null)
+                    {
+                        int actualHealth = healthSystem.GetHealth();
+
+                        // Update the core record with the actual health
+                        if (core.recordsById.TryGetValue(r.uniqueId, out var record))
+                        {
+                            if (record.curHealth != actualHealth)
+                            {
+                                record.curHealth = actualHealth;
+                                if (verboseLogs)
+                                    Debug.Log($"[ResourceManager] Updated record health during spawn: {r.uniqueId} -> {actualHealth}");
+                            }
+                        }
+                    }
+                }
+
                 // If a runtime destroyed replacement was registered for this uniqueId, apply it to the visual now
                 GameObject replacementPrefab = null;
                 lock (destroyedReplacementMapLock)
@@ -984,28 +1001,22 @@ public class ResourceManager : MonoBehaviour, ISaveable
             //else Debug.LogError("Prefab NULL from getting from prefabPath");
         }
 
-/*#if UNITY_EDITOR
-        // 2. Editor-only AssetDatabase lookup
-        string path = null;
-        if (!string.IsNullOrEmpty(r.prefabGuid))
-        {
-            try { path = AssetDatabase.GUIDToAssetPath(r.prefabGuid); } catch { path = null; }
-        }
-        if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(r.prefabPath)) path = r.prefabPath;
-        if (!string.IsNullOrEmpty(path))
-        {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (prefab == null && verboseLogs)
-                Debug.LogWarning($"[ResourceManager] Could not load prefab at path '{path}' for record {r.uniqueId}");
-            return prefab;
-        }
-#endif*/
-
-        // 3. Runtime-prefabs map
-        if (!string.IsNullOrEmpty(r.prefabPath) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabPath, out var p1))
-            return p1;
-        if (!string.IsNullOrEmpty(r.prefabGuid) && runtimePrefabMap != null && runtimePrefabMap.TryGetValue(r.prefabGuid, out var p2))
-            return p2;
+        /*#if UNITY_EDITOR
+                // 2. Editor-only AssetDatabase lookup
+                string path = null;
+                if (!string.IsNullOrEmpty(r.prefabGuid))
+                {
+                    try { path = AssetDatabase.GUIDToAssetPath(r.prefabGuid); } catch { path = null; }
+                }
+                if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(r.prefabPath)) path = r.prefabPath;
+                if (!string.IsNullOrEmpty(path))
+                {
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                    if (prefab == null && verboseLogs)
+                        Debug.LogWarning($"[ResourceManager] Could not load prefab at path '{path}' for record {r.uniqueId}");
+                    return prefab;
+                }
+        #endif*/
 
         // 4. Resources folder fallback
         if (!string.IsNullOrEmpty(r.prefabPath))
@@ -1041,33 +1052,33 @@ public class ResourceManager : MonoBehaviour, ISaveable
     /// On host/standalone this applies directly (and host will broadcast).
     /// Thread-safe entry.
     /// </summary>
-    public void RequestResourceStateChange(string uniqueId, bool isChopped)
+    public void RequestResourceStateChange(string uniqueId, bool isInteracted, int curHealth)
     {
         if (string.IsNullOrEmpty(uniqueId)) return;
 
         if (role == ResourceManagerRole.Client)
         {
             // Clients must ask host to change authoritative state
-            LogV($"[ResourceManager] Client requests change: {uniqueId} -> {isChopped}");
-            try { OnClientResourceChangeRequested?.Invoke(uniqueId, isChopped); }
+            LogV($"[ResourceManager] Client requests change: {uniqueId} -> {isInteracted}");
+            try { OnClientResourceChangeRequested?.Invoke(uniqueId, isInteracted); }
             catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in OnClientResourceChangeRequested handlers: {ex}"); }
             return;
         }
 
         // Host/Standalone: apply immediately on main thread
-        ApplyResourceStateChange(uniqueId, isChopped, ResourceChangeSource.Local);
+        ApplyResourceStateChange(uniqueId, isInteracted, curHealth, ResourceChangeSource.Local);
     }
 
     /// <summary>
     /// Apply a resource state change (safe to call from any thread).
     /// Use source to indicate origin; host-local changes will be broadcasted.
     /// </summary>
-    public void ApplyResourceStateChange(string uniqueId, bool isChopped, ResourceChangeSource source = ResourceChangeSource.Local)
+    public void ApplyResourceStateChange(string uniqueId, bool isInteracted, int curHealth, ResourceChangeSource source = ResourceChangeSource.Local)
     {
-        EnqueueOrExecute(() => ApplyResourceStateChangeMainThread(uniqueId, isChopped, source));
+        EnqueueOrExecute(() => ApplyResourceStateChangeMainThread(uniqueId, isInteracted, source, curHealth));
     }
 
-    private void ApplyResourceStateChangeMainThread(string uniqueId, bool isChopped, ResourceChangeSource source)
+    private void ApplyResourceStateChangeMainThread(string uniqueId, bool isInteracted, ResourceChangeSource source, int curHealth)
     {
         if (string.IsNullOrEmpty(uniqueId)) return;
 
@@ -1077,20 +1088,9 @@ public class ResourceManager : MonoBehaviour, ISaveable
             bool previousState = rec.isChopped;
 
             // Update core authoritative data depending on role
-            if (role == ResourceManagerRole.Host)
-            {
-                core.ApplyLocalChange(uniqueId, isChopped);
+            core.ApplyChange(uniqueId, isInteracted, curHealth);
+            if (role != ResourceManagerRole.Client)
                 SetDirty(true);
-            }
-            else if (role == ResourceManagerRole.Client)
-            {
-                core.ApplyAuthorityChange(uniqueId, isChopped);
-            }
-            else // Standalone
-            {
-                core.ApplyLocalChange(uniqueId, isChopped);
-                SetDirty(true);
-            }
 
             // Update visual instance if present
             GameObject instanceGo = null;
@@ -1099,20 +1099,25 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 var inst = instanceGo.GetComponent<ResourceInstanceVisual>() ?? instanceGo.GetComponentInChildren<ResourceInstanceVisual>();
                 if (inst != null)
                 {
-                    inst.isChopped = isChopped;
+                    inst.isChopped = isInteracted;
                     inst.ApplyState();
+                }
+
+                // Update BaseResource HealthSystem for UI feedback
+                var baseResource = instanceGo?.GetComponent<BaseResource>() ?? instanceGo?.GetComponentInChildren<BaseResource>();
+                if (baseResource != null)
+                {
+                    var healthSystem = baseResource.GetHealthSystem();
+                    if (healthSystem != null)
+                    {
+                        // This will now trigger the OnHealthChanged event
+                        healthSystem.SetHealth(curHealth);
+                    }
                 }
             }
 
-            // Host-origin local changes should be broadcast to clients
-            if (role == ResourceManagerRole.Host && source == ResourceChangeSource.Local)
-            {
-                try { network.BroadcastChange(uniqueId, isChopped); }
-                catch (Exception ex) { LogW($"[ResourceManager] BroadcastChange failed for {uniqueId}: {ex.Message}"); }
-            }
-
             // Fire unified event for other systems
-            var evt = new ResourceStateChangeEvent(uniqueId, previousState, isChopped, instanceGo, source);
+            var evt = new ResourceStateChangeEvent(uniqueId, previousState, isInteracted, instanceGo, source);
             try { OnResourceStateChanged?.Invoke(evt); }
             catch (Exception ex) { Debug.LogError($"[ResourceManager] Exception in OnResourceStateChanged handlers: {ex}"); }
         }
@@ -1221,32 +1226,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 }
             }
         });
-    }
-
-    #endregion
-
-    #region Mirror prefab registration helper
-
-    private void TryRegisterRuntimePrefabsWithMirror()
-    {
-        if (runtimePrefabsRegisteredWithMirror) return;
-        if (runtimePrefabs == null || runtimePrefabs.Count == 0) { runtimePrefabsRegisteredWithMirror = true; return; }
-
-        int registered = 0;
-        foreach (var p in runtimePrefabs)
-        {
-            if (p == null) continue;
-            try
-            {
-                var ni = p.GetComponent<NetworkIdentity>();
-                if (ni == null) { LogW($"[ResourceManager] Prefab '{p.name}' has no NetworkIdentity; Mirror registration skipped."); continue; }
-                NetworkClient.RegisterPrefab(p);
-                registered++;
-            }
-            catch (Exception ex) { LogW($"[ResourceManager] Failed to register prefab '{p.name}' with Mirror: {ex.Message}"); }
-        }
-        runtimePrefabsRegisteredWithMirror = true;
-        LogV($"[ResourceManager] Registered {registered} runtime prefabs with Mirror.");
     }
 
     #endregion
@@ -1375,13 +1354,25 @@ public class ResourceManager : MonoBehaviour, ISaveable
         Debug.Log($"ResourceManager DEBUG: activeScene='{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}' ResourceManager.instanceID={this.GetInstanceID()}");
     }
 
+    public void MarkHealthChanged(string uniqueId)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return;
+
+        lock (healthChangedLock)
+        {
+            healthChangedIds.Add(uniqueId);
+        }
+        SetDirty(true);
+    }
+
     public bool HasUnsavedChanges => hasUnsavedChanges;
     public string SaveableName => gameObject.name;
     public string SceneName => gameObject.scene.name;
 
     private void OnEnable()
     {
-        SaveManager.Instance?.Register(this);
+        if (this != null && SaveManager.Instance != null)
+            SaveManager.Instance.Register(this);
         // hoặc nếu bạn muốn đảm bảo register sau Awake của SaveManager, có thể Start() check
     }
 

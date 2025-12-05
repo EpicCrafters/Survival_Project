@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using Mirror;
-using static BaseAnimalAI;
+
 
 public class HFSMController : NetworkBehaviour, IDamageable
 {
@@ -24,11 +24,7 @@ public class HFSMController : NetworkBehaviour, IDamageable
     private AIRagdoll aIRagdoll;
     private List<Rigidbody> ragdollRigidbodies = new List<Rigidbody>(); // Chỉ chứa ragdoll bones
 
-    [Header("Hurt Box")]
-    public Collider hurtBox;
-
-    [Header("Hiệu ứng va chạm")]
-    public GameObject hitEffectPrefab;
+   
 
     [Header("Thanh máu (UI)")]
     public HealthBarUI healthBarUI;
@@ -238,28 +234,36 @@ public class HFSMController : NetworkBehaviour, IDamageable
     }
 
     // ==========================================================
-    //  NHẬN SÁT THƯƠNG & CHẾT
+    //  NHẬN SÁT THƯƠNG & CHẾT - WITH BODY PART DAMAGE
     // ==========================================================
-    
+
     public void Damage(int amount, HitInfo hit)
     {
         if (!isServer) return;
 
-        // Kiểm tra xem cú đánh này có giết chết AI không
+        // Apply body part damage multiplier
+        if (aIRagdoll != null && hit.point != Vector3.zero)
+        {
+            float multiplier = aIRagdoll.GetDamageMultiplier(hit.point, 1f);
+            string bodyPartName = aIRagdoll.GetHitBodyPartName(hit.point, 1f);
+
+            int modifiedDamage = Mathf.RoundToInt(amount * multiplier);
+            Debug.Log($"🎯 {name} hit on {bodyPartName}! {amount} → {modifiedDamage} (x{multiplier})");
+            amount = modifiedDamage;
+        }
+
+        // Check if this damage will kill the AI
         int healthAfterDamage = healthSystem.GetHealth() - amount;
         bool willDie = healthAfterDamage <= 0;
 
         healthSystem.Damage(amount);
         syncedHealth = healthSystem.GetHealth();
 
-        Debug.Log($"{name} took {amount} damage at {hit.point}");
-
-        RpcSpawnHitEffect(hit.point, hit.normal);
-
+       
         if (healthSystem.GetHealth() <= 0)
         {
-            // CHỈ apply knockback nếu chết do damage (không phải do OnDead event)
-            Die(hit); // Truyền HitInfo để apply knockback
+            // Apply knockback on death with hit info
+            Die(hit);
             return;
         }
 
@@ -282,15 +286,44 @@ public class HFSMController : NetworkBehaviour, IDamageable
 
         baseRigidbody.isKinematic = false;
         baseRigidbody.useGravity = false;
-        hurtBox.isTrigger = true;
 
         if (agent != null && agent.enabled)
             agent.enabled = false;
 
         CurrentState = null;
 
-        
+        // Apply knockback if we have hit info
+        if (hit.HasValue && hit.Value.itemData != null)
+        {
+            ApplyDeathKnockback(hit.Value);
+        }
+
         RpcDie();
+    }
+
+    private void ApplyDeathKnockback(HitInfo hit)
+    {
+        // Get knockback settings from weapon
+        float horizontalForce = 10f;
+        float searchRadius = 1f;
+
+        if (hit.itemData != null)
+        {
+            KnockbackSettings kb = hit.itemData.GetKnockbackSettings();
+            horizontalForce = kb.horizontalForce;
+            searchRadius = kb.boneSearchRadius;
+        }
+
+        // Find the body part that was hit
+        Rigidbody hitBodyPart = aIRagdoll?.GetClosestBodyPart(hit.point, searchRadius);
+
+        if (hitBodyPart != null)
+        {
+            Vector3 forceDirection = hit.direction.normalized;
+            Vector3 force = new Vector3(forceDirection.x, 0, forceDirection.z).normalized * horizontalForce;
+
+            RpcApplyDeathKnockback(hit.point, hit.direction, horizontalForce, searchRadius);
+        }
     }
 
     public bool CanTriggerHitStop() => true;
@@ -331,12 +364,7 @@ public class HFSMController : NetworkBehaviour, IDamageable
     // ==========================================================
     //  CLIENT RPCs
     // ==========================================================
-    [ClientRpc]
-    private void RpcSpawnHitEffect(Vector3 pos, Vector3 normal)
-    {
-        if (hitEffectPrefab != null)
-            Instantiate(hitEffectPrefab, pos, Quaternion.LookRotation(normal));
-    }
+ 
 
     [ClientRpc]
     private void RpcPlayHitAnimation()
@@ -345,103 +373,27 @@ public class HFSMController : NetworkBehaviour, IDamageable
     [ClientRpc]
     private void RpcDie() => HandleClientDeath();
 
-    // RPC mới: Apply knockback với custom settings từ weapon
+    // RPC: Apply knockback with custom settings from weapon
     [ClientRpc]
-    public void RpcApplyDeathKnockback(Vector3 hitPoint, Vector3 hitDirection, float horizontal,  float radius)
+    public void RpcApplyDeathKnockback(Vector3 hitPoint, Vector3 hitDirection, float horizontal, float radius)
     {
-        // Tìm ragdoll bone gần nhất
-        Rigidbody closestBone = FindClosestRagdollBone(hitPoint, radius);
+        // Find closest ragdoll bone
+        Rigidbody closestBone = aIRagdoll?.GetClosestBodyPart(hitPoint, radius);
 
         if (closestBone != null)
         {
             Vector3 forceDirection = hitDirection.normalized;
             Vector3 horizontalForce = new Vector3(forceDirection.x, 0, forceDirection.z).normalized * horizontal;
-            //Vector3 upwardForce = Vector3.up * upward;
-            Vector3 totalForce = horizontalForce;//+ upwardForce;
+            Vector3 totalForce = horizontalForce;
 
             closestBone.AddForceAtPosition(totalForce, hitPoint, ForceMode.Impulse);
 
-            Debug.Log($"[{name}] Applied knockback: H={horizontal},  Bone={closestBone.name}");
+            Debug.Log($"[{name}] Applied knockback: H={horizontal}, Bone={closestBone.name}");
         }
         else
         {
             Debug.LogWarning($"[{name}] No ragdoll bone found!");
         }
-    }
-
-    // ==========================================================
-    //  TÌM RAGDOLL BONE GẦN NHẤT
-    // ==========================================================
-    private Rigidbody FindClosestRagdollBone(Vector3 hitPoint, float searchRadius = -1f)
-    {
-       
-
-        // Đảm bảo list đã được cache
-        if (ragdollRigidbodies.Count == 0)
-        {
-            if (ragdollRootBone != null)
-            {
-                Rigidbody[] allRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
-
-                foreach (var rb in allRigidbodies)
-                {
-                    if (rb != baseRigidbody && rb != null)
-                    {
-                        ragdollRigidbodies.Add(rb);
-                    }
-                }
-            }
-        }
-
-        if (ragdollRigidbodies.Count == 0)
-        {
-            Debug.LogWarning($"[{name}] No ragdoll rigidbodies found!");
-            return null;
-        }
-
-        Rigidbody closest = null;
-        float closestDistance = float.MaxValue;
-
-        // Tìm bone gần nhất trong bán kính
-        foreach (var rb in ragdollRigidbodies)
-        {
-            if (rb == null || rb == baseRigidbody) continue;
-
-            float distance = Vector3.Distance(rb.position, hitPoint);
-
-            if (distance < closestDistance && distance <= searchRadius)
-            {
-                closestDistance = distance;
-                closest = rb;
-            }
-        }
-
-        // Fallback: nếu không có bone nào trong radius, lấy bone gần nhất
-        if (closest == null)
-        {
-            foreach (var rb in ragdollRigidbodies)
-            {
-                if (rb == null || rb == baseRigidbody) continue;
-
-                float distance = Vector3.Distance(rb.position, hitPoint);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                    closest = rb;
-                }
-            }
-        }
-
-        if (closest != null)
-        {
-            Debug.Log($"🎯 [{name}] Closest bone hit: {closest.name} (distance {closestDistance:F2}m)");
-        }
-        else
-        {
-            Debug.LogWarning($"⚠️ [{name}] Could not find any ragdoll bone near hit point!");
-        }
-
-        return closest;
     }
 
     // ==========================================================
