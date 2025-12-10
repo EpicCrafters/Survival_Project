@@ -86,6 +86,7 @@ public class BuildingStats
     public Vector3 placementAnchorOffset;     // local offset (child pivot) để align prefab với slot
     public float maxCornerDrop = 0.4f;    // độ chênh tối đa giữa các góc cho phép
     public bool raiseToHighest = true;    // có nâng object lên góc cao nhất không
+    public ScriptableObject placementRole;
 }
 
 [CreateAssetMenu(menuName = "Scriptable Objects/Item")]

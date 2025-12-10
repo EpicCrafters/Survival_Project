@@ -199,17 +199,22 @@ public class PlayerInteract : NetworkBehaviour
 
 
     // Kiểm tra tương tác object
-
     private bool TrySetInteractable(RaycastHit hit)
     {
         if (hit.collider.TryGetComponent(out Iinteractable interactable))
         {
+
             currentInteractable = interactable;
             currentPickup = null;
 
             rayColor = Color.yellow;
+
+            string text = "Interact";
+            if (interactable is IHasCustomText custom)
+                text = custom.GetInteractText();
+
             uiManager.ShowInteractUI();
-            uiManager.ChangeInteractText("E: Interact");
+            uiManager.ChangeInteractText("E: " + text);
 
             if (interactable is CampFire campfire)
                 campfire.ShowUI();
@@ -219,11 +224,10 @@ public class PlayerInteract : NetworkBehaviour
         return false;
     }
 
-
     // Kiểm tra mining (cây/đá)
 
-    // Replace your TrySetMineable method with this version
-    // This fixes the tool detection by getting ItemData from PlayerHoldingItem.ItemData
+        // Replace your TrySetMineable method with this version
+        // This fixes the tool detection by getting ItemData from PlayerHoldingItem.ItemData
 
     private bool TrySetMineable(RaycastHit hit)
     {
