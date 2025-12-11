@@ -48,4 +48,43 @@ public class ResourcePrefabDatabase : ScriptableObject
         cache.TryGetValue(NormalizeKey(path), out var prefab);
         return prefab;
     }
+    // NEW: Get path for a prefab
+    public string GetPathForPrefab(GameObject prefab)
+    {
+        if (prefab == null) return null;
+
+        foreach (var entry in entries)
+        {
+            if (entry.prefab == prefab)
+                return entry.path;
+        }
+
+        return null;
+    }
+
+    // NEW: Get entry by prefab
+    public PrefabEntry GetEntryByPrefab(GameObject prefab)
+    {
+        if (prefab == null) return null;
+
+        foreach (var entry in entries)
+        {
+            if (entry.prefab == prefab)
+                return entry;
+        }
+
+        return null;
+    }
+
+    // NEW: Get all paths (for debugging)
+    public List<string> GetAllPaths()
+    {
+        var paths = new List<string>();
+        foreach (var entry in entries)
+        {
+            if (entry != null && !string.IsNullOrEmpty(entry.path))
+                paths.Add(entry.path);
+        }
+        return paths;
+    }
 }

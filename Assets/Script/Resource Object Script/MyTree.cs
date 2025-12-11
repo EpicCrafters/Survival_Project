@@ -60,7 +60,7 @@ public class MyTree : BaseResource, IMinenable
         // Update health to 0 before doing anything else
         if (!string.IsNullOrEmpty(UniqueId))
         {
-            rm.RequestResourceStateChange(UniqueId, true, 0); // isChopped=true, health=0
+            rm?.RequestResourceStateChange(UniqueId, true, 0); // isChopped=true, health=0
         }
 
         // --- CRITICAL: Only run visual effects on server ---
@@ -89,10 +89,16 @@ public class MyTree : BaseResource, IMinenable
         // Spawn drops & non-stump byproducts first so they use the original transform/scale.
         SpawnTreeComponentsImmediate(spawnStump: (rm == null));
 
-        // If ResourceManager present -> request authoritative change
+        // If ResourceManager present -> request authoritative change AND record replacement
         if (rm != null)
         {
             GameObject replacementPrefab = treeStumpPrefab != null ? treeStumpPrefab.gameObject : null;
+
+            // Record the replacement with ResourceManager
+            if (replacementPrefab != null)
+            {
+                rm.RecordReplacement(UniqueId, replacementPrefab);
+            }
 
             try
             {
