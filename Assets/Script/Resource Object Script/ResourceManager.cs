@@ -294,7 +294,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
             var found = GetComponents<MonoBehaviour>().OfType<INetworkAdapter>().FirstOrDefault();
             if (found != null) network = found;
         }
-        //if (network == null) network = new NoNetworkAdapter();
 
         if (persistence == null)
         {
@@ -444,7 +443,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
         {
             try { network.OnChangeReceived -= HandleNetworkChange; network.OnSnapshotReceived -= HandleSnapshotReceived; } catch { }
         }
-        //network = adapter ?? new NoNetworkAdapter();
         try { network.OnChangeReceived += HandleNetworkChange; network.OnSnapshotReceived += HandleSnapshotReceived; } catch { }
         LogV("[ResourceManager] Network adapter set.");
     }
@@ -715,6 +713,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
         }
 
         int updatedCount = 0;
+        int replacementUpdatedCount = 0;
 
         foreach (string uniqueId in changedIds)
         {
@@ -728,15 +727,45 @@ public class ResourceManager : MonoBehaviour, ISaveable
                     {
                         int currentHealth = healthSystem.GetHealth();
 
-                        if (core.recordsById.TryGetValue(uniqueId, out SpawnRecord record))
-                        {
-                            if (record.curHealth != currentHealth)
-                            {
-                                record.curHealth = currentHealth;
-                                updatedCount++;
+                        // Check if this is a replacement (stump)
+                        bool isReplacement = instance.name.ToLower().Contains("stump") ||
+                                             instance.name.Contains("replacement") ||
+                                             (core.recordsById.TryGetValue(uniqueId, out var testRecord) && testRecord.hasReplacement);
 
-                                if (verboseLogs)
-                                    Debug.Log($"[ResourceManager] Synced changed health: {uniqueId} -> {currentHealth}");
+                        if (isReplacement)
+                        {
+                            // Find the original record that has this as replacement
+                            foreach (var record in core.recordsById.Values)
+                            {
+                                if (record.hasReplacement && record.replacementPrefabPath != null &&
+                                    instance.name.Contains(record.uniqueId) ||
+                                    baseResource.UniqueId.Contains(record.uniqueId))
+                                {
+                                    if (record.replacementHealth != currentHealth)
+                                    {
+                                        record.replacementHealth = currentHealth;
+                                        replacementUpdatedCount++;
+
+                                        if (verboseLogs)
+                                            Debug.Log($"[ResourceManager] Synced replacement health: {record.uniqueId} -> {currentHealth}");
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Normal resource health sync
+                            if (core.recordsById.TryGetValue(uniqueId, out SpawnRecord record))
+                            {
+                                if (record.curHealth != currentHealth)
+                                {
+                                    record.curHealth = currentHealth;
+                                    updatedCount++;
+
+                                    if (verboseLogs)
+                                        Debug.Log($"[ResourceManager] Synced changed health: {uniqueId} -> {currentHealth}");
+                                }
                             }
                         }
                     }
@@ -744,9 +773,9 @@ public class ResourceManager : MonoBehaviour, ISaveable
             }
         }
 
-        if (updatedCount > 0)
+        if (updatedCount > 0 || replacementUpdatedCount > 0)
         {
-            Debug.Log($"[ResourceManager] SyncChangedHealthToCoreRecords: Updated {updatedCount} health values from {changedIds.Length} changed objects");
+            Debug.Log($"[ResourceManager] SyncChangedHealthToCoreRecords: Updated {updatedCount} normal + {replacementUpdatedCount} replacement health values");
         }
     }
 
@@ -833,12 +862,63 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 return;
             }
 
-            GameObject prefab = ResolvePrefabFromRecord(r);
-            if (prefab == null) { LogW($"Prefab missing for record {r.uniqueId}"); }
+            // DECISION: If record is chopped AND has a replacement, spawn the replacement instead
+            GameObject prefabToSpawn = null;
+            bool spawnAsReplacement = false;
+            bool skipSpawning = false;
+
+            if (r.isChopped && r.hasReplacement && !string.IsNullOrEmpty(r.replacementPrefabPath))
+            {
+                // Try to load replacement prefab from database
+                if (resourcePrefabDatabase != null)
+                {
+                    prefabToSpawn = resourcePrefabDatabase.GetPrefab(r.replacementPrefabPath);
+                    if (prefabToSpawn != null)
+                    {
+                        spawnAsReplacement = true;
+                        Debug.Log($"[ResourceManager] Spawning replacement for {r.uniqueId}: {r.replacementPrefabPath} (health: {r.replacementHealth})");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[ResourceManager] Could not load replacement prefab: {r.replacementPrefabPath}");
+                    }
+                }
+
+                // If replacement loading failed, don't spawn anything (tree is chopped)
+                if (prefabToSpawn == null)
+                {
+                    LogV($"[ResourceManager] Tree {r.uniqueId} is chopped, no replacement available - skipping spawn");
+                    skipSpawning = true;
+                }
+            }
+            else if (!r.isChopped)
+            {
+                // Normal tree spawn
+                prefabToSpawn = ResolvePrefabFromRecord(r);
+
+                if (prefabToSpawn == null && spawnPlaceholderForMissingPrefabs)
+                {
+                    Debug.LogWarning($"[ResourceManager] Could not load original prefab for {r.uniqueId}");
+                }
+            }
             else
             {
-                LogV($"Prefab EXIST!!? {r.uniqueId}");
+                // Tree is chopped but no replacement - don't spawn anything
+                LogV($"[ResourceManager] Tree {r.uniqueId} is chopped with no replacement - skipping spawn");
+                skipSpawning = true;
             }
+
+            if (skipSpawning)
+            {
+                return;
+            }
+
+            if (prefabToSpawn == null)
+            {
+                LogW($"Prefab missing for record {r.uniqueId}");
+                if (!spawnPlaceholderForMissingPrefabs) return;
+            }
+
             bool recordIsLocalToParent = recordsAreLocalSpace && exporterReference == null && spawnParent != null;
             bool recordIsLocalToExporter = recordsAreLocalSpace && exporterReference != null;
 
@@ -860,20 +940,18 @@ public class ResourceManager : MonoBehaviour, ISaveable
             }
 
             GameObject go = null;
-            if (prefab != null)
+            if (prefabToSpawn != null)
             {
                 if (recordIsLocalToParent)
                 {
-                    go = Instantiate(prefab, spawnParent);
-                    //DebugLogSpawnedObject(prefab, r, prefab == null);
+                    go = Instantiate(prefabToSpawn, spawnParent);
                     go.transform.localPosition = r.position;
                     go.transform.localRotation = r.rotation;
                     go.transform.localScale = r.scale;
                 }
                 else
                 {
-                    go = Instantiate(prefab, desiredWorldPos, desiredWorldRot);
-                    //DebugLogSpawnedObject(prefab, r, prefab == null);
+                    go = Instantiate(prefabToSpawn, desiredWorldPos, desiredWorldRot);
                     go.transform.localScale = desiredWorldScale;
                     if (spawnParent != null)
                     {
@@ -888,7 +966,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 if (recordIsLocalToParent)
                 {
                     var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     cube.name = $"MISSING_PREFAB_{r.uniqueId}";
                     cube.transform.SetParent(spawnParent, false);
                     cube.transform.localPosition = r.position;
@@ -901,7 +978,6 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 else
                 {
                     go = CreateMissingPrefabPlaceholder(r.uniqueId, desiredWorldPos, desiredWorldRot, desiredWorldScale);
-                    //DebugLogSpawnedObject(prefab, r, prefab == null);
                     if (spawnParent != null)
                     {
                         SceneManager.MoveGameObjectToScene(go, spawnParent.gameObject.scene);
@@ -915,39 +991,84 @@ public class ResourceManager : MonoBehaviour, ISaveable
             {
                 // Attach or update the visual script
                 var visual = go.GetComponent<ResourceInstanceVisual>() ?? go.AddComponent<ResourceInstanceVisual>();
-                visual.SetUniqueId(r.uniqueId);
-                visual.isChopped = r.isChopped;
+
+                if (spawnAsReplacement)
+                {
+                    // For replacements, use the original uniqueId so the stump can be tracked
+                    visual.SetUniqueId(r.uniqueId + "_stump");
+                    visual.isChopped = false; // Stump itself is not chopped
+
+                    // Set up stump as a replacement in ResourceInstanceVisual
+                    visual.SetDestroyedReplacementPrefab(prefabToSpawn);
+                }
+                else
+                {
+                    // Normal tree
+                    visual.SetUniqueId(r.uniqueId);
+                    visual.isChopped = r.isChopped;
+                }
 
                 var baseResource = go.GetComponent<BaseResource>();
                 if (baseResource != null)
                 {
+                    baseResource.SetUniqueId(visual.uniqueId);
+
+                    // Set health based on whether this is a replacement or original
                     var healthSystem = baseResource.GetHealthSystem();
                     if (healthSystem != null)
                     {
-                        int actualHealth = healthSystem.GetHealth();
+                        int healthToSet = spawnAsReplacement ? Mathf.Max(1, r.replacementHealth) : r.curHealth;
+                        healthSystem.SetHealth(healthToSet);
 
-                        // Update the core record with the actual health
-                        if (core.recordsById.TryGetValue(r.uniqueId, out var record))
+                        // Update the record with actual health
+                        if (spawnAsReplacement)
                         {
-                            if (record.curHealth != actualHealth)
+                            if (r.replacementHealth != healthToSet)
                             {
-                                record.curHealth = actualHealth;
-                                if (verboseLogs)
-                                    Debug.Log($"[ResourceManager] Updated record health during spawn: {r.uniqueId} -> {actualHealth}");
+                                r.replacementHealth = healthToSet;
+                            }
+                        }
+                        else
+                        {
+                            if (r.curHealth != healthToSet)
+                            {
+                                r.curHealth = healthToSet;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // Fallback: If no BaseResource, update the core record health directly
+                    if (core.recordsById.TryGetValue(r.uniqueId, out var record))
+                    {
+                        if (spawnAsReplacement)
+                        {
+                            if (record.replacementHealth != r.replacementHealth)
+                            {
+                                record.replacementHealth = r.replacementHealth;
+                            }
+                        }
+                        else
+                        {
+                            if (record.curHealth != r.curHealth)
+                            {
+                                record.curHealth = r.curHealth;
                             }
                         }
                     }
                 }
 
                 // If a runtime destroyed replacement was registered for this uniqueId, apply it to the visual now
-                GameObject replacementPrefab = null;
+                // (This is for runtime changes, separate from the initial spawn logic above)
+                GameObject runtimeReplacementPrefab = null;
                 lock (destroyedReplacementMapLock)
                 {
-                    destroyedReplacementPrefabMap.TryGetValue(r.uniqueId, out replacementPrefab);
+                    destroyedReplacementPrefabMap.TryGetValue(r.uniqueId, out runtimeReplacementPrefab);
                 }
-                if (replacementPrefab != null)
+                if (runtimeReplacementPrefab != null && !spawnAsReplacement)
                 {
-                    try { visual.SetDestroyedReplacementPrefab(replacementPrefab); }
+                    try { visual.SetDestroyedReplacementPrefab(runtimeReplacementPrefab); }
                     catch (Exception ex) { Debug.LogWarning($"[ResourceManager] Visual.SetDestroyedReplacementPrefab threw: {ex.Message}"); }
                 }
 
@@ -958,8 +1079,11 @@ public class ResourceManager : MonoBehaviour, ISaveable
                 catch (Exception ex) { Debug.LogWarning($"[SpawnRecordVisual] Failed to register {r.uniqueId}: {ex}"); }
 
                 // Legacy fallback for BaseResource if you still need it
-                var br = go.GetComponent<BaseResource>();
-                if (br != null) br.SetUniqueId(r.uniqueId);
+                if (baseResource == null)
+                {
+                    var br = go.GetComponent<BaseResource>();
+                    if (br != null) br.SetUniqueId(visual.uniqueId);
+                }
 
                 // Register instance for offline-to-network sync (host batch MirrorSpawn)
                 RegisterInstance(r.uniqueId, go);
@@ -1028,7 +1152,92 @@ public class ResourceManager : MonoBehaviour, ISaveable
         // 5. Nothing found
         return null;
     }
+    /// <summary>
+    /// Called when a resource is destroyed and replaced with something (like tree -> stump)
+    /// </summary>
+    public void RecordReplacement(string originalUniqueId, GameObject replacementPrefab)
+    {
+        if (string.IsNullOrEmpty(originalUniqueId) || replacementPrefab == null) return;
 
+        EnqueueOrExecute(() => {
+            if (core.recordsById.TryGetValue(originalUniqueId, out var record))
+            {
+                // Get replacement prefab path from database
+                string replacementPath = null;
+                if (resourcePrefabDatabase != null)
+                {
+                    replacementPath = resourcePrefabDatabase.GetPathForPrefab(replacementPrefab);
+                }
+
+                if (string.IsNullOrEmpty(replacementPath))
+                {
+                    Debug.LogWarning($"[ResourceManager] Could not find path for replacement prefab: {replacementPrefab.name}");
+                    return;
+                }
+
+                // Get replacement health from the prefab's BaseResource
+                int replacementHealth = GetPrefabBaseHealth(replacementPrefab);
+
+                // Update the record
+                record.hasReplacement = true;
+                record.replacementPrefabPath = replacementPath;
+                record.replacementHealth = replacementHealth;
+                record.isChopped = true;
+
+                SetDirty(true);
+                Debug.Log($"[ResourceManager] Recorded replacement for {originalUniqueId}: {replacementPath} (health: {replacementHealth})");
+            }
+            else
+            {
+                Debug.LogWarning($"[ResourceManager] Could not find record for {originalUniqueId} when recording replacement");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Get the base health from a prefab's BaseResource component
+    /// </summary>
+    private int GetPrefabBaseHealth(GameObject prefab)
+    {
+        if (prefab == null) return 0;
+
+        // Check if prefab has BaseResource component
+        var baseResource = prefab.GetComponent<BaseResource>();
+        if (baseResource != null)
+        {
+            // Try to get serialized baseHealth field
+            var baseHealthField = typeof(BaseResource).GetField("baseHealth",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (baseHealthField != null)
+            {
+                return (int)baseHealthField.GetValue(baseResource);
+            }
+        }
+
+        // Default values based on prefab name (fallback)
+        if (prefab.name.ToLower().Contains("stump")) return 20;
+        return 0;
+    }
+
+    /// <summary>
+    /// Update replacement health when it changes
+    /// </summary>
+    public void UpdateReplacementHealth(string originalUniqueId, int newHealth)
+    {
+        if (string.IsNullOrEmpty(originalUniqueId)) return;
+
+        EnqueueOrExecute(() => {
+            if (core.recordsById.TryGetValue(originalUniqueId, out var record))
+            {
+                if (record.hasReplacement)
+                {
+                    record.replacementHealth = newHealth;
+                    SetDirty(true);
+                    Debug.Log($"[ResourceManager] Updated replacement health for {originalUniqueId}: {newHealth}");
+                }
+            }
+        });
+    }
 
     GameObject CreateMissingPrefabPlaceholder(string uniqueId, Vector3 worldPos, Quaternion worldRot, Vector3 worldScale)
     {

@@ -103,6 +103,7 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         OnDamageReceived(amount);
 
         UpdateSpawnRecordHealth();
+        UpdateReplacementHealth();
     }
 
     public virtual void Damage(int amount, HitInfo hit)
@@ -112,6 +113,7 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         OnDamageReceived(amount);
 
         UpdateSpawnRecordHealth();
+        UpdateReplacementHealth();
 
         if (hit.point != Vector3.zero)
         {
@@ -298,6 +300,19 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
 
         /*Debug.LogWarning($"{name}: RequestDestroyAndReplace performed local-only replacement (no persistence). UniqueId={uniqueId}");
         DestroyResource();*/
+    }
+    private void UpdateReplacementHealth()
+    {
+        if (string.IsNullOrEmpty(uniqueId) || !uniqueId.Contains("_stump")) return;
+
+        // Extract original uniqueId from stump id
+        string originalId = uniqueId.Replace("_stump", "");
+
+        ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
+        if (rm != null && healthSystem != null)
+        {
+            rm.UpdateReplacementHealth(originalId, healthSystem.GetHealth());
+        }
     }
 
     // Expose status for other systems / debugging

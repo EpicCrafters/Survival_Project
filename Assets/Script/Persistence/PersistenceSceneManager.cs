@@ -132,11 +132,7 @@ public class PersistenceSceneManager : MonoBehaviour
 
         try
         {
-#if UNITY_2020_1_OR_NEWER
             var monos = FindObjectsOfType<MonoBehaviour>(true); // include inactive
-#else
-            var monos = Resources.FindObjectsOfTypeAll<MonoBehaviour>(); // older Unity fallback
-#endif
             foreach (var m in monos)
             {
                 if (m == null) continue;
