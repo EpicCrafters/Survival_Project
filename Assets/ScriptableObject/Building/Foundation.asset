@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Foundation
   m_EditorClassIdentifier: 
   id: 1001
-  itemName: 
+  itemName: Foundation
   image: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
   type: 4
   worldPrefab: {fileID: 6730120286574331868, guid: 8b7e8c77f174ec246acc281e222cac8c, type: 3}
@@ -26,9 +26,10 @@ MonoBehaviour:
     damage: 0
     range: 0
     combos: []
+    projectileData: {fileID: 0}
+    maxChargeTime: 1.5
     arrowProjectilePrefab: {fileID: 0}
     arrowVisualPrefab: {fileID: 0}
-    maxChargeTime: 1.5
     knockback:
       horizontalForce: 800
       upwardForce: 200
@@ -62,3 +63,4 @@ MonoBehaviour:
     placementAnchorOffset: {x: 0, y: 0, z: 0}
     maxCornerDrop: 0.4
     raiseToHighest: 1
+    placementRole: {fileID: 11400000, guid: 4c672bfe1dbae9540b94ea2c1c62738d, type: 2}

@@ -12,10 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 88d2cdda2b25fc34ab54a1c3da1a91e6, type: 3}
   m_Name: Stair
   m_EditorClassIdentifier: 
-  itemName: 
+  id: 1004
+  itemName: Stair
   image: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
   type: 4
   worldPrefab: {fileID: 6730120286574331868, guid: d52bf1d0ba178784685098823920b87e, type: 3}
+  heldPrefab: {fileID: 0}
   itemPlace: 1
   snapToGrid: 1
   gridSize: 2
@@ -23,12 +25,28 @@ MonoBehaviour:
     weaponType: 0
     damage: 0
     range: 0
+    combos: []
+    projectileData: {fileID: 0}
+    maxChargeTime: 1.5
+    arrowProjectilePrefab: {fileID: 0}
+    arrowVisualPrefab: {fileID: 0}
+    knockback:
+      horizontalForce: 800
+      upwardForce: 200
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   tool:
     toolType: 0
     damage: 0
+    knockback:
+      horizontalForce: 800
+      upwardForce: 200
+      boneSearchRadius: 1.5
+      enableKnockback: 1
   consumable:
     healAmount: 0
     fillAmount: 0
+    hungerRestoreAmount: 20
   resource:
     stackable: 0
     maxStack: 10
@@ -43,3 +61,7 @@ MonoBehaviour:
     groundMask:
       serializedVersion: 2
       m_Bits: 2048
+    verticalOffset: 0
+    placementAnchorOffset: {x: 0, y: 0, z: 0}
+    maxCornerDrop: 0.4
+    raiseToHighest: 1

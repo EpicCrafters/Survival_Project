@@ -10,6 +10,7 @@ public class PlayerHoldingItem : NetworkBehaviour
     [Header("References - Tham chiếu")]
     [SerializeField] public ItemPlacer itemPlacer;
     [SerializeField] private WeaponAnimatorHandler weaponHandler;
+    [SerializeField] private BuildManager buildManager;
 
     // Biến private
     private GameObject currentHoldingItem;
@@ -134,6 +135,26 @@ public class PlayerHoldingItem : NetworkBehaviour
         currentHoldingItem = newItem;
         ItemData = data;
         isHolding = true;
+
+        // LOGIC ĐẶT ITEM 
+        if (data.itemPlace)
+        {
+            if (data.type == ItemType.BuildingPart)
+            {
+                buildingType = true;
+                buildManager.SetCurrentItem(data, this);
+            }
+            else
+            {
+                buildingType = false;
+                itemPlacer.StartPlacing(data, this);
+            }
+        }
+        else if (data.type == ItemType.Tool)
+        {
+            buildingType = true;
+            buildManager.SetCurrentItem(data, this);
+        }
 
         // Gắn ItemHeld component
         var heldComp = newItem.GetComponent<ItemHeld>() ?? newItem.AddComponent<ItemHeld>();
@@ -366,6 +387,11 @@ public class PlayerHoldingItem : NetworkBehaviour
         {
             if (!buildingType)
                 itemPlacer.CancelPlacing();
+            else
+            {
+                buildManager.SetCurrentItem(null, this);
+                buildManager.EndVisualisingObject();
+            }
         }
 
         buildingType = false;

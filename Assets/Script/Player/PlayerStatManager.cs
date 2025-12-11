@@ -283,7 +283,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             }
         }
 
-        RpcDie(hit);
+        //RpcDie(hit);
     }
 
     private void ApplyDeathKnockback(HitInfo hit)
@@ -334,23 +334,23 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     }
 
     [ClientRpc]
-    private void RpcDie(HitInfo hit)
-    {
-        isDead = true;
+    //private void RpcDie(HitInfo hit)
+    //{
+    //    isDead = true;
 
-        // Disable movement and CharacterController
+    //    // Disable movement and CharacterController
       
 
-        // Disable animator
+    //    // Disable animator
         
-        // Enable ragdoll (this also disables CharacterController)
-        if (playerRagdoll != null)
-            playerRagdoll.SetRagdoll(true);
+    //    // Enable ragdoll (this also disables CharacterController)
+    //    if (playerRagdoll != null)
+    //        playerRagdoll.SetRagdoll(true);
 
       
 
-        Debug.Log($"{gameObject.name} client died");
-    }
+    //    Debug.Log($"{gameObject.name} client died");
+    //}
 
     private void OnHealthSync(int oldValue, int newValue)
         => OnHealthChanged?.Invoke(newValue, maxHealth);

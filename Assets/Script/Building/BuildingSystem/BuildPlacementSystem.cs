@@ -6,12 +6,13 @@ using Mirror;
 
 public class BuildPlacementSystem : MonoBehaviour
 {
-    [SerializeField] private LayerMask buildLayer;
+    [SerializeField] public LayerMask buildLayer;
     [SerializeField] private float clusterSnapRadiusMultiplier = 1.25f;
     private BuildManager buildManager;
     private float rotY; // xoay theo Q/E
     private Transform previewAnchor;
 
+    private IBuildPlacementRole defaultRole;
     // Ghost caching to avoid allocations every frame
     private GameObject ghostCache;
     private GameObject ghostCachePrefab;
@@ -27,14 +28,21 @@ public class BuildPlacementSystem : MonoBehaviour
     {
         buildManager = manager;
     }
+    private void Awake()
+    {
+        defaultRole = ScriptableObject.CreateInstance<DefaultPlacementRole>();
+    }
 
     public void ResetRotation() => rotY = 0f;
 
     public void UpdatePlacement(ItemData item)
     {
-        if (Camera.main == null) return; // sanity
+        if (Camera.main == null) return;
 
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+        IBuildPlacementRole role = GetRole(item);
+        //Debug.Log($"Role = {role.GetType().Name} | Item = {item.itemName}");
 
         if (Physics.Raycast(ray, out RaycastHit hit, 30, item.building.groundMask))
         {
@@ -45,162 +53,28 @@ public class BuildPlacementSystem : MonoBehaviour
             bool hasAnchor = TryFindNearestAnchor(hit.point, out anchor);
             previewAnchor = hasAnchor ? anchor : null;
 
-            ComputeSnappedTransform(hit.point, item, previewAnchor,
-                                    out Vector3 snappedPos, out float computedRotY);
+            // =============================
+            //     CALL ROLE PREVIEW
+            // =============================
+            role.ComputePreview(
+                hit.point,
+                rotY,
+                previewAnchor,
+                buildManager,
+                item,
+                out Vector3 rPos,
+                out float rRotY,
+                out bool rCanPlace
+            );
 
-            float finalRotY = computedRotY + rotY;
+            // ALWAYS UPDATE PREVIEW HERE
+            buildManager.previewSystem.UpdatePreview(rPos, rRotY, rCanPlace);
 
-            // --- CHỈNH: nếu là foundation và KHÔNG có anchor thì adjust height trước khi preview ---
-            if (item.building.partType == BuildingPartType.Foundation && previewAnchor == null)
+            if (Input.GetMouseButtonDown(0) && rCanPlace)
             {
-                // truyền rotation để tính góc-corners chính xác
-                snappedPos = AdjustFoundationHeight(snappedPos, finalRotY, item, foundationExtraLift, foundationMaxLift);
-            }
-
-            bool canPlace = CheckCanPlace(snappedPos, finalRotY, item);
-
-            // Now show preview at corrected height
-            buildManager.previewSystem.UpdatePreview(snappedPos, finalRotY, canPlace);
-
-            if (Input.GetMouseButtonDown(0) && canPlace)
-            {
-                // Keep existing signature: ConfirmPlacement in BuildManager will
-                // call CmdRequestPlace on client (or directly call ServerPlaceObject on host)
-                buildManager.ConfirmPlacement(snappedPos, finalRotY, item, previewAnchor);
+                buildManager.ConfirmPlacement(rPos, rRotY, item, previewAnchor);
             }
         }
-    }
-
-    private Vector3 AdjustFoundationHeight(Vector3 basePos, float rotY, ItemData item, float extraLift, float maxLift)
-    {
-        // compute half extents in world XZ using the cell width
-        float half = buildManager.cellWidth * 0.5f;
-
-        // corner offsets in local (before rotation)
-        Vector3[] localCorners = new Vector3[]
-        {
-            new Vector3(-half, 0f, -half),
-            new Vector3(-half, 0f, +half),
-            new Vector3(+half, 0f, -half),
-            new Vector3(+half, 0f, +half)
-        };
-
-        // rotation to apply to local corners
-        Quaternion rot = Quaternion.Euler(0f, rotY, 0f);
-
-        float lowestGroundY = float.MaxValue;
-        bool foundAny = false;
-
-        // raycast down from slightly above each corner and get the lowest hit
-        foreach (var lc in localCorners)
-        {
-            Vector3 worldCorner = basePos + rot * lc;
-
-            // raycast from a bit above corner to ensure hitting slope
-            Vector3 rayStart = worldCorner + Vector3.up * (buildManager.cellHeight + 0.5f);
-            float rayLen = buildManager.cellHeight + 5f; // reasonable depth
-
-            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, rayLen, item.building.groundMask))
-            {
-                lowestGroundY = Mathf.Min(lowestGroundY, hit.point.y);
-                foundAny = true;
-            }
-            else
-            {
-                // if no ground under corner, optionally treat as "very low"
-                // here we skip it; if *none* corners hit ground, we won't lift.
-            }
-        }
-
-        if (!foundAny)
-        {
-            // no ground detected under corners -> return original
-            return basePos;
-        }
-
-
-        float foundationHalfHeight = buildManager.cellHeight * 0.3f;
-        float foundationBottomY = basePos.y - foundationHalfHeight;
-
-        float neededLift = 0f;
-        // only lift when really needed (foundation bottom is under ground)
-        if (foundationBottomY < lowestGroundY)
-        {
-            float rawLift = lowestGroundY - foundationBottomY;
-
-            // giảm độ nhạy nâng: chỉ nâng 30% của mức cần thiết
-            float adjustedLift = rawLift * 0.2f;
-
-            // clamp để tránh bay
-            adjustedLift = Mathf.Clamp(adjustedLift, 0f, maxLift);
-
-            // thêm uplift nhỏ để tránh clipping
-            adjustedLift += extraLift;
-
-            basePos.y += adjustedLift;
-        }
-        else
-        {
-            // nếu không cần nâng -> hạ nhẹ xuống để không trông bay
-            basePos.y -= extraLift * 0.5f;
-        }
-
-        return basePos;
-    }
-
-    private void ComputeSnappedTransform(Vector3 rawPosition, ItemData obj, Transform anchor, out Vector3 outPosition, out float outRotY)
-    {
-        outRotY = 0f;
-        outPosition = rawPosition;
-
-        if (anchor == null) return;
-
-        Vector3 origin = anchor.position;
-
-        float localX = (rawPosition.x - origin.x) / buildManager.cellWidth;
-        float localZ = (rawPosition.z - origin.z) / buildManager.cellWidth;
-        float localY = (rawPosition.y - origin.y) / buildManager.cellHeight;
-
-        int ix = Mathf.RoundToInt(localX);
-        int iz = Mathf.RoundToInt(localZ);
-        int iy = Mathf.RoundToInt(localY);
-
-        Vector3 cellCenter = new Vector3(origin.x + ix * buildManager.cellWidth,
-                                         origin.y + iy * buildManager.cellHeight,
-                                         origin.z + iz * buildManager.cellWidth);
-
-        if (obj.building.snapToGridEdge)
-        {
-            float fracX = localX - ix;
-            float fracZ = localZ - iz;
-
-            float offsetIntoCell = 0.3355f; // tỉ lệ ~0.35 khi điều chỉnh nếu cần
-
-            if (Mathf.Abs(fracX) > Mathf.Abs(fracZ))
-            {
-                float signX = Mathf.Sign(fracX);
-                float x = origin.x + (ix + 0.5f * signX) * buildManager.cellWidth;
-                float z = origin.z + iz * buildManager.cellWidth;
-                outPosition = new Vector3(x, origin.y, z);
-                outRotY = 0f;
-            }
-            else
-            {
-                float signZ = Mathf.Sign(fracZ);
-                float z = origin.z + (iz + 0.5f * signZ) * buildManager.cellWidth;
-                float x = origin.x + ix * buildManager.cellWidth;
-                outPosition = new Vector3(x, origin.y, z);
-                outRotY = 90f;
-            }
-        }
-        else
-        {
-            outPosition = cellCenter;
-            outRotY = 0f;
-        }
-
-        int targetLayer = iy + obj.building.verticalOffset;
-        outPosition.y = origin.y + targetLayer * buildManager.cellHeight;
     }
 
     // tìm anchor gần nhất (ưu tiên BuildClusterRef, fallback BuildtObject cũ)
@@ -239,58 +113,6 @@ public class BuildPlacementSystem : MonoBehaviour
 
         return anchor != null;
     }
-
-    private bool CheckCanPlace(Vector3 pos, float rotY, ItemData obj)
-    {
-        if (obj == null || obj.worldPrefab == null) return false;
-
-        // Ensure we have a cached ghost of the same prefab
-        if (ghostCache == null || ghostCachePrefab != obj.worldPrefab)
-        {
-            if (ghostCache != null) Destroy(ghostCache);
-            ghostCache = Instantiate(obj.worldPrefab);
-            ghostCachePrefab = obj.worldPrefab;
-
-            // Hide renderers and make colliders triggers so they don't interfere
-            foreach (var r in ghostCache.GetComponentsInChildren<Renderer>()) r.enabled = false;
-            foreach (var c in ghostCache.GetComponentsInChildren<Collider>()) c.isTrigger = true;
-        }
-
-        ghostCache.transform.SetPositionAndRotation(pos, Quaternion.Euler(0, rotY, 0));
-        ghostCache.transform.localScale = new Vector3(buildManager.cellWidth, buildManager.cellHeight, buildManager.cellWidth);
-
-        bool isOccupied = false;
-        Collider[] colliders = ghostCache.GetComponentsInChildren<Collider>();
-        foreach (Collider collider in colliders)
-        {
-            // Use OverlapBox with the collider's world bounds to detect any build objects
-            Vector3 center = collider.bounds.center;
-            Vector3 halfExtents = collider.bounds.extents * 0.4f; // adjust tolerance if needed
-            Quaternion orientation = ghostCache.transform.rotation;
-
-            Collider[] hits = Physics.OverlapBox(center, halfExtents, orientation, buildLayer);
-            foreach (var hit in hits)
-            {
-                var existing = hit.GetComponentInParent<BuildtObject>();
-                if (existing != null && !obj.building.ignorObject.Contains(existing.objectType))
-                {
-                    isOccupied = true;
-                    break;
-                }
-            }
-            if (isOccupied) break;
-        }
-
-        bool isPlatform =
-            obj.building.partType == BuildingPartType.Foundation ||
-            obj.building.partType == BuildingPartType.Floor;
-
-        bool needAnchor = !isPlatform;
-        bool blockedByNoAnchor = needAnchor && previewAnchor == null;
-
-        return !isOccupied && !blockedByNoAnchor;
-    }
-
     // ---------------------------
     // Server-side spawn / destroy
     // These must be called on the server (isServer == true)
@@ -310,7 +132,7 @@ public class BuildPlacementSystem : MonoBehaviour
             Debug.LogWarning("[ServerPlaceObject] invalid item.");
             return;
         }
-
+        var role = GetRole(obj);
         // Instantiate WITHOUT parent (Mirror sẽ không giữ parent nếu bạn spawn với parent)
         GameObject newObj = Instantiate(obj.worldPrefab, pos, Quaternion.Euler(0, rotY, 0));
         // set scale BEFORE spawn (scale sẽ sync qua clients nếu NetworkTransform/transform sync được)
@@ -318,7 +140,18 @@ public class BuildPlacementSystem : MonoBehaviour
 
         // layer - set trên server so clients nhìn đúng khi OnStartClient chạy (client cũng sẽ reset layer trong OnStartClient)
         int layerIndex = GetBuildLayerIndex();
-        SetLayerRecursively(newObj, layerIndex);
+
+        // Nếu object này là cửa → set lại layer Interactable
+        if (obj.building.partType == BuildingPartType.Door)
+        {
+            int interactLayer = LayerMask.NameToLayer("Interactable");
+            SetLayerRecursively(newObj, interactLayer);
+        }
+        else
+        {
+            SetLayerRecursively(newObj, layerIndex);
+        }
+
 
         // Add BuildtObject and set metadata (server authoritative)
         BuildtObject buildingObject = newObj.GetComponent<BuildtObject>();
@@ -342,7 +175,38 @@ public class BuildPlacementSystem : MonoBehaviour
 
         // Finally spawn via Mirror so all clients see it
         NetworkServer.Spawn(newObj);
+        // Attempt to find socket by proximity (snap-accurate method)
+        DoorFrameSocket nearest = null;
+        float bestDist = 0.3f;      // snap tolerance (0.2–0.3m là chuẩn)
+        float dist;
 
+        foreach (DoorFrameSocket ds in FindObjectsOfType<DoorFrameSocket>())
+        {
+            dist = Vector3.Distance(ds.snapPoint.position, pos);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                nearest = ds;
+            }
+        }
+
+        if (nearest != null)
+        {
+            if (nearest.occupied)
+            {
+                //Debug.LogWarning("[Server] Socket occupied → destroying door.");
+                NetworkServer.Destroy(newObj);
+                return;
+            }
+
+            nearest.occupied = true;
+
+            newObj.transform.SetParent(nearest.snapPoint);
+            newObj.transform.localPosition = Vector3.zero;
+            newObj.transform.localRotation = Quaternion.identity;
+
+            //Debug.Log($"[Server] Door snapped to {nearest.name} (distance={bestDist})");
+        }
         // AFTER spawn: set parent on server for server-side scene organization
         // Note: parent is NOT guaranteed to propagate to clients, so client-side script must also parent.
         if (BuildHierarchy.Root != null)
@@ -378,7 +242,7 @@ public class BuildPlacementSystem : MonoBehaviour
             Destroy(target.gameObject);
         }
     }
-
+    //GetAndSetLayer================================================
     public int GetBuildLayerIndex()
     {
         int mask = buildLayer.value;
@@ -403,4 +267,17 @@ public class BuildPlacementSystem : MonoBehaviour
         ghostCache = null;
         ghostCachePrefab = null;
     }
+    //================================================================
+    private IBuildPlacementRole GetRole(ItemData item)
+    {
+        if (item == null || item.building == null || item.building.placementRole == null)
+            return defaultRole;
+
+        var role = item.building.placementRole as IBuildPlacementRole;
+        if (role == null)
+            return defaultRole;
+
+        return role;
+    }
+
 }
