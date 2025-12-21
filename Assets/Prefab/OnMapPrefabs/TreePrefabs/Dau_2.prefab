@@ -302,6 +302,7 @@ MonoBehaviour:
   isDestroyed: 0
   isBeingDestroyed: 0
   uniqueId: 
+  maxInteractDistance: 3
   treeType: 0
   treeSize: 2
   treeLogPrefab: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}

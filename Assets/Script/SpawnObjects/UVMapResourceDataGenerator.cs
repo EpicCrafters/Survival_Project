@@ -200,7 +200,8 @@ public class UVMapResourceDataGenerator : MonoBehaviour
                     if (!p) continue;
                     if (!prefabValidCache.TryGetValue(p, out bool isValid))
                     {
-                        isValid = p.GetComponent<BaseResource>() != null;
+                        //isValid = p.GetComponent<BaseResource>() != null;
+                        isValid = true;
                         prefabValidCache[p] = isValid;
                     }
                     if (isValid) { anyValid = true; break; }
