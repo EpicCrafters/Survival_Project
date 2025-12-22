@@ -392,8 +392,8 @@ namespace Mirror.Examples.Common.Controllers.Flyer
 
         void SetCursor(bool locked)
         {
-            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !locked;
+            //Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+            //Cursor.visible = !locked;
         }
 
         void HandleOptions()

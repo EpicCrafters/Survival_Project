@@ -11,8 +11,7 @@ GameObject:
   - component: {fileID: 8899482145745450577}
   - component: {fileID: 8188402137257940349}
   - component: {fileID: 4399980485708924547}
-  - component: {fileID: 8306432058410545382}
-  - component: {fileID: 6754169980511530578}
+  - component: {fileID: 2464531866637595652}
   m_Layer: 5
   m_Name: CraftingSlot
   m_TagString: Untagged
@@ -77,7 +76,7 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!114 &8306432058410545382
+--- !u!114 &2464531866637595652
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -86,30 +85,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 3668043679620457829}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b417ff2cd02c6e341a288125dacfa895, type: 3}
+  m_Script: {fileID: 11500000, guid: c2c827087c634b74e8909b891a420d88, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &6754169980511530578
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3668043679620457829}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8a8695521f0d02e499659fee002a26c2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Padding:
-    m_Left: 0
-    m_Right: 0
-    m_Top: 0
-    m_Bottom: 0
-  m_ChildAlignment: 4
-  m_StartCorner: 0
-  m_StartAxis: 0
-  m_CellSize: {x: 100, y: 100}
-  m_Spacing: {x: 0, y: 0}
-  m_Constraint: 0
-  m_ConstraintCount: 2
+  image: {fileID: 0}
+  selectedColor: {r: 0.56816506, g: 0.9245283, b: 0.40295476, a: 1}
+  notSelectedColor: {r: 1, g: 1, b: 1, a: 1}
+  index: 0

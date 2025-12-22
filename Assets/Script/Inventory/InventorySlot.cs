@@ -2,10 +2,13 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class InventorySlot : SlotBase
+public class InventorySlot : SlotBase, IPointerClickHandler
 {
     public Image image;
-    public Color selectedColor, notSelectedColor;
+    public Color selectedColor;
+    public Color notSelectedColor;
+
+    public int index;   // index trong InventoryController
 
     private void Awake()
     {
@@ -14,14 +17,34 @@ public class InventorySlot : SlotBase
 
     public void Select()
     {
-        image.color = selectedColor;
+        if (image != null)
+            image.color = selectedColor;
     }
 
     public void Deselect()
     {
-        image.color = notSelectedColor;
+        if (image != null)
+            image.color = notSelectedColor;
     }
 
-    // KHÔNG cần override OnDrop nếu không thêm logic riêng
-    // Nếu cần thêm: override rồi gọi base.OnDrop(eventData)
+    // ---------------------------------------------------------
+    // LEFT CLICK → đặt split vào slot này
+    // ---------------------------------------------------------
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (eventData.button != PointerEventData.InputButton.Left)
+            return;
+
+        var inv = InventoryManager.instance;
+
+        if (inv != null && inv.splitState.active)
+        {
+            inv.PlaceSplit(index);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Drag–drop logic vẫn dùng SlotBase.OnDrop
+    // Không cần override OnDrop trừ khi bạn muốn custom thêm
+    // ---------------------------------------------------------
 }

@@ -1,262 +1,141 @@
-﻿using Unity.VisualScripting;
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using TMPro;
-using UnityEngine.InputSystem;
-using System.Collections.Generic;
 
-public class InventoryItem : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
+public class InventoryItem : MonoBehaviour,
+    IBeginDragHandler, IDragHandler, IEndDragHandler,
+    IPointerClickHandler
+
 {
-    public ItemData item;
+    // ===== DATA (read-only from outside) =====
+    public ItemData ItemData { get; private set; }
+    private ItemStack boundStack;
+    // ===== UI =====
+    [SerializeField] private Image image;
+    [SerializeField] private TextMeshProUGUI countText;
 
-    [Header("UI")]
-    public Image image;
-    public TextMeshProUGUI countText;
+    // ===== Drag =====
+    [HideInInspector] public InventorySlot originSlot;
+    [HideInInspector] public bool droppedOnSlot;
+    private PointerEventData.InputButton dragButton;
 
-    [SerializeField] public int count = 1;
-    [HideInInspector] public Transform parentAfterDrag;
-
-
-    [Header("Drag")]
-    private RectTransform rectTransform;
     private CanvasGroup canvasGroup;
+    private Transform parentAfterDrag;
+    private bool validDrag;
 
-    // STATIC SPLIT STATE
-    public bool isSplitClone = false;   // Đánh dấu đây là clone split
-    public static GameObject splitClone;
-    public static InventoryItem splitFromSlot;
-    public static int splitQuantity = 0;
     private void Awake()
     {
-        rectTransform = GetComponent<RectTransform>();
         canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null) //add canvas group
+        if (canvasGroup == null)
             canvasGroup = gameObject.AddComponent<CanvasGroup>();
-
     }
-    // Khi click chuột phải lên item
-    public void OnPointerClick(PointerEventData eventData)
+
+    // -------------------------------------------------
+    // UI BIND (BẮT BUỘC)
+    // -------------------------------------------------
+    public void Bind(ItemStack stack)
     {
-        // Chỉ xử lý khi click chuột phải và còn ít nhất 2 để tách
-        if (eventData.button == PointerEventData.InputButton.Right && count > 1)
-        {
-            // Nếu đây là clone thì không cho tách tiếp
-            if (isSplitClone) return;
-            // Nếu chưa có clone tách thì tạo mới
-            if (splitClone == null)
-            {
-                // Ghi nhớ slot gốc đang tách
-                splitFromSlot = this;
-                // Bắt đầu tách 1 đơn vị
-                splitQuantity = 1;
-                // Trừ slot gốc đi 1
-                count--;
-                RefreshCount();
-                // Tạo clone từ chính object này
-                splitClone = Instantiate(gameObject, transform.root);
+        if (stack == null) return;
 
-                InventoryItem cloneItem = splitClone.GetComponent<InventoryItem>();
+        boundStack = stack;
+        ItemData = stack.data;
 
-                cloneItem.isSplitClone = true;
-                // Trường hợp clone mất sprite do `Awake` thì fix lại:
-                cloneItem.item = item;
-
-                cloneItem.image.sprite = item.image;
-
-                cloneItem.count = splitQuantity;        // Gán số lượng clone
-                cloneItem.RefreshCount();               // Làm mới text số
-
-                RectTransform cloneRT = splitClone.GetComponent<RectTransform>();
-                RectTransform sourceRT = GetComponent<RectTransform>();
-                cloneRT.anchorMin = sourceRT.anchorMin;
-                cloneRT.anchorMax = sourceRT.anchorMax;
-                cloneRT.pivot = sourceRT.pivot;
-                cloneRT.sizeDelta = sourceRT.sizeDelta;
-                cloneRT.localScale = Vector3.one;
-
-                splitClone.transform.SetAsLastSibling();
-
-                // Làm mờ clone và cho phép raycast xuyên qua
-                var cg = splitClone.GetComponent<CanvasGroup>();
-                cg.alpha = 0.6f;
-                cg.blocksRaycasts = false;
-
-                Debug.Log($"[Split] Bắt đầu tách {item.itemName} x{splitQuantity}");
-            }
-            else if (splitFromSlot == this)
-            {
-                // Nếu đang tách tiếp cùng slot gốc thì tăng số lượng tách
-                if (count > 0)
-                {
-                    splitQuantity++;  // Tăng số tách
-                    count--;          // Slot gốc trừ tiếp
-                    RefreshCount();   // Cập nhật slot gốc
-                    InventoryItem cloneItem = splitClone.GetComponent<InventoryItem>();
-                    cloneItem.count = splitQuantity;    // Update số lượng clone
-                    cloneItem.RefreshCount();
-                    Debug.Log($"[Split] Tăng số tách lên: {splitQuantity}");
-                }
-            }
-        }
+        image.sprite = stack.data.image;
+        countText.text = stack.count.ToString();
+        countText.gameObject.SetActive(stack.count > 1);
     }
 
-
-    public void InitialiseItem(ItemData newItem)
-    {
-        item = newItem;
-        image.sprite = newItem.image;
-        RefreshCount();
-    }
-
-    public void RefreshCount()
-    {
-        countText.text = count.ToString();
-        bool textActive = count > 1;
-        countText.gameObject.SetActive(textActive);
-    }
-
+    // -------------------------------------------------
+    // DRAG
+    // -------------------------------------------------
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (splitClone != null) return; // Không kéo item gốc khi đang tách
-        //Debug.Log("Begin drag");
-        parentAfterDrag = transform.parent;
-        transform.SetParent(transform.root);
-        transform.SetAsLastSibling();
-        image.raycastTarget = false;
-    }
+        if (eventData.button != PointerEventData.InputButton.Left)
+        {
+            validDrag = false;
+            return;
+        }
 
+        validDrag = true;
+
+        originSlot = GetComponentInParent<InventorySlot>();
+        parentAfterDrag = transform.parent;
+        droppedOnSlot = false;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        transform.SetParent(canvas.transform, true);
+        transform.SetAsLastSibling();
+
+        canvasGroup.blocksRaycasts = false;
+        image.raycastTarget = false;
+
+        InventoryManager.instance.isDraggingItem = true;
+    }
     public void OnDrag(PointerEventData eventData)
     {
-        if (splitClone != null) return; // Không kéo item gốc khi đang tách
-        //Debug.Log("Dragging");
+        if (!validDrag) return;
         transform.position = eventData.position;
     }
-
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (splitClone != null) return; // Không kéo item gốc khi đang tách
-        //Debug.Log("End drag");
-        transform.SetParent(parentAfterDrag);
-        InventoryManager.instance.ChangeHotbarSlot(InventoryManager.instance.IndexSlotBar);
-        CraftingManager.Instance.UpdateAvailableRecipes();
+        if (!validDrag) return;
+
+        validDrag = false;
+
+        canvasGroup.blocksRaycasts = true;
         image.raycastTarget = true;
+
+        InventoryManager.instance.EndDrag(this);
     }
 
-    private void Update()
+    public void SetAlpha(float a)
     {
-        if (splitClone != null)
+        var c = image.color;
+        c.a = a;
+        image.color = c;
+    }
+    public void SetGhostVisual()
+    {
+        if (image != null)
         {
-            // Clone đi theo chuột
-            splitClone.transform.position = Input.mousePosition;
-            //Debug.Log($"[DEBUG] Mouse: {Input.mousePosition} | Clone: {splitClone.transform.position}");
-
-            // Chuột trái đặt item clone
-            if (Input.GetMouseButtonDown(0)) TryPlaceSplit();
-
-            // Chuột phải ngoài slot gốc => huỷ tách
-            if (Input.GetMouseButtonDown(1))
-            {
-                PointerEventData pointerData = new PointerEventData(EventSystem.current);
-                pointerData.position = Input.mousePosition;
-
-                List<RaycastResult> results = new List<RaycastResult>();
-                EventSystem.current.RaycastAll(pointerData, results);
-
-                bool hoveringOriginalSlot = false;
-
-                foreach (var result in results)
-                {
-                    InventoryItem item = result.gameObject.GetComponentInParent<InventoryItem>();
-                    if (item == splitFromSlot)
-                    {
-                        hoveringOriginalSlot = true;
-                        break;
-                    }
-                }
-
-                if (!hoveringOriginalSlot)
-                {
-                    CancelSplit();
-                }
-            }
+            image.enabled = true;
+            image.color = new Color(1f, 1f, 1f, 0.5f);
+            image.raycastTarget = false;
         }
-    }
-    private void TryPlaceSplit()
-    {
-        PointerEventData pointerData = new PointerEventData(EventSystem.current);
-        pointerData.position = Input.mousePosition;
 
-        List<RaycastResult> results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(pointerData, results);
-
-        foreach (var result in results)
+        var cg = GetComponent<CanvasGroup>();
+        if (cg != null)
         {
-            InventorySlot slot = result.gameObject.GetComponentInParent<InventorySlot>();
-
-            if (slot != null)
-            {
-                InventoryItem itemInSlot = slot.GetComponentInChildren<InventoryItem>();
-
-                if (itemInSlot == null)
-                {
-                    // Slot rỗng => Đặt clone vào
-                    GameObject newItem = Instantiate(gameObject, slot.transform);
-                    InventoryItem newInvItem = newItem.GetComponent<InventoryItem>();
-                    newInvItem.InitialiseItem(splitFromSlot.item);
-                    newInvItem.count = splitQuantity;
-                    newInvItem.RefreshCount();
-                }
-                else if (itemInSlot.item == splitFromSlot.item && itemInSlot.item.resource.stackable)
-                {
-                    // Slot cùng loại, stack được => Gộp stack
-                    int maxStack = itemInSlot.item.resource.maxStack;
-                    int total = itemInSlot.count + splitQuantity;
-
-                    if (total <= maxStack)
-                    {
-                        itemInSlot.count = total;
-                        itemInSlot.RefreshCount();
-                    }
-                    else
-                    {
-                        int leftover = total - maxStack;
-                        itemInSlot.count = maxStack;
-                        itemInSlot.RefreshCount();
-
-                        splitFromSlot.count += leftover; // Dư trả lại slot gốc
-                        splitFromSlot.RefreshCount();
-                    }
-                }
-                else
-                {
-                    Debug.Log("[Split] Slot khác loại, không đặt.");
-                    return;
-                }
-
-                // Huỷ clone sau khi đặt thành công
-                Destroy(splitClone);
-                splitClone = null;
-                splitFromSlot = null;
-                splitQuantity = 0;
-
-                Debug.Log("[Split] Đặt xong");
-                return;
-            }
+            cg.alpha = 1f;
+            cg.blocksRaycasts = false;
         }
     }
 
-    // Huỷ tách trả lại số slot gốc
-    private void CancelSplit()
+    public void OnPointerClick(PointerEventData eventData)
     {
-        splitFromSlot.count += splitQuantity; // Trả lại số lượng
-        splitFromSlot.RefreshCount();
+        if (eventData.button != PointerEventData.InputButton.Right)
+            return;
 
-        Destroy(splitClone);
-        splitClone = null;
-        splitFromSlot = null;
-        splitQuantity = 0;
+        InventorySlot slot = GetComponentInParent<InventorySlot>();
+        if (slot == null) return;
 
-        Debug.Log("[Split] Hủy tách");
+        var inv = InventoryManager.instance;
+
+        if (!inv.splitState.active)
+            inv.StartSplit(slot.index);
+        else if (inv.splitState.sourceSlot == slot.index)
+            inv.IncreaseSplit(slot.index);
     }
+
+    public int GetSlotIndex()
+    {
+        InventorySlot slot = GetComponentInParent<InventorySlot>();
+        return slot != null ? slot.index : -1;
+    }
+    public int GetCount()
+    {
+        return boundStack != null ? boundStack.count : 1;
+    }
+
 }

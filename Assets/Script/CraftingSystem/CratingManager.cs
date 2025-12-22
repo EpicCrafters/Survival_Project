@@ -4,18 +4,21 @@ using UnityEngine;
 public class CraftingManager : MonoBehaviour
 {
     public static CraftingManager Instance { get; private set; }
+    [SerializeField] private InventoryManager inventory;
+
+    private Dictionary<ItemData, int> craftingBuffer = new();
 
     [Header("Crafting Slots")]
-    public CraftingSlot[] craftingSlots;  // 6 ô Craft
+    public InventorySlot[] craftingSlots;
 
     [Header("Recipes")]
-    public CraftingRecipe[] recipes;       // Tất cả công thức
+    public CraftingRecipe[] recipes;
 
     [Header("UI")]
-    public Transform recipeListParent;     // ListRecipe (Grid Layout)
-    public GameObject recipeButtonPrefab;  // Prefab RecipeButton
+    public Transform recipeListParent;
+    public GameObject recipeButtonPrefab;
 
-    private List<CraftingRecipe> availableRecipes = new();
+    private readonly List<CraftingRecipe> availableRecipes = new();
 
     private void Awake()
     {
@@ -26,36 +29,38 @@ public class CraftingManager : MonoBehaviour
         }
         Instance = this;
     }
+    private void Start()
+    {
+        for (int i = 0; i < craftingSlots.Length; i++)
+        {
+            craftingSlots[i].index = i;
+        }
+    }
 
+    // ================= CORE =================
+
+    public void OnCraftingSlotChanged()
+    {
+        UpdateAvailableRecipes();
+    }
     public void UpdateAvailableRecipes()
     {
-
         availableRecipes.Clear();
 
         foreach (var recipe in recipes)
         {
-            //Debug.Log($"<color=yellow>Check recipe:</color> {recipe.result.name}");
-            if (HasIngredients(recipe))
-            {
-                //Debug.Log($"✅ Đủ nguyên liệu cho: {recipe.result.name}");
+            if (CanCraft(recipe))
                 availableRecipes.Add(recipe);
-            }
-            else
-            {
-                //Debug.Log($"❌ Thiếu nguyên liệu cho: {recipe.result.name}");
-            }
         }
 
         RefreshRecipeListUI();
     }
 
-    private bool HasIngredients(CraftingRecipe recipe)
+    private bool CanCraft(CraftingRecipe recipe)
     {
-        foreach (var ingredient in recipe.ingredients)
+        foreach (var ing in recipe.ingredients)
         {
-            int count = CountInCraftingSlots(ingredient.item);
-            //Debug.Log($"   🔍 {ingredient.item.name} cần {ingredient.amount}, đang có {count}");
-            if (count < ingredient.amount)
+            if (CountInCraftingSlots(ing.item) < ing.amount)
                 return false;
         }
         return true;
@@ -64,96 +69,113 @@ public class CraftingManager : MonoBehaviour
     private int CountInCraftingSlots(ItemData item)
     {
         int total = 0;
-        foreach (var slot in craftingSlots)
+
+        foreach (var slot in inventory.CraftingSlots)
         {
-            InventoryItem invItem = slot.GetComponentInChildren<InventoryItem>();
-            if (invItem != null)//neu o trong da co vat pham
-            {
-                //Debug.Log($"[Count] Slot: {slot.name} chứa {invItem.item?.itemName ?? "NULL"} số lượng {invItem.count}");
-            }
-            if (invItem != null && invItem.item == item)//o trong chua co item
-            {
-                //Debug.Log("tim thay item");
-                total += invItem.count;
-            }
+            var stack = inventory.controller.GetSlot(slot.index);
+            if (stack != null && stack.data == item)
+                total += stack.count;
         }
-        //Debug.Log($"[Count Result] Tổng {item.itemName}: {total}");
+
         return total;
     }
 
+    // ================= BUFFER =================
+
+    private void RebuildCraftingBuffer()
+    {
+        craftingBuffer.Clear();
+
+        foreach (var slot in craftingSlots)
+        {
+            var ui = slot.GetComponentInChildren<InventoryItem>();
+            if (ui == null) continue;
+
+            // LẤY TỪ ItemStack, KHÔNG TỪ TEXT
+            int count = ui.GetCount(); //  cần thêm hàm này
+
+            if (!craftingBuffer.ContainsKey(ui.ItemData))
+                craftingBuffer[ui.ItemData] = 0;
+
+            craftingBuffer[ui.ItemData] += count;
+        }
+    }
+
+    // ================= CRAFT =================
+    public void Craft(CraftingRecipe recipe)
+    {
+        if (!CanCraft(recipe))
+            return;
+
+        // Trừ nguyên liệu TỪ CRAFTING SLOTS
+        foreach (var ing in recipe.ingredients)
+        {
+            int remain = ing.amount;
+
+            foreach (var slot in inventory.CraftingSlots)
+            {
+                int idx = slot.index;
+                var stack = inventory.controller.GetSlot(idx);
+
+                if (stack == null || stack.data != ing.item)
+                    continue;
+
+                int take = Mathf.Min(stack.count, remain);
+                stack.count -= take;
+                remain -= take;
+
+                if (stack.count <= 0)
+                    inventory.controller.slots[idx] = null;
+
+                if (remain <= 0)
+                    break;
+            }
+        }
+
+        // Add result
+        for (int i = 0; i < recipe.resultAmount; i++)
+            inventory.AddItem(recipe.result);
+
+        inventory.RedrawUI();
+        UpdateAvailableRecipes();
+    }
+
+    public void ReturnItemsToInventory()
+    {
+        RebuildCraftingBuffer();
+
+        foreach (var kv in craftingBuffer)
+            InventoryManager.instance.controller.AddStack(
+                new ItemStack(kv.Key, kv.Value)
+            );
+
+        ClearCraftingSlots();
+        InventoryManager.instance.RedrawUI();
+    }
+
+    // ================= UI =================
+
+    private void ClearCraftingSlots()
+    {
+        craftingBuffer.Clear();
+
+        foreach (var slot in craftingSlots)
+        {
+            var ui = slot.GetComponentInChildren<InventoryItem>();
+            if (ui != null)
+                Destroy(ui.gameObject);
+        }
+    }
 
     private void RefreshRecipeListUI()
     {
-        //Debug.Log($"<color=cyan>[Crafting]</color> Làm mới UI Recipe. Số recipe khả dụng: {availableRecipes.Count}");
-
         foreach (Transform child in recipeListParent)
             Destroy(child.gameObject);
 
         foreach (var recipe in availableRecipes)
         {
-            GameObject buttonGO = Instantiate(recipeButtonPrefab, recipeListParent);
-            //Debug.Log($"<color=green Spawn RecipeButton:</color> {recipe.result.name}");
-            RecipeButton rb = buttonGO.GetComponent<RecipeButton>();
-            rb.Setup(recipe, this);
+            var go = Instantiate(recipeButtonPrefab, recipeListParent);
+            go.GetComponent<RecipeButton>().Setup(recipe, this);
         }
-    }
-
-    public void ReturnItemsToInventory()
-    {
-        //Debug.Log("tra item ve inventory");
-        foreach (var slot in craftingSlots)
-        {
-            var invItem = slot.GetComponentInChildren<InventoryItem>();
-            if (invItem != null)
-            {
-                for (int i = 0; i < invItem.count; i++)
-                    InventoryManager.instance.AddItem(invItem.item);
-
-                Destroy(invItem.gameObject);
-            }
-        }
-
-        UpdateAvailableRecipes();
-    }
-
-    public void Craft(CraftingRecipe recipe)
-    {
-        if (!HasIngredients(recipe))
-        {
-            //Debug.LogWarning("Thiếu nguyên liệu!");
-            return;
-        }
-
-        foreach (var ingredient in recipe.ingredients)
-        {
-            int amountLeft = ingredient.amount;
-
-            foreach (var slot in craftingSlots)
-            {
-                var invItem = slot.GetComponentInChildren<InventoryItem>();
-                if (invItem != null && invItem.item == ingredient.item)
-                {
-                    int used = Mathf.Min(amountLeft, invItem.count);
-                    invItem.count -= used;
-                    amountLeft -= used;
-
-                    if (invItem.count <= 0)
-                        Destroy(invItem.gameObject);
-                    else
-                        invItem.RefreshCount();
-
-                    if (amountLeft <= 0) break;
-                }
-            }
-        }
-
-        for (int i = 0; i < recipe.resultAmount; i++)
-        {
-            InventoryManager.instance.AddItem(recipe.result);
-        }
-
-        //Debug.Log($"<color=green> Đã craft:</color> {recipe.result.name} x{recipe.resultAmount}");
-
-        UpdateAvailableRecipes();
     }
 }

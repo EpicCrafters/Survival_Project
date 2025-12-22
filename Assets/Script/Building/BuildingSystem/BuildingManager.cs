@@ -42,7 +42,7 @@ public class BuildManager : NetworkBehaviour
 
         // build lookup
         prefabById.Clear();
-        Cursor.lockState = CursorLockMode.Locked;
+        //Cursor.lockState = CursorLockMode.Locked;
         int n = Math.Min(spawnablePrefabs.Count, spawnablePrefabItemIds.Count);
         for (int i = 0; i < n; i++)
         {

@@ -65,8 +65,6 @@ public class UIManager : MonoBehaviour
         if (healthFill != null)
             healthFill.fillAmount = targetHealthFill; // Cập nhật thanh đỏ ngay lập tức
 
-
-
     }
 
     private void LateUpdate()

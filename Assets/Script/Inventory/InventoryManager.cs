@@ -6,45 +6,535 @@ public class InventoryManager : MonoBehaviour
 {
     public static InventoryManager instance;
 
-    public int IndexSlotBar = 0;
+    public InventoryController controller;
+    public InventorySplitState splitState = new InventorySplitState();
+    public bool isDraggingItem;
+    public bool pendingRedraw;
 
-    [Header("Starter Items")]
-    [SerializeField] private List<StarterItem> starterItems = new List<StarterItem>();
+    [Header("UI Prefabs")]
+    public InventoryItem ghostUI;
+    private InventoryItem ghostInstance;
+    public GameObject inventoryItemPrefab;
+    [SerializeField] private Canvas uiCanvas;
+    [SerializeField] private RectTransform inventoryRoot;
 
-    [Header("UI References")]
+    [Header("Slot Groups")]
     [SerializeField] private InventorySlot[] hotbarSlots;
     [SerializeField] private InventorySlot[] mainInventorySlots;
-    [SerializeField] private GameObject inventoryItemPrefab;
+    [SerializeField] private InventorySlot[] craftingSlots;
+    public IReadOnlyList<InventorySlot> CraftingSlots => craftingSlots;
+
+
+    [Header("Input")]
     [SerializeField] private GameInput gameInput;
 
-    [Header("Player Reference")]
+    //Test
+    [SerializeField] public ItemData stick;
+    [SerializeField] public ItemData stone;
+    [SerializeField] public ItemData axe;
+    private int selectedHotbarIndex = -1;
+    public int IndexSlotBar = 0;
+
     [SerializeField] private PlayerHoldingItem playerHolding;
 
+    // Optional counter map
     private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>();
-    private int selectedHotbarIndex = -1;
 
     private void Awake()
     {
         instance = this;
+
+        int totalSlots =
+        hotbarSlots.Length +
+        mainInventorySlots.Length +
+        craftingSlots.Length;
+
+        controller = new InventoryController(totalSlots);
+
     }
 
     private void Start()
     {
-        ChangeHotbarSlot(IndexSlotBar);
+        int idx = 0;
 
-        // Add starter items
-        foreach (StarterItem starterItem in starterItems)
+        // Hotbar
+        foreach (var slot in hotbarSlots)
+            slot.index = idx++;
+
+        // Inventory
+        foreach (var slot in mainInventorySlots)
+            slot.index = idx++;
+
+        // Crafting
+        foreach (var slot in craftingSlots)
+            slot.index = idx++;
+
+        AddItem(stick);
+        AddItem(stick);
+        AddItem(stick);
+        AddItem(stone);
+        AddItem(stone);     // stone x2
+        AddItem(axe);
+        ChangeHotbarSlot(IndexSlotBar);
+    }
+
+    private void Update()
+    {
+        UpdateSplitGhost();
+    }
+
+    // ---------------------------
+    // ADD ITEM
+    // ---------------------------
+    public bool AddItem(ItemData itemData)
+    {
+        bool added = controller.AddItem(itemData);
+
+        if (added)
         {
-            if (starterItem.item != null)
+            if (!itemCounts.ContainsKey(itemData)) itemCounts[itemData] = 0;
+            itemCounts[itemData]++;
+
+            RedrawUI();
+        }
+        return added;
+    }
+
+    // ---------------------------
+    // REMOVE ITEM
+    // ---------------------------
+    public bool RemoveItem(ItemData itemData, int amount)
+    {
+        int totalHave = 0;
+
+        for (int i = 0; i < controller.slots.Count; i++)
+        {
+            var s = controller.slots[i];
+            if (s != null && s.data == itemData)
+                totalHave += s.count;
+        }
+
+        if (totalHave < amount) return false;
+
+        int remain = amount;
+
+        for (int i = 0; i < controller.slots.Count && remain > 0; i++)
+        {
+            var s = controller.slots[i];
+            if (s != null && s.data == itemData)
             {
-                for (int i = 0; i < starterItem.amount; i++)
-                {
-                    AddItem(starterItem.item);
-                }
+                int take = Mathf.Min(s.count, remain);
+                s.count -= take;
+                remain -= take;
+                if (s.count <= 0) controller.slots[i] = null;
             }
+        }
+
+        if (itemCounts.ContainsKey(itemData))
+        {
+            itemCounts[itemData] -= amount;
+            if (itemCounts[itemData] <= 0)
+                itemCounts.Remove(itemData);
+        }
+
+        RedrawUI();
+        return true;
+    }
+
+    // ---------------------------
+    // HOTBAR SELECTION
+    // ---------------------------
+    public void ChangeHotbarSlot(int index, bool force = false)
+    {
+        if (index < 0 || index >= hotbarSlots.Length)
+            return;
+
+        if (selectedHotbarIndex != index)
+        {
+            if (selectedHotbarIndex >= 0)
+                hotbarSlots[selectedHotbarIndex].Deselect();
+
+            hotbarSlots[index].Select();
+            selectedHotbarIndex = index;
+        }
+
+        InventoryItem itUI = hotbarSlots[index].GetComponentInChildren<InventoryItem>();
+
+        if (playerHolding != null)
+        {
+            if (itUI != null) playerHolding.HoldingItem(itUI.ItemData);
+
+            else playerHolding.Clear();
         }
     }
 
+    // ---------------------------
+    // DRAG & DROP CALLBACK
+    // ---------------------------
+    public void OnItemDropped(InventorySlot fromSlot, InventorySlot toSlot)
+    {
+        int from = fromSlot.index;
+        int to = toSlot.index;
+
+        bool ok = controller.MoveOrStack(from, to);
+
+        if (ok)
+        {
+            pendingRedraw = true;
+        }
+
+    }
+
+    // ---------------------------
+    // REDRAW UI
+    // ---------------------------
+    public void RedrawUI()
+    {
+        if (isDraggingItem) return;
+
+        ClearAllUI();
+
+        int idx = 0;
+        foreach (var s in hotbarSlots)
+        {
+            CreateItemUI(idx, s);
+            idx++;
+        }
+        foreach (var s in mainInventorySlots)
+        {
+            CreateItemUI(idx, s);
+            idx++;
+        }
+        foreach (var s in craftingSlots)
+        {
+            CreateItemUI(idx, s);
+            idx++;
+        }
+    }
+
+    private void ClearAllUI()
+    {
+        foreach (var s in hotbarSlots)
+        {
+            var items = s.GetComponentsInChildren<InventoryItem>();
+            foreach (var it in items)
+                Destroy(it.gameObject);
+        }
+
+        foreach (var s in mainInventorySlots)
+        {
+            var items = s.GetComponentsInChildren<InventoryItem>();
+            foreach (var it in items)
+                Destroy(it.gameObject);
+        }
+        foreach (var s in craftingSlots)
+        {
+            var items = s.GetComponentsInChildren<InventoryItem>();
+            foreach (var it in items)
+                Destroy(it.gameObject);
+        }
+    }
+    private void CreateItemUI(int index, InventorySlot slot)
+    {
+        ItemStack st = controller.GetSlot(index);
+        if (st == null) return;
+
+        GameObject go = Instantiate(inventoryItemPrefab, slot.transform);
+
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        rt.localScale = Vector3.one;
+        rt.localPosition = Vector3.zero;
+
+        InventoryItem ui = go.GetComponent<InventoryItem>();
+        ui.Bind(st);
+    }
+
+    // ---------------------------
+    // SPLIT LOGIC
+    // ---------------------------
+    public void StartSplit(int slotIndex)
+    {
+        var s = controller.GetSlot(slotIndex);
+        if (s == null || s.count <= 1) return;
+
+        if (controller.Split(slotIndex, 1, out ItemStack newStack))
+        {
+            splitState.sourceSlot = slotIndex;
+            splitState.buffer = newStack;
+            RedrawUI();
+            SetAllItemRaycast(false);
+        }
+    }
+
+    public void IncreaseSplit(int slotIndex)
+    {
+        if (!splitState.active) return;
+        if (splitState.sourceSlot != slotIndex) return;
+
+        var slot = controller.GetSlot(slotIndex);
+        if (slot == null || slot.count <= 0) return;
+
+        if (controller.Split(slotIndex, 1, out ItemStack more))
+        {
+            splitState.buffer.count += more.count;
+
+            RedrawUI();
+            SetAllItemRaycast(false);
+        }
+    }
+    private void UpdateSplitGhost()
+    {
+        if (!splitState.active)
+        {
+            if (ghostInstance != null)
+                Destroy(ghostInstance.gameObject);
+
+            return;
+        }
+
+        if (ghostUI == null)
+        {
+            Debug.LogError("ghostUI chưa được gán trong InventoryManager");
+            return;
+        }
+
+        if (ghostInstance == null)
+        {
+            ghostInstance = Instantiate(ghostUI, uiCanvas.transform);
+            ghostInstance.SetGhostVisual();
+
+            //  FIX SCALE + SIZE
+            RectTransform ghostRT = ghostInstance.GetComponent<RectTransform>();
+
+            ghostRT.anchorMin = new Vector2(0.5f, 0.5f);
+            ghostRT.anchorMax = new Vector2(0.5f, 0.5f);
+            ghostRT.pivot = new Vector2(0.5f, 0.5f);
+
+            ghostRT.sizeDelta = new Vector2(64, 64); // hoặc size slot của bạn
+            ghostRT.localScale = Vector3.one;
+        }
+
+        if (splitState.buffer == null)
+            return;
+
+        ghostInstance.transform.position = Input.mousePosition;
+        ghostInstance.Bind(splitState.buffer);
+    }
+    public void PlaceSplit(int targetSlot)
+    {
+
+        if (!splitState.active) return;
+
+        var buffer = splitState.buffer;
+
+        // Stack / place từng phần
+        controller.PlaceStackPartial(targetSlot, buffer);
+
+        // Nếu còn dư → trả về inventory
+        if (buffer.count > 0)
+        {
+            controller.AddStack(buffer);
+        }
+
+        splitState.Reset();
+
+        if (ghostInstance != null)
+            Destroy(ghostInstance.gameObject);
+
+        SetAllItemRaycast(true);
+        RedrawUI();
+    }
+
+    public void CancelSplit()
+    {
+        if (!splitState.active)
+        {
+            Debug.Log("khong chay splitStateAtive");
+            return;
+        }
+        Debug.Log("da chay splitActive");
+        int src = splitState.sourceSlot;
+        ItemStack buffer = splitState.buffer;
+
+        bool returned = false;
+
+        // 1 Ưu tiên trả về slot gốc
+        if (src >= 0)
+        {
+            returned = controller.PlaceStackPartial(src, buffer);
+        }
+
+        // 2️ Nếu slot gốc không nhận hết → trả phần còn lại về inventory
+        if (buffer.count > 0)
+        {
+            controller.AddStack(buffer);
+        }
+
+        splitState.Reset();
+
+        if (ghostInstance != null)
+            Destroy(ghostInstance.gameObject);
+
+        SetAllItemRaycast(true);
+        RedrawUI();
+    }
+    public void EndDrag(InventoryItem item)
+    {
+        if (item == null) return;
+
+        isDraggingItem = false;
+
+        bool droppedInInventory = IsPointerInsideInventory();
+
+        if (!item.droppedOnSlot && !droppedInInventory)
+        {
+            //  DROP RA WORLD
+            DropItemToWorld(item);
+            Destroy(item.gameObject);
+            return;
+        }
+
+        // --- logic cũ ---
+        if (item.originSlot == null)
+        {
+            Destroy(item.gameObject);
+            return;
+        }
+
+        if (item.droppedOnSlot)
+        {
+            if (pendingRedraw)
+            {
+                pendingRedraw = false;
+                RedrawUI();
+            }
+
+            Destroy(item.gameObject);
+        }
+        else
+        {
+            item.transform.SetParent(item.originSlot.transform, true);
+            item.transform.localPosition = Vector3.zero;
+        }
+
+        if (pendingRedraw)
+        {
+            pendingRedraw = false;
+            RedrawUI();
+        }
+    }
+
+    private void SetAllItemRaycast(bool enable)
+    {
+        int count = 0;
+
+        foreach (var slot in hotbarSlots)
+        {
+            if (slot == null) continue;
+
+            var items = slot.GetComponentsInChildren<InventoryItem>(true);
+            foreach (var it in items)
+            {
+                var img = it.GetComponentInChildren<Image>(true);
+                if (img != null)
+                {
+                    img.raycastTarget = enable;
+                    count++;
+                }
+            }
+        }
+
+        foreach (var slot in mainInventorySlots)
+        {
+            if (slot == null) continue;
+
+            var items = slot.GetComponentsInChildren<InventoryItem>(true);
+            foreach (var it in items)
+            {
+                var img = it.GetComponentInChildren<Image>(true);
+                if (img != null)
+                {
+                    img.raycastTarget = enable;
+                    count++;
+                }
+            }
+        }
+
+        //Debug.Log($"[SetAllItemRaycast] enable={enable}, affected {count} InventoryItem");
+    }
+    //refund item
+    public void OnInventoryClosed()
+    {
+        Debug.Log("vao dc ham close");
+        // Hủy split nếu đang split
+        if (splitState.active)
+        {
+            Debug.Log("hoan tra item");
+            CancelSplit();
+        }
+        // Hủy drag nếu đang drag
+        isDraggingItem = false;
+    }
+    //check inventoryUI
+    public bool IsPointerInsideInventory()
+    {
+        return RectTransformUtility.RectangleContainsScreenPoint(
+            inventoryRoot,
+            Input.mousePosition,
+            uiCanvas.worldCamera
+        );
+    }
+    private void DropItemToWorld(InventoryItem item)
+    {
+        int fromIndex = item.originSlot.index;
+        ItemStack stack = controller.GetSlot(fromIndex);
+
+        if (stack == null) return;
+
+        // Lấy 1 item hoặc cả stack (tùy design)
+        int dropCount = 1;
+
+        stack.count -= dropCount;
+        if (stack.count <= 0)
+            controller.slots[fromIndex] = null;
+
+        // Spawn world item
+        SpawnWorldItem(stack.data, dropCount);
+
+        RedrawUI();
+    }
+    private void SpawnWorldItem(ItemData data, int count)
+    {
+        //if (data.worldPrefab == null) return;
+
+        //Vector3 dropPos = GetPlayerDropPosition();
+
+        //GameObject go = Instantiate(data.worldPrefab, dropPos, Quaternion.identity);
+        //noi drop item
+        //var pickup = go.GetComponent<WorldItemPickup>();
+        //if (pickup != null)
+        //    pickup.Init(data, count);
+    }
+    private Vector3 GetPlayerDropPosition()
+    {
+        return Camera.main.transform.position
+             + Camera.main.transform.forward * 2f;
+    }
+
+    // ---------------------------
+    // COUNTER
+    // ---------------------------
+    public int GetItemCount(ItemData itemData)
+    {
+        if (itemCounts.TryGetValue(itemData, out int value))
+            return value;
+
+        return 0;
+    }
     public void SetPlayerHolding(PlayerHoldingItem holding)
     {
         playerHolding = holding;
@@ -66,121 +556,28 @@ public class InventoryManager : MonoBehaviour
             gameInput.OnNumberKeyPressed += HandleNumberKey;
         }
     }
-
-    public bool AddItem(ItemData itemData)
+    private void HandleScroll(object sender, float scrollValue)
     {
-        if (itemCounts.ContainsKey(itemData))
-            itemCounts[itemData]++;
-        else
-            itemCounts[itemData] = 1;
-
-        if (TryStackItem(itemData, hotbarSlots) || TryStackItem(itemData, mainInventorySlots))
-            return true;
-
-        if (TryAddNewItem(itemData, hotbarSlots) || TryAddNewItem(itemData, mainInventorySlots))
-            return true;
-
-        return false;
-    }
-
-    private bool TryStackItem(ItemData item, InventorySlot[] slots)
-    {
-        foreach (var slot in slots)
+        if (scrollValue > 0)
         {
-            InventoryItem itemInSlot = slot.GetComponentInChildren<InventoryItem>();
-            if (itemInSlot == null || itemInSlot.item != item) continue;
-
-            bool canStack = false;
-            int maxStack = 1;
-
-            // Check stackable types in order of priority
-            if (item.type == ItemType.Consumable && item.consumable != null)
-            {
-                // Consumables are always stackable (food, potions, etc.)
-                canStack = true;
-                maxStack = 99; // Default max stack for consumables
-            }
-            else if (item.type == ItemType.Resource && item.resource != null && item.resource.stackable)
-            {
-                canStack = true;
-                maxStack = item.resource.maxStack;
-            }
-            else if (item.type == ItemType.BuildingPart && item.building != null && item.building.stackable)
-            {
-                canStack = true;
-                maxStack = item.building.maxStack;
-            }
-
-            if (canStack && itemInSlot.count < maxStack)
-            {
-                itemInSlot.count++;
-                itemInSlot.RefreshCount();
-                return true;
-            }
+            ScrollSlot(-1); // Cuộn lên
         }
-        return false;
-    }
-
-    private bool TryAddNewItem(ItemData item, InventorySlot[] slots)
-    {
-        foreach (var slot in slots)
+        else if (scrollValue < 0)
         {
-            if (slot.GetComponentInChildren<InventoryItem>() == null)
-            {
-                SpawnNewItem(item, slot);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private void SpawnNewItem(ItemData item, InventorySlot slot)
-    {
-        GameObject newItemGO = Instantiate(inventoryItemPrefab, slot.transform);
-        InventoryItem inventoryItem = newItemGO.GetComponent<InventoryItem>();
-        inventoryItem.InitialiseItem(item);
-
-        for (int i = 0; i < hotbarSlots.Length; i++)
-        {
-            if (slot == hotbarSlots[i] && i == selectedHotbarIndex)
-            {
-                if (playerHolding != null)
-                {
-                    playerHolding.HoldingItem(item);
-                }
-                break;
-            }
+            ScrollSlot(1); // Cuộn xuống
         }
     }
 
-    public void ChangeHotbarSlot(int index, bool forceRefresh = false)
+    // Xử lý khi nhấn phím số 1–9 để chọn hotbar
+    private void HandleNumberKey(object sender, int index)
     {
-        if (hotbarSlots == null || index < 0 || index >= hotbarSlots.Length)
-            return;
-
-        if (selectedHotbarIndex != index)
+        if (index >= 0 && index < hotbarSlots.Length)
         {
-            if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
-                hotbarSlots[selectedHotbarIndex].Deselect();
-
-            hotbarSlots[index].Select();
-            selectedHotbarIndex = index;
-        }
-
-        InventoryItem selectedItem = hotbarSlots[index].GetComponentInChildren<InventoryItem>();
-        if (playerHolding != null)
-        {
-            if (selectedItem != null)
-            {
-                playerHolding.HoldingItem(selectedItem.item);
-            }
-            else
-            {
-                playerHolding.Clear();
-            }
+            IndexSlotBar = index;
+            ChangeHotbarSlot(IndexSlotBar, true); // force refresh
         }
     }
-
+    // Cuộn qua các ô hotbar bằng chuột
     private void ScrollSlot(int direction)
     {
         if (hotbarSlots == null || hotbarSlots.Length == 0)
@@ -190,255 +587,4 @@ public class InventoryManager : MonoBehaviour
         IndexSlotBar = newSlot;
         ChangeHotbarSlot(IndexSlotBar);
     }
-
-    private void HandleScroll(object sender, float scrollValue)
-    {
-        if (scrollValue > 0)
-        {
-            ScrollSlot(-1);
-        }
-        else if (scrollValue < 0)
-        {
-            ScrollSlot(1);
-        }
-    }
-
-    private void HandleNumberKey(object sender, int index)
-    {
-        if (index >= 0 && index < hotbarSlots.Length)
-        {
-            IndexSlotBar = index;
-            ChangeHotbarSlot(IndexSlotBar, true);
-        }
-    }
-
-    public void SortItems()
-    {
-        List<ItemData> allItems = new List<ItemData>();
-
-        CollectItems(hotbarSlots, allItems);
-        CollectItems(mainInventorySlots, allItems);
-
-        ClearSlots(hotbarSlots);
-        ClearSlots(mainInventorySlots);
-
-        foreach (var item in allItems)
-            AddItem(item);
-    }
-
-    private void CollectItems(InventorySlot[] slots, List<ItemData> list)
-    {
-        foreach (var slot in slots)
-        {
-            InventoryItem itemInSlot = slot.GetComponentInChildren<InventoryItem>();
-            if (itemInSlot != null)
-            {
-                for (int i = 0; i < itemInSlot.count; i++)
-                    list.Add(itemInSlot.item);
-                Destroy(itemInSlot.gameObject);
-            }
-        }
-    }
-
-    private void ClearSlots(InventorySlot[] slots)
-    {
-        foreach (var slot in slots)
-        {
-            InventoryItem item = slot.GetComponentInChildren<InventoryItem>();
-            if (item != null)
-                Destroy(item.gameObject);
-        }
-    }
-
-    public void OnItemDropped(InventorySlot fromSlot, InventorySlot toSlot)
-    {
-        InventoryItem fromItem = fromSlot.GetComponentInChildren<InventoryItem>();
-        InventoryItem toItem = toSlot.GetComponentInChildren<InventoryItem>();
-
-        if (fromItem == null) return;
-
-        if (toItem == null)
-        {
-            fromItem.transform.SetParent(toSlot.transform);
-        }
-        else if (fromItem.item == toItem.item && fromItem.item.resource.stackable)
-        {
-            int transferable = Mathf.Min(fromItem.count, toItem.item.resource.maxStack - toItem.count);
-            fromItem.count -= transferable;
-            toItem.count += transferable;
-            toItem.RefreshCount();
-
-            if (fromItem.count <= 0)
-                Destroy(fromItem.gameObject);
-            else
-                fromItem.RefreshCount();
-        }
-        else
-        {
-            Transform temp = toItem.transform;
-            toItem.transform.SetParent(fromSlot.transform);
-            fromItem.transform.SetParent(toSlot.transform);
-        }
-    }
-
-    public void SpawnSplitItem(ItemData item, int amount)
-    {
-        if (!TrySpawn(item, amount, mainInventorySlots))
-            TrySpawn(item, amount, hotbarSlots);
-    }
-
-    public ItemData GetSelectedItem(bool fromInventory)
-    {
-        InventorySlot[] source = fromInventory ? mainInventorySlots : hotbarSlots;
-        int index = fromInventory ? 0 : selectedHotbarIndex;
-
-        if (index >= 0 && index < source.Length)
-        {
-            InventoryItem itemUI = source[index].GetComponentInChildren<InventoryItem>();
-            return itemUI != null ? itemUI.item : null;
-        }
-
-        return null;
-    }
-
-    private bool TrySpawn(ItemData item, int amount, InventorySlot[] slots)
-    {
-        foreach (var slot in slots)
-        {
-            if (slot.GetComponentInChildren<InventoryItem>() == null)
-            {
-                GameObject newItemGO = Instantiate(inventoryItemPrefab, slot.transform);
-                InventoryItem inventoryItem = newItemGO.GetComponent<InventoryItem>();
-                inventoryItem.InitialiseItem(item);
-                inventoryItem.count = amount;
-                inventoryItem.RefreshCount();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public bool RemoveItem(ItemData itemData, int amount)
-    {
-        if (!itemCounts.ContainsKey(itemData) || itemCounts[itemData] < amount)
-            return false;
-
-        itemCounts[itemData] -= amount;
-        if (itemCounts[itemData] <= 0)
-            itemCounts.Remove(itemData);
-
-        UpdateInventoryUIAfterRemove(itemData, amount);
-        return true;
-    }
-
-    // Add this method to your InventoryManager class
-    // Replace the existing UpdateInventoryUIAfterRemove method with this one
-
-    private void UpdateInventoryUIAfterRemove(ItemData itemData, int amount)
-    {
-        int remaining = amount;
-
-        // ✅ PRIORITY 1: Remove from the CURRENTLY SELECTED HOTBAR SLOT first
-        if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
-        {
-            InventorySlot selectedSlot = hotbarSlots[selectedHotbarIndex];
-            InventoryItem itemUI = selectedSlot.GetComponentInChildren<InventoryItem>();
-
-            if (itemUI != null && itemUI.item == itemData)
-            {
-                int removeCount = Mathf.Min(itemUI.count, remaining);
-                itemUI.count -= removeCount;
-                remaining -= removeCount;
-
-                if (itemUI.count <= 0)
-                {
-                    Destroy(itemUI.gameObject);
-                    if (playerHolding != null)
-                    {
-                        playerHolding.Clear();
-                    }
-                }
-                else
-                {
-                    itemUI.RefreshCount();
-                    // Update held item visual to show new count
-                    if (playerHolding != null)
-                    {
-                        playerHolding.RefreshHoldingItem(itemData, itemUI.count);
-                    }
-                }
-
-                if (remaining <= 0)
-                    return; // Done removing
-            }
-        }
-
-        // ✅ PRIORITY 2: Remove from other hotbar slots (if still needed)
-        for (int i = 0; i < hotbarSlots.Length; i++)
-        {
-            if (i == selectedHotbarIndex) continue; // Skip selected slot, already handled
-
-            InventoryItem itemUI = hotbarSlots[i].GetComponentInChildren<InventoryItem>();
-            if (itemUI != null && itemUI.item == itemData)
-            {
-                int removeCount = Mathf.Min(itemUI.count, remaining);
-                itemUI.count -= removeCount;
-                remaining -= removeCount;
-
-                if (itemUI.count <= 0)
-                {
-                    Destroy(itemUI.gameObject);
-                }
-                else
-                {
-                    itemUI.RefreshCount();
-                }
-
-                if (remaining <= 0)
-                    return; // Done removing
-            }
-        }
-
-        // ✅ PRIORITY 3: Remove from main inventory (if still needed)
-        if (remaining > 0)
-        {
-            foreach (var slot in mainInventorySlots)
-            {
-                InventoryItem itemUI = slot.GetComponentInChildren<InventoryItem>();
-                if (itemUI != null && itemUI.item == itemData)
-                {
-                    int removeCount = Mathf.Min(itemUI.count, remaining);
-                    itemUI.count -= removeCount;
-                    remaining -= removeCount;
-
-                    if (itemUI.count <= 0)
-                        Destroy(itemUI.gameObject);
-                    else
-                        itemUI.RefreshCount();
-
-                    if (remaining <= 0)
-                        return; // Done removing
-                }
-            }
-        }
-    }
-
-    public int GetItemCount(ItemData itemData)
-    {
-        if (itemCounts.TryGetValue(itemData, out int count))
-        {
-            return count;
-        }
-        return 0;
-    }
-}
-
-// ==========================================
-//  STARTER ITEM DATA STRUCTURE
-// ==========================================
-[System.Serializable]
-public class StarterItem
-{
-    public ItemData item;
-    public int amount = 1;
 }
