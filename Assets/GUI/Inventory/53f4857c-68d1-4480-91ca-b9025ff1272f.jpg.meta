@@ -97,28 +97,6 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: InventoryMain
-      rect:
-        serializedVersion: 2
-        x: 420
-        y: 485
-        width: 780
-        height: 530
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 100, y: 100, z: 100, w: 100}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 4722801e47c22e44a80c574ff1508e2b
-      internalID: -627455219
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
       name: 53f4857c-68d1-4480-91ca-b9025ff1272f_1
       rect:
         serializedVersion: 2
@@ -128,7 +106,7 @@ TextureImporter:
         height: 180
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
-      border: {x: 20, y: 20, z: 20, w: 21}
+      border: {x: 30, y: 30, z: 30, w: 30}
       customData: 
       outline: []
       physicsShape: []
@@ -144,7 +122,7 @@ TextureImporter:
       name: 53f4857c-68d1-4480-91ca-b9025ff1272f_2
       rect:
         serializedVersion: 2
-        x: 1166
+        x: 1167
         y: 158
         width: 180
         height: 180
@@ -166,13 +144,13 @@ TextureImporter:
       name: 53f4857c-68d1-4480-91ca-b9025ff1272f_3
       rect:
         serializedVersion: 2
-        x: 318
+        x: 319
         y: 57
         width: 640
         height: 180
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
-      border: {x: 20, y: 20, z: 21, w: 21}
+      border: {x: 30, y: 30, z: 30, w: 30}
       customData: 
       outline: []
       physicsShape: []
@@ -180,6 +158,28 @@ TextureImporter:
       bones: []
       spriteID: 0c8d617b873f93446b310ac08c892e1d
       internalID: 29732318
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: InventoryMain
+      rect:
+        serializedVersion: 2
+        x: 420
+        y: 484
+        width: 780
+        height: 530
+      alignment: 0
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 30, y: 30, z: 30, w: 30}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 07be334df08b06b4b9fd5fd442ad2a7c
+      internalID: -627455219
       vertices: []
       indices: 
       edges: []

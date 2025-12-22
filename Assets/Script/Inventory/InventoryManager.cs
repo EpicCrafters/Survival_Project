@@ -2,6 +2,13 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+[System.Serializable]
+public class StarterItem
+{
+    public ItemData item;
+    public int amount = 1;
+}
+
 public class InventoryManager : MonoBehaviour
 {
     public static InventoryManager instance;
@@ -27,11 +34,11 @@ public class InventoryManager : MonoBehaviour
 
     [Header("Input")]
     [SerializeField] private GameInput gameInput;
+    
+    //Replace Add Item Data old
+    [Header("Starter Items")]
+    [SerializeField] private List<StarterItem> starterItems = new List<StarterItem>();
 
-    //Test
-    [SerializeField] public ItemData stick;
-    [SerializeField] public ItemData stone;
-    [SerializeField] public ItemData axe;
     private int selectedHotbarIndex = -1;
     public int IndexSlotBar = 0;
 
@@ -69,12 +76,16 @@ public class InventoryManager : MonoBehaviour
         foreach (var slot in craftingSlots)
             slot.index = idx++;
 
-        AddItem(stick);
-        AddItem(stick);
-        AddItem(stick);
-        AddItem(stone);
-        AddItem(stone);     // stone x2
-        AddItem(axe);
+        foreach (StarterItem starterItem in starterItems)
+        {
+            if (starterItem.item != null)
+            {
+                for (int i = 0; i < starterItem.amount; i++)
+                {
+                    AddItem(starterItem.item);
+                }
+            }
+        }
         ChangeHotbarSlot(IndexSlotBar);
     }
 

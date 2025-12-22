@@ -9,9 +9,7 @@ using UnityEngine.SceneManagement;
 using UnityEditor;
 #endif
 
-// SceneStreamer: stream scenes additively based on players' proximity,
-// and freeze/unfreeze players while loading without requiring a Player.Instance.
-// New: option to wait until "ground" scenes are loaded before starting.
+// SceneStreamer: stream scenes additively based on players' proximity
 public class SceneStreamer : MonoBehaviour
 {
     [Header("Scene config")]
@@ -30,28 +28,30 @@ public class SceneStreamer : MonoBehaviour
     public Color unloadColor = Color.red;
     public bool drawLabels = true;
 
-    [Header("Player detection / freeze")]
+    [Header("Player detection")]
     [Tooltip("Tags to consider players. If empty, will check objects with name containing 'player'.")]
     public string[] playerTags = new string[] { "Player" };
-    [Tooltip("Component type names to disable when freezing. Examples: 'PlayerMovement', 'FirstPersonController'")]
-    public string[] movementComponentNames = new string[] { "PlayerMovement", "FirstPersonController", "ThirdPersonController" };
 
-    [Header("Ground / startup")]
-    [Tooltip("If true, the streamer will wait until the ground scenes listed below are loaded before starting streaming logic.")]
-    public bool waitForGroundScenes = true;
-    [Tooltip("List the scene names that define the world's ground/environment. The streamer waits until all of these scenes are loaded.")]
-    public string[] groundSceneNames = new string[0];
+    [Header("Startup Configuration")]
+    [Tooltip("Wait for all scenes in sceneConfig to be available before starting streaming logic")]
+    public bool waitForAllScenes = true;
+
+    [Header("Automatic Player Detection")]
+    [Tooltip("Automatically search for players in newly loaded scenes")]
+    public bool autoDetectNewPlayers = true;
+    [Tooltip("Player prefab name to search for (case insensitive)")]
+    public string playerPrefabName = "Player";
 
     private Transform[] players;
     private HashSet<string> loadingScenes = new HashSet<string>();
-    private Dictionary<Transform, PlayerFreezeState> freezeStates = new Dictionary<Transform, PlayerFreezeState>();
 
     // Coroutines references (so we can stop them individually)
     private Coroutine checkScenesCoroutine;
-    private Coroutine waitForGroundCoroutine;
+    private Coroutine startupCoroutine;
 
     // Ensure we only start the check loop once when ready
     private bool streamingStarted = false;
+    private bool allScenesAvailable = false;
 
     void Awake()
     {
@@ -62,15 +62,10 @@ public class SceneStreamer : MonoBehaviour
 
     void Start()
     {
-        RefreshPlayers();
-
-        if (players == null || players.Length == 0)
-        {
-            Debug.LogWarning("[SceneStreamer] No players found at Start(). Will continue and try to find players on the fly.");
-        }
+        // Initialize with empty players array - they'll be spawned later
+        players = new Transform[0];
 
         // If any of the configured scenes are already loaded, unload them so streamer controls them.
-        // (Optional: leave this out if you want to keep currently loaded scenes)
         if (sceneConfig != null && sceneConfig.scenes != null)
         {
             foreach (var scene in sceneConfig.scenes)
@@ -84,9 +79,10 @@ public class SceneStreamer : MonoBehaviour
             }
         }
 
-        if (waitForGroundScenes && groundSceneNames != null && groundSceneNames.Length > 0)
+        // Startup sequence
+        if (waitForAllScenes)
         {
-            waitForGroundCoroutine = StartCoroutine(WaitForGroundScenesThenStart());
+            startupCoroutine = StartCoroutine(WaitForAllScenesThenStart());
         }
         else
         {
@@ -100,6 +96,66 @@ public class SceneStreamer : MonoBehaviour
         SceneManager.sceneUnloaded -= OnSceneUnloaded;
     }
 
+    IEnumerator WaitForAllScenesThenStart()
+    {
+        Debug.Log("[SceneStreamer] Waiting for all scenes to be available...");
+
+        while (!AreAllScenesInConfigAvailable())
+        {
+            yield return new WaitForSeconds(checkInterval);
+        }
+
+        allScenesAvailable = true;
+        Debug.Log("[SceneStreamer] All scenes in config are available.");
+
+        // Now proceed with normal startup
+        StartStreaming();
+    }
+
+    bool AreAllScenesInConfigAvailable()
+    {
+        if (sceneConfig == null || sceneConfig.scenes == null)
+            return true;
+
+        // Check if all scenes in the config exist in the build settings
+        foreach (var sceneData in sceneConfig.scenes)
+        {
+            if (string.IsNullOrEmpty(sceneData.sceneName))
+                continue;
+
+            // Check if scene exists in build settings
+            if (!DoesSceneExistInBuildSettings(sceneData.sceneName))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+#if UNITY_EDITOR
+    bool DoesSceneExistInBuildSettings(string sceneName)
+    {
+        foreach (var scene in EditorBuildSettings.scenes)
+        {
+            string scenePath = scene.path;
+            string sceneFileName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
+            if (sceneFileName == sceneName)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+#else
+    bool DoesSceneExistInBuildSettings(string sceneName)
+    {
+        // At runtime, we can only check if the scene is in the build settings
+        // by trying to get its build index
+        return SceneUtility.GetBuildIndexByScenePath(sceneName) >= 0;
+    }
+#endif
+
     // Public method host/spawner can call once world is ready
     public void StartStreaming()
     {
@@ -107,6 +163,7 @@ public class SceneStreamer : MonoBehaviour
         streamingStarted = true;
         if (checkScenesCoroutine != null) StopCoroutine(checkScenesCoroutine);
         checkScenesCoroutine = StartCoroutine(CheckScenes());
+        Debug.Log("[SceneStreamer] Streaming started.");
     }
 
     public void StopStreaming()
@@ -117,71 +174,53 @@ public class SceneStreamer : MonoBehaviour
             StopCoroutine(checkScenesCoroutine);
             checkScenesCoroutine = null;
         }
+        Debug.Log("[SceneStreamer] Streaming stopped.");
     }
 
-    IEnumerator WaitForGroundScenesThenStart()
-    {
-        while (!AreAllGroundScenesLoaded())
-        {
-            yield return new WaitForSeconds(checkInterval);
-        }
-
-        Debug.Log("[SceneStreamer] All ground scenes loaded. Starting streamer.");
-        waitForGroundCoroutine = null;
-        StartStreaming();
-    }
-
-    bool AreAllGroundScenesLoaded()
-    {
-        if (groundSceneNames == null || groundSceneNames.Length == 0) return true;
-
-        foreach (var name in groundSceneNames)
-        {
-            if (string.IsNullOrEmpty(name)) continue;
-            var scene = SceneManager.GetSceneByName(name);
-            if (!scene.isLoaded) return false;
-        }
-        return true;
-    }
-
-    // Called whenever a scene is loaded — refresh players and re-check ground scenes if necessary
+    // Called whenever a scene is loaded — refresh players
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         RefreshPlayers();
 
-        if (!streamingStarted && waitForGroundScenes)
+        // Also search for player objects in the newly loaded scene
+        if (autoDetectNewPlayers)
         {
-            if (AreAllGroundScenesLoaded())
+            FindPlayersInScene(scene);
+        }
+    }
+
+    void FindPlayersInScene(Scene scene)
+    {
+        var rootObjects = scene.GetRootGameObjects();
+        foreach (var obj in rootObjects)
+        {
+            // Check by name
+            if (obj.name.Contains(playerPrefabName, StringComparison.OrdinalIgnoreCase))
             {
-                Debug.Log("[SceneStreamer] Detected all ground scenes loaded via sceneLoaded event.");
-                StartStreaming();
+                RegisterPlayer(obj.transform);
+                Debug.Log($"[SceneStreamer] Auto-detected player: {obj.name}");
+            }
+
+            // Also check children
+            foreach (Transform child in obj.transform)
+            {
+                if (child.name.Contains(playerPrefabName, StringComparison.OrdinalIgnoreCase))
+                {
+                    RegisterPlayer(child);
+                    Debug.Log($"[SceneStreamer] Auto-detected player: {child.name}");
+                }
             }
         }
     }
 
     void OnSceneUnloaded(Scene scene)
     {
-        // If a ground scene got unloaded and we require them, stop streaming to be safe.
-        if (waitForGroundScenes && groundSceneNames != null && groundSceneNames.Contains(scene.name))
-        {
-            Debug.LogWarning($"[SceneStreamer] Ground scene '{scene.name}' was unloaded. Stopping streamer until ground is restored.");
-            // Stop only our coroutines
-            if (checkScenesCoroutine != null) { StopCoroutine(checkScenesCoroutine); checkScenesCoroutine = null; }
-            if (waitForGroundCoroutine != null) { StopCoroutine(waitForGroundCoroutine); waitForGroundCoroutine = null; }
-            streamingStarted = false;
-            waitForGroundCoroutine = StartCoroutine(WaitForGroundScenesThenStart());
-        }
-
         // Keep players list clean
         if (players != null && players.Length > 0)
         {
             var remaining = players.Where(p => p != null && p.gameObject.scene.isLoaded).ToArray();
             players = remaining;
         }
-
-        // Remove destroyed transforms from freezeStates
-        var toRemove = freezeStates.Keys.Where(t => t == null).ToList();
-        foreach (var t in toRemove) freezeStates.Remove(t);
     }
 
     // Public API for spawn code to register player transforms directly (recommended)
@@ -193,6 +232,7 @@ public class SceneStreamer : MonoBehaviour
         {
             list.Add(playerTransform);
             players = list.ToArray();
+            Debug.Log($"[SceneStreamer] Registered player: {playerTransform.name}");
         }
     }
 
@@ -200,6 +240,7 @@ public class SceneStreamer : MonoBehaviour
     {
         if (playerTransform == null || players == null) return;
         players = players.Where(p => p != playerTransform).ToArray();
+        Debug.Log($"[SceneStreamer] Unregistered player: {playerTransform.name}");
     }
 
     // Discover players by tag or name (call after scenes load)
@@ -238,11 +279,31 @@ public class SceneStreamer : MonoBehaviour
 
     IEnumerator CheckScenes()
     {
+        // Wait until all scenes in config exist if we're configured to wait
+        if (waitForAllScenes && !allScenesAvailable)
+        {
+            Debug.Log("[SceneStreamer] Waiting for all scenes to be available before streaming...");
+            while (!AreAllScenesInConfigAvailable())
+            {
+                yield return new WaitForSeconds(checkInterval);
+            }
+            allScenesAvailable = true;
+        }
+
         while (true)
         {
-            // Ensure players list remains valid (people may spawn/destroy)
+            // Always try to find players if we don't have any
             if (players == null || players.Length == 0)
+            {
                 RefreshPlayers();
+
+                // If still no players, wait and continue
+                if (players == null || players.Length == 0)
+                {
+                    yield return new WaitForSeconds(checkInterval);
+                    continue;
+                }
+            }
 
             if (sceneConfig == null || sceneConfig.scenes == null)
             {
@@ -285,9 +346,6 @@ public class SceneStreamer : MonoBehaviour
                 {
                     Debug.Log($"[SceneStreamer] Loading scene: {sceneName}");
 
-                    // Freeze players externally (only once for overlapping loads)
-                    FreezePlayers(true);
-
                     loadingScenes.Add(sceneName);
 
                     var loadOp = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Additive);
@@ -295,12 +353,6 @@ public class SceneStreamer : MonoBehaviour
                     {
                         // Remove from loading set
                         loadingScenes.Remove(sceneName);
-
-                        // Only unfreeze when no other scenes are left loading
-                        if (loadingScenes.Count == 0)
-                        {
-                            FreezePlayers(false);
-                        }
 
                         // Refresh players in case the newly-loaded scene spawns player objects
                         RefreshPlayers();
@@ -315,203 +367,6 @@ public class SceneStreamer : MonoBehaviour
 
             yield return new WaitForSeconds(checkInterval);
         }
-    }
-
-    // Freeze/unfreeze implementation without modifying player's own script.
-    void FreezePlayers(bool freeze)
-    {
-        if (players == null || players.Length == 0) return;
-
-        foreach (var t in players)
-        {
-            if (t == null) continue;
-
-            if (freeze)
-            {
-                if (freezeStates.ContainsKey(t)) continue; // already frozen
-
-                var state = new PlayerFreezeState();
-
-                // 1) Try to disable named movement components (by inspector-configured names)
-                if (movementComponentNames != null)
-                {
-                    foreach (var compName in movementComponentNames)
-                    {
-                        if (string.IsNullOrEmpty(compName)) continue;
-                        var comp = GetComponentByName(t, compName);
-                        if (comp != null)
-                        {
-                            state.RegisterComponent(comp);
-                            TryDisableComponent(comp);
-                        }
-                    }
-                }
-
-                // 2) Disable Behaviour-derived components that commonly control movement (safe generic check)
-                var behaviours = t.GetComponents<Behaviour>();
-                foreach (var b in behaviours)
-                {
-                    string n = b.GetType().Name.ToLower();
-                    if (n.Contains("movement") || n.Contains("controller") || n.Contains("motor") || n.Contains("input"))
-                    {
-                        state.RegisterComponent(b);
-                        b.enabled = false;
-                    }
-                }
-
-                // 3) CharacterController
-                var cc = t.GetComponent<CharacterController>();
-                if (cc != null)
-                {
-                    state.characterControllerEnabled = cc.enabled;
-                    cc.enabled = false;
-                    state.hasCharacterController = true;
-                }
-
-                // 4) Rigidbody (3D)
-                var rb = t.GetComponent<Rigidbody>();
-                if (rb != null)
-                {
-                    state.hasRigidbody = true;
-                    state.rbIsKinematic = rb.isKinematic;
-                    state.rbVelocity = rb.linearVelocity;
-                    rb.linearVelocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                    rb.isKinematic = true; // stop physics
-                }
-
-                // 5) Rigidbody2D
-                var rb2 = t.GetComponent<Rigidbody2D>();
-                if (rb2 != null)
-                {
-                    state.hasRigidbody2D = true;
-                    state.rb2dIsKinematic = rb2.isKinematic;
-                    state.rb2dVelocity = rb2.linearVelocity;
-                    rb2.linearVelocity = Vector2.zero;
-                    rb2.angularVelocity = 0f;
-                    rb2.isKinematic = true;
-                }
-
-                // 6) NavMeshAgent (if used)
-#if ENABLE_NAVMESH
-                var nav = t.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                if (nav != null)
-                {
-                    state.hasNavMeshAgent = true;
-                    state.navAgentEnabled = nav.enabled;
-                    state.navAgentIsStopped = nav.isStopped;
-                    nav.isStopped = true;
-                    nav.enabled = false;
-                }
-#endif
-
-                freezeStates[t] = state;
-            }
-            else
-            {
-                // Unfreeze: restore state if we stored it
-                if (!freezeStates.TryGetValue(t, out var state)) continue;
-
-                // Restore registered Behaviour components
-                foreach (var kv in state.componentEnabledStates)
-                {
-                    var comp = kv.Key;
-                    bool wasEnabled = kv.Value;
-                    if (comp == null) continue;
-                    if (comp is Behaviour b)
-                    {
-                        b.enabled = wasEnabled;
-                    }
-                }
-
-                // CharacterController
-                if (state.hasCharacterController)
-                {
-                    var cc = t.GetComponent<CharacterController>();
-                    if (cc != null)
-                    {
-                        cc.enabled = state.characterControllerEnabled;
-                    }
-                }
-
-                // Rigidbody
-                if (state.hasRigidbody)
-                {
-                    var rb = t.GetComponent<Rigidbody>();
-                    if (rb != null)
-                    {
-                        rb.isKinematic = state.rbIsKinematic;
-                        rb.linearVelocity = state.rbVelocity;
-                    }
-                }
-
-                // Rigidbody2D
-                if (state.hasRigidbody2D)
-                {
-                    var rb2 = t.GetComponent<Rigidbody2D>();
-                    if (rb2 != null)
-                    {
-                        rb2.isKinematic = state.rb2dIsKinematic;
-                        rb2.linearVelocity = state.rb2dVelocity;
-                    }
-                }
-
-#if ENABLE_NAVMESH
-                if (state.hasNavMeshAgent)
-                {
-                    var nav = t.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                    if (nav != null)
-                    {
-                        nav.enabled = state.navAgentEnabled;
-                        nav.isStopped = state.navAgentIsStopped;
-                    }
-                }
-#endif
-
-                freezeStates.Remove(t);
-            }
-        }
-    }
-
-    // Try to disable a component generically (behaviour or other)
-    void TryDisableComponent(Component comp)
-    {
-        if (comp == null) return;
-        if (comp is Behaviour b)
-        {
-            b.enabled = false;
-            return;
-        }
-
-        // For other components that don't expose enabled, nothing safe we can do generically.
-        // But we still registered them so we can attempt to restore if needed.
-    }
-
-    // Helper: get component by type name (safer than direct string GetComponent in many cases)
-    Component GetComponentByName(Transform t, string typeName)
-    {
-        if (t == null || string.IsNullOrEmpty(typeName)) return null;
-
-        // Try to resolve full type (works if user provided assembly-qualified or namespace-qualified names)
-        var type = Type.GetType(typeName);
-        if (type != null)
-        {
-            return t.GetComponent(type);
-        }
-
-        // Fallback: search behaviours for matching type name (case-insensitive)
-        var allComps = t.GetComponents<Component>();
-        foreach (var c in allComps)
-        {
-            if (c == null) continue;
-            if (c.GetType().Name.Equals(typeName, StringComparison.OrdinalIgnoreCase))
-                return c;
-            // also check full name
-            if (c.GetType().FullName != null && c.GetType().FullName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase))
-                return c;
-        }
-
-        return null;
     }
 
     void OnDrawGizmos()
@@ -542,44 +397,5 @@ public class SceneStreamer : MonoBehaviour
             }
 #endif
         }
-    }
-
-    // Data class to capture previous states to restore later
-    private class PlayerFreezeState
-    {
-        // store Component -> wasEnabled (for Behaviour components)
-        public Dictionary<Component, bool> componentEnabledStates = new Dictionary<Component, bool>();
-
-        public void RegisterComponent(Component comp)
-        {
-            if (comp == null) return;
-            if (componentEnabledStates.ContainsKey(comp)) return;
-
-            if (comp is Behaviour b)
-                componentEnabledStates[comp] = b.enabled;
-            else
-                componentEnabledStates[comp] = false; // for non-Behaviour, we can't track enabled - default false
-        }
-
-        // CharacterController
-        public bool hasCharacterController = false;
-        public bool characterControllerEnabled = false;
-
-        // Rigidbody (3D)
-        public bool hasRigidbody = false;
-        public bool rbIsKinematic = false;
-        public Vector3 rbVelocity = Vector3.zero;
-
-        // Rigidbody2D
-        public bool hasRigidbody2D = false;
-        public bool rb2dIsKinematic = false;
-        public Vector2 rb2dVelocity = Vector2.zero;
-
-#if ENABLE_NAVMESH
-        // NavMeshAgent
-        public bool hasNavMeshAgent = false;
-        public bool navAgentEnabled = false;
-        public bool navAgentIsStopped = false;
-#endif
     }
 }
