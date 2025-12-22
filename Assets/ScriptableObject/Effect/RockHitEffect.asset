@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 321f14f82c3720947be01a945a8a3e62, type: 3}
+  m_Name: RockHitEffect
+  m_EditorClassIdentifier: 
+  materialType: 0
+  particleEffect: {fileID: 2914161617585109466, guid: e510f3dd245591d4c965839ab0f1d1d5, type: 3}
+  decalPrefab: {fileID: 0}
+  hitSounds: []
+  cameraShakeIntensity: 0.1
+  decalLifetime: 10

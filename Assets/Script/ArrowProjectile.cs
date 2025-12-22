@@ -60,8 +60,8 @@ public class ArrowProjectile : NetworkBehaviour
 
     private void Awake()
     {
-        currentPosition = transform.position;
-        previousPosition = transform.position;
+        // ✅ DON'T set positions here - wait for Initialize()
+        Debug.Log($"[ArrowProjectile] Awake - Position: {transform.position}");
     }
 
     public override void OnStartServer()
@@ -126,9 +126,12 @@ public class ArrowProjectile : NetworkBehaviour
     {
         if (!isServer) return;
 
+        Debug.Log($"[ArrowProjectile] ========== INITIALIZE ==========");
+        Debug.Log($"[ArrowProjectile] Position at Initialize START: {transform.position}");
+        Debug.Log($"[ArrowProjectile] Velocity to apply: {initialVelocity} (magnitude: {initialVelocity.magnitude})");
+
         shooter = shooterObject;
         itemId = weaponItemId;
-        isInitialized = true;
 
         if (data != null)
         {
@@ -140,11 +143,22 @@ public class ArrowProjectile : NetworkBehaviour
 
         velocity = initialVelocity;
         syncedVelocity = initialVelocity;
+
+        // ✅ CRITICAL FIX: Set current position to ACTUAL spawn position
         currentPosition = transform.position;
         previousPosition = transform.position;
 
         currentTipPosition = transform.position + transform.forward * arrowTipOffset;
         previousTipPosition = currentTipPosition;
+
+        Debug.Log($"[ArrowProjectile] currentPosition set to: {currentPosition}");
+        Debug.Log($"[ArrowProjectile] Velocity set to: {velocity}");
+
+        // ✅ NOW mark as initialized so FixedUpdate can run
+        isInitialized = true;
+
+        Debug.Log($"[ArrowProjectile] ✅ Initialized! Next FixedUpdate will move from {currentPosition}");
+        Debug.Log($"[ArrowProjectile] ========== INITIALIZE COMPLETE ==========");
 
         RpcApplyVelocity(initialVelocity);
         IgnoreShooterCollision();
@@ -186,6 +200,7 @@ public class ArrowProjectile : NetworkBehaviour
     {
         if (!isServer)
         {
+            Debug.Log($"[ArrowProjectile CLIENT] RpcApplyVelocity - Position: {transform.position}, Velocity: {initialVelocity}");
             velocity = initialVelocity;
             currentPosition = transform.position;
             previousPosition = transform.position;
@@ -280,7 +295,6 @@ public class ArrowProjectile : NetworkBehaviour
             }
         }
 
-        // Pass the hit collider's transform directly
         StickToSurface(hit.collider.transform, hitPoint, hitNormal, hitDirection);
     }
 
@@ -322,16 +336,13 @@ public class ArrowProjectile : NetworkBehaviour
         transform.position = adjustedHitPoint;
         transform.rotation = stuckRotation;
 
-        // Create stuck visual on the exact transform that was hit
         GameObject stuckVisual = CreateStuckVisual(hitTransform, adjustedHitPoint, stuckRotation);
 
         PlayImpactSound(hitTransform.tag, hitPoint);
         PlayImpactParticles(hitPoint, hitNormal);
 
-        // Find the NetworkIdentity (on root object)
         NetworkIdentity surfaceNid = hitTransform.GetComponentInParent<NetworkIdentity>();
 
-        // Get the path from NetworkIdentity root to the hit transform
         string transformPath = "";
         if (surfaceNid != null)
         {
@@ -356,10 +367,6 @@ public class ArrowProjectile : NetworkBehaviour
         Invoke(nameof(DestroyArrow), 0.2f);
     }
 
-    /// <summary>
-    /// Get the hierarchical path from root to target transform
-    /// Example: "Armature/Spine/Chest/Head"
-    /// </summary>
     private string GetTransformPath(Transform target, Transform root)
     {
         if (target == null || root == null || target == root)
@@ -418,7 +425,6 @@ public class ArrowProjectile : NetworkBehaviour
 
         GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, stuckRotation);
 
-        // Parent to the specific transform that was hit (body part)
         stuckVisual.transform.SetParent(parentTransform, true);
         stuckVisual.transform.position = hitPoint;
         stuckVisual.transform.rotation = stuckRotation;
@@ -455,7 +461,6 @@ public class ArrowProjectile : NetworkBehaviour
 
         if (surfaceNetId != 0 && NetworkClient.spawned.TryGetValue(surfaceNetId, out var surfaceIdentity))
         {
-            // If we have a path, find the specific body part
             if (!string.IsNullOrEmpty(transformPath))
             {
                 targetTransform = surfaceIdentity.transform.Find(transformPath);
@@ -463,7 +468,7 @@ public class ArrowProjectile : NetworkBehaviour
                 if (targetTransform == null)
                 {
                     Debug.LogWarning($"[Arrow Client] Could not find transform path: '{transformPath}' on {surfaceIdentity.name}");
-                    targetTransform = surfaceIdentity.transform; // Fallback
+                    targetTransform = surfaceIdentity.transform;
                 }
                 else
                 {

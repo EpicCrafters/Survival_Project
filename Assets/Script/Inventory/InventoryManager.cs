@@ -1,5 +1,4 @@
-﻿using NUnit.Framework.Interfaces;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,50 +6,45 @@ public class InventoryManager : MonoBehaviour
 {
     public static InventoryManager instance;
 
-
     public int IndexSlotBar = 0;
 
+    [Header("Starter Items")]
+    [SerializeField] private List<StarterItem> starterItems = new List<StarterItem>();
 
+    [Header("UI References")]
+    [SerializeField] private InventorySlot[] hotbarSlots;
+    [SerializeField] private InventorySlot[] mainInventorySlots;
+    [SerializeField] private GameObject inventoryItemPrefab;
+    [SerializeField] private GameInput gameInput;
 
-    [SerializeField] private InventorySlot[] hotbarSlots; // Các ô trong hotbar (thanh nhanh)
-    [SerializeField] private InventorySlot[] mainInventorySlots; // Các ô trong kho chính
-    [SerializeField] private GameObject inventoryItemPrefab; // Prefab itemData để hiển thị trong slot
-    [SerializeField] private GameInput gameInput; // Script nhận input từ người chơi
-    //test
-    [SerializeField] public ItemData stick;
-    [SerializeField] public ItemData stone;
-    [SerializeField] public ItemData axe;
-    //[SerializeField] private ItemData stair;
-    //[SerializeField] private ItemData camfire;
-    //[SerializeField] private Button sortButton; // Nút sắp xếp kho đồ
-
-    private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>(); // Lưu số lượng từng loại itemData
-    private int selectedHotbarIndex = -1; // Vị trí hiện tại đang chọn trong hotbar
-
-
-
+    [Header("Player Reference")]
     [SerializeField] private PlayerHoldingItem playerHolding;
+
+    private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>();
+    private int selectedHotbarIndex = -1;
 
     private void Awake()
     {
-        instance = this; // Thiết lập singleton
+        instance = this;
     }
 
     private void Start()
     {
-        ChangeHotbarSlot(IndexSlotBar); // Chọn ô đầu tiên của hotbar
-        //AddItem(camfire);
-        for (int i = 0; i < 1; i++)
-        {
-            AddItem(stick);
-            AddItem(stone);
+        ChangeHotbarSlot(IndexSlotBar);
 
+        // Add starter items
+        foreach (StarterItem starterItem in starterItems)
+        {
+            if (starterItem.item != null)
+            {
+                for (int i = 0; i < starterItem.amount; i++)
+                {
+                    AddItem(starterItem.item);
+                }
+            }
         }
-        AddItem(axe);
-        //AddItem(stair);
-        //if (sortButton != null)
-        //    sortButton.onClick.AddListener(SortItems); // Gắn sự kiện bấm nút sắp xếp
     }
+
     public void SetPlayerHolding(PlayerHoldingItem holding)
     {
         playerHolding = holding;
@@ -60,7 +54,6 @@ public class InventoryManager : MonoBehaviour
     {
         if (gameInput != null)
         {
-            // Unsubscribe old one if needed
             gameInput.OnScroll -= HandleScroll;
             gameInput.OnNumberKeyPressed -= HandleNumberKey;
         }
@@ -73,27 +66,7 @@ public class InventoryManager : MonoBehaviour
             gameInput.OnNumberKeyPressed += HandleNumberKey;
         }
     }
-    //private void OnEnable()
-    //{
-    //    // Gắn sự kiện cuộn chuột và phím số khi bật UI
-    //    if (gameInput != null)
-    //    {
-    //        gameInput.OnScroll += HandleScroll;
-    //        gameInput.OnNumberKeyPressed += HandleNumberKey;
-    //    }
-    //}
 
-    //private void OnDisable()
-    //{
-    //    // Gỡ sự kiện khi tắt UI
-    //    if (gameInput != null)
-    //    {
-    //        gameInput.OnScroll -= HandleScroll;
-    //        gameInput.OnNumberKeyPressed -= HandleNumberKey;
-    //    }
-    //}
-
-    // Thêm vật phẩm vào kho
     public bool AddItem(ItemData itemData)
     {
         if (itemCounts.ContainsKey(itemData))
@@ -101,49 +74,53 @@ public class InventoryManager : MonoBehaviour
         else
             itemCounts[itemData] = 1;
 
-        // Thử gộp vào slot đã có sẵn
         if (TryStackItem(itemData, hotbarSlots) || TryStackItem(itemData, mainInventorySlots))
             return true;
 
-        // Nếu không gộp được, thêm vào slot trống
         if (TryAddNewItem(itemData, hotbarSlots) || TryAddNewItem(itemData, mainInventorySlots))
             return true;
 
-        return false; // Không còn chỗ trống
+        return false;
     }
 
-    // Thử gộp itemData vào các slot đã có sẵn cùng loại
     private bool TryStackItem(ItemData item, InventorySlot[] slots)
     {
         foreach (var slot in slots)
         {
             InventoryItem itemInSlot = slot.GetComponentInChildren<InventoryItem>();
-            if (itemInSlot != null &&
-                itemInSlot.item == item &&
-                item.resource.stackable &&
-                itemInSlot.count < item.resource.maxStack)
+            if (itemInSlot == null || itemInSlot.item != item) continue;
+
+            bool canStack = false;
+            int maxStack = 1;
+
+            // Check stackable types in order of priority
+            if (item.type == ItemType.Consumable && item.consumable != null)
+            {
+                // Consumables are always stackable (food, potions, etc.)
+                canStack = true;
+                maxStack = 99; // Default max stack for consumables
+            }
+            else if (item.type == ItemType.Resource && item.resource != null && item.resource.stackable)
+            {
+                canStack = true;
+                maxStack = item.resource.maxStack;
+            }
+            else if (item.type == ItemType.BuildingPart && item.building != null && item.building.stackable)
+            {
+                canStack = true;
+                maxStack = item.building.maxStack;
+            }
+
+            if (canStack && itemInSlot.count < maxStack)
             {
                 itemInSlot.count++;
-                itemInSlot.RefreshCount(); // Cập nhật hiển thị số lượng
+                itemInSlot.RefreshCount();
                 return true;
-            }
-            else
-            {
-                if (itemInSlot != null &&
-                itemInSlot.item == item &&
-                item.building.stackable &&
-                itemInSlot.count < item.building.maxStack)
-                {
-                    itemInSlot.count++;
-                    itemInSlot.RefreshCount(); // Cập nhật hiển thị số lượng
-                    return true;
-                }
             }
         }
         return false;
     }
 
-    // Thử thêm itemData vào slot trống
     private bool TryAddNewItem(ItemData item, InventorySlot[] slots)
     {
         foreach (var slot in slots)
@@ -157,7 +134,6 @@ public class InventoryManager : MonoBehaviour
         return false;
     }
 
-    // Tạo itemData mới và gắn vào slot
     private void SpawnNewItem(ItemData item, InventorySlot slot)
     {
         GameObject newItemGO = Instantiate(inventoryItemPrefab, slot.transform);
@@ -168,7 +144,7 @@ public class InventoryManager : MonoBehaviour
         {
             if (slot == hotbarSlots[i] && i == selectedHotbarIndex)
             {
-                if (playerHolding != null)   // ✅ Null check
+                if (playerHolding != null)
                 {
                     playerHolding.HoldingItem(item);
                 }
@@ -177,17 +153,11 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-
-
-    // Đổi slot đang chọn trong hotbar
-    // In InventoryManager.cs, update the ChangeHotbarSlot method:
-
     public void ChangeHotbarSlot(int index, bool forceRefresh = false)
     {
         if (hotbarSlots == null || index < 0 || index >= hotbarSlots.Length)
             return;
 
-        // Only deselect if switching to a new slot
         if (selectedHotbarIndex != index)
         {
             if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
@@ -197,13 +167,11 @@ public class InventoryManager : MonoBehaviour
             selectedHotbarIndex = index;
         }
 
-        // Always update held item
         InventoryItem selectedItem = hotbarSlots[index].GetComponentInChildren<InventoryItem>();
         if (playerHolding != null)
         {
             if (selectedItem != null)
             {
-                // ✅ FIXED: Always call HoldingItem, even if it's the same item
                 playerHolding.HoldingItem(selectedItem.item);
             }
             else
@@ -213,10 +181,6 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-
-
-
-    // Cuộn qua các ô hotbar bằng chuột
     private void ScrollSlot(int direction)
     {
         if (hotbarSlots == null || hotbarSlots.Length == 0)
@@ -227,48 +191,41 @@ public class InventoryManager : MonoBehaviour
         ChangeHotbarSlot(IndexSlotBar);
     }
 
-    // Xử lý sự kiện cuộn chuột
     private void HandleScroll(object sender, float scrollValue)
     {
         if (scrollValue > 0)
         {
-            ScrollSlot(-1); // Cuộn lên
+            ScrollSlot(-1);
         }
         else if (scrollValue < 0)
         {
-            ScrollSlot(1); // Cuộn xuống
+            ScrollSlot(1);
         }
     }
 
-    // Xử lý khi nhấn phím số 1–9 để chọn hotbar
     private void HandleNumberKey(object sender, int index)
     {
         if (index >= 0 && index < hotbarSlots.Length)
         {
             IndexSlotBar = index;
-            ChangeHotbarSlot(IndexSlotBar, true); // force refresh
+            ChangeHotbarSlot(IndexSlotBar, true);
         }
     }
 
-    // Sắp xếp lại tất cả itemData trong kho
     public void SortItems()
     {
         List<ItemData> allItems = new List<ItemData>();
 
-        // Gom tất cả itemData từ hotbar và inventory
         CollectItems(hotbarSlots, allItems);
         CollectItems(mainInventorySlots, allItems);
 
-        // Xóa hết slot
         ClearSlots(hotbarSlots);
         ClearSlots(mainInventorySlots);
 
-        // Thêm lại itemData để sắp xếp
         foreach (var item in allItems)
             AddItem(item);
     }
 
-    // Gom tất cả itemData từ các slot vào danh sách
     private void CollectItems(InventorySlot[] slots, List<ItemData> list)
     {
         foreach (var slot in slots)
@@ -278,12 +235,11 @@ public class InventoryManager : MonoBehaviour
             {
                 for (int i = 0; i < itemInSlot.count; i++)
                     list.Add(itemInSlot.item);
-                Destroy(itemInSlot.gameObject); // Xóa object cũ
+                Destroy(itemInSlot.gameObject);
             }
         }
     }
 
-    // Xóa toàn bộ itemData trong các slot
     private void ClearSlots(InventorySlot[] slots)
     {
         foreach (var slot in slots)
@@ -294,7 +250,6 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-    // Xử lý khi kéo thả itemData giữa các ô
     public void OnItemDropped(InventorySlot fromSlot, InventorySlot toSlot)
     {
         InventoryItem fromItem = fromSlot.GetComponentInChildren<InventoryItem>();
@@ -304,7 +259,7 @@ public class InventoryManager : MonoBehaviour
 
         if (toItem == null)
         {
-            fromItem.transform.SetParent(toSlot.transform); // Di chuyển sang slot trống
+            fromItem.transform.SetParent(toSlot.transform);
         }
         else if (fromItem.item == toItem.item && fromItem.item.resource.stackable)
         {
@@ -320,22 +275,18 @@ public class InventoryManager : MonoBehaviour
         }
         else
         {
-            // Đổi chỗ 2 itemData khác loại
             Transform temp = toItem.transform;
             toItem.transform.SetParent(fromSlot.transform);
             fromItem.transform.SetParent(toSlot.transform);
         }
     }
 
-    // Tạo một itemData mới với số lượng cụ thể (dùng khi tách itemData)
     public void SpawnSplitItem(ItemData item, int amount)
     {
         if (!TrySpawn(item, amount, mainInventorySlots))
             TrySpawn(item, amount, hotbarSlots);
-
     }
 
-    // Lấy itemData đang được chọn (dùng cho hotbar hoặc kho)
     public ItemData GetSelectedItem(bool fromInventory)
     {
         InventorySlot[] source = fromInventory ? mainInventorySlots : hotbarSlots;
@@ -350,7 +301,6 @@ public class InventoryManager : MonoBehaviour
         return null;
     }
 
-    // Thử spawn itemData mới vào slot trống
     private bool TrySpawn(ItemData item, int amount, InventorySlot[] slots)
     {
         foreach (var slot in slots)
@@ -367,49 +317,112 @@ public class InventoryManager : MonoBehaviour
         }
         return false;
     }
-    // Hàm xóa số lượng item khỏi kho
+
     public bool RemoveItem(ItemData itemData, int amount)
     {
-        // Nếu không đủ item để xóa thì trả về false
         if (!itemCounts.ContainsKey(itemData) || itemCounts[itemData] < amount)
             return false;
 
-        itemCounts[itemData] -= amount; // Trừ số lượng
+        itemCounts[itemData] -= amount;
         if (itemCounts[itemData] <= 0)
-            itemCounts.Remove(itemData); // Xóa key nếu không còn item
+            itemCounts.Remove(itemData);
 
-        UpdateInventoryUIAfterRemove(itemData, amount); // Cập nhật UI sau khi xóa
+        UpdateInventoryUIAfterRemove(itemData, amount);
         return true;
     }
 
-    // Cập nhật UI sau khi xóa item
+    // Add this method to your InventoryManager class
+    // Replace the existing UpdateInventoryUIAfterRemove method with this one
+
     private void UpdateInventoryUIAfterRemove(ItemData itemData, int amount)
     {
         int remaining = amount;
 
-        // Xóa trên hotbar 
-        foreach (var slot in hotbarSlots)
+        // ✅ PRIORITY 1: Remove from the CURRENTLY SELECTED HOTBAR SLOT first
+        if (selectedHotbarIndex >= 0 && selectedHotbarIndex < hotbarSlots.Length)
         {
-            InventoryItem itemUI = slot.GetComponentInChildren<InventoryItem>();
+            InventorySlot selectedSlot = hotbarSlots[selectedHotbarIndex];
+            InventoryItem itemUI = selectedSlot.GetComponentInChildren<InventoryItem>();
+
             if (itemUI != null && itemUI.item == itemData)
             {
                 int removeCount = Mathf.Min(itemUI.count, remaining);
                 itemUI.count -= removeCount;
                 remaining -= removeCount;
+
                 if (itemUI.count <= 0)
+                {
                     Destroy(itemUI.gameObject);
+                    if (playerHolding != null)
+                    {
+                        playerHolding.Clear();
+                    }
+                }
                 else
+                {
                     itemUI.RefreshCount();
+                    // Update held item visual to show new count
+                    if (playerHolding != null)
+                    {
+                        playerHolding.RefreshHoldingItem(itemData, itemUI.count);
+                    }
+                }
 
                 if (remaining <= 0)
-                    break;
+                    return; // Done removing
             }
         }
 
+        // ✅ PRIORITY 2: Remove from other hotbar slots (if still needed)
+        for (int i = 0; i < hotbarSlots.Length; i++)
+        {
+            if (i == selectedHotbarIndex) continue; // Skip selected slot, already handled
 
+            InventoryItem itemUI = hotbarSlots[i].GetComponentInChildren<InventoryItem>();
+            if (itemUI != null && itemUI.item == itemData)
+            {
+                int removeCount = Mathf.Min(itemUI.count, remaining);
+                itemUI.count -= removeCount;
+                remaining -= removeCount;
+
+                if (itemUI.count <= 0)
+                {
+                    Destroy(itemUI.gameObject);
+                }
+                else
+                {
+                    itemUI.RefreshCount();
+                }
+
+                if (remaining <= 0)
+                    return; // Done removing
+            }
+        }
+
+        // ✅ PRIORITY 3: Remove from main inventory (if still needed)
+        if (remaining > 0)
+        {
+            foreach (var slot in mainInventorySlots)
+            {
+                InventoryItem itemUI = slot.GetComponentInChildren<InventoryItem>();
+                if (itemUI != null && itemUI.item == itemData)
+                {
+                    int removeCount = Mathf.Min(itemUI.count, remaining);
+                    itemUI.count -= removeCount;
+                    remaining -= removeCount;
+
+                    if (itemUI.count <= 0)
+                        Destroy(itemUI.gameObject);
+                    else
+                        itemUI.RefreshCount();
+
+                    if (remaining <= 0)
+                        return; // Done removing
+                }
+            }
+        }
     }
 
-    // Hàm lấy số lượng hiện có của item
     public int GetItemCount(ItemData itemData)
     {
         if (itemCounts.TryGetValue(itemData, out int count))
@@ -418,4 +431,14 @@ public class InventoryManager : MonoBehaviour
         }
         return 0;
     }
+}
+
+// ==========================================
+//  STARTER ITEM DATA STRUCTURE
+// ==========================================
+[System.Serializable]
+public class StarterItem
+{
+    public ItemData item;
+    public int amount = 1;
 }

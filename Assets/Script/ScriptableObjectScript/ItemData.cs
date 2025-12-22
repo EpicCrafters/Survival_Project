@@ -47,29 +47,23 @@ public class WeaponStats
 
     [Header("Legacy Bow Settings (Deprecated - Use ProjectileData instead)")]
     [Tooltip("⚠️ DEPRECATED: Use projectileData.projectilePrefab instead")]
-    public GameObject arrowProjectilePrefab; // Server-spawned projectile
+    public GameObject arrowProjectilePrefab;
 
     [Tooltip("⚠️ DEPRECATED: Use projectileData.visualPrefab instead")]
-    public GameObject arrowVisualPrefab;     // Visual on string
+    public GameObject arrowVisualPrefab;
 
     [Header("Knockback Settings")]
     public KnockbackSettings knockback = new KnockbackSettings();
 
-    /// <summary>
-    /// Get the projectile data with fallback to legacy prefabs
-    /// </summary>
     public ProjectileData GetProjectileData()
     {
-        // If we have projectile data, use it
         if (projectileData != null)
             return projectileData;
 
-        // Fallback: Create temporary projectile data from legacy fields
         if (arrowProjectilePrefab != null)
         {
             Debug.LogWarning("[WeaponStats] Using legacy arrow prefabs. Please migrate to ProjectileData!");
 
-            // Create a runtime-only ProjectileData (not saved to disk)
             ProjectileData tempData = ScriptableObject.CreateInstance<ProjectileData>();
             tempData.projectileName = "Legacy Arrow";
             tempData.projectilePrefab = arrowProjectilePrefab;
@@ -99,10 +93,19 @@ public class ToolStats
 [System.Serializable]
 public class ConsumableStats
 {
+    [Header("Effects")]
     public int healAmount;
     public int fillAmount;
+
     [Tooltip("How much hunger to restore")]
     public float hungerRestoreAmount = 20f;
+
+    [Header("Stacking")]
+    [Tooltip("Can this consumable stack in inventory?")]
+    public bool stackable = true;
+
+    [Tooltip("Maximum stack size (default 99 for consumables)")]
+    public int maxStack = 99;
 }
 
 [System.Serializable]
@@ -122,9 +125,9 @@ public class BuildingStats
     public List<ItemData> ignorObject;
     public LayerMask groundMask;
     public int verticalOffset = 0;
-    public Vector3 placementAnchorOffset;     // local offset (child pivot) để align prefab với slot
-    public float maxCornerDrop = 0.4f;    // độ chênh tối đa giữa các góc cho phép
-    public bool raiseToHighest = true;    // có nâng object lên góc cao nhất không
+    public Vector3 placementAnchorOffset;
+    public float maxCornerDrop = 0.4f;
+    public bool raiseToHighest = true;
     public ScriptableObject placementRole;
 }
 
@@ -138,8 +141,8 @@ public class ItemData : ScriptableObject
     public ItemType type;
 
     [Header("Prefabs")]
-    public GameObject worldPrefab; // ✅ For world pickups
-    public GameObject heldPrefab;  // ✅ For held visuals (in player hand)
+    public GameObject worldPrefab;
+    public GameObject heldPrefab;
 
     public bool itemPlace;
     public bool snapToGrid = true;
@@ -171,7 +174,6 @@ public class ItemData : ScriptableObject
         if (type == ItemType.Tool && tool != null)
             return tool.knockback;
 
-        // Default knockback if no settings
         return new KnockbackSettings();
     }
 
@@ -185,6 +187,48 @@ public class ItemData : ScriptableObject
             return weapon.GetProjectileData();
         }
         return null;
+    }
+
+    /// <summary>
+    /// Helper method to check if item can stack
+    /// </summary>
+    public bool IsStackable()
+    {
+        switch (type)
+        {
+            case ItemType.Consumable:
+                return consumable != null && consumable.stackable;
+
+            case ItemType.Resource:
+                return resource != null && resource.stackable;
+
+            case ItemType.BuildingPart:
+                return building != null && building.stackable;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Helper method to get max stack size
+    /// </summary>
+    public int GetMaxStack()
+    {
+        switch (type)
+        {
+            case ItemType.Consumable:
+                return consumable != null ? consumable.maxStack : 1;
+
+            case ItemType.Resource:
+                return resource != null ? resource.maxStack : 1;
+
+            case ItemType.BuildingPart:
+                return building != null ? building.maxStack : 1;
+
+            default:
+                return 1;
+        }
     }
 
 #if UNITY_EDITOR
@@ -214,7 +258,6 @@ public class ItemData : ScriptableObject
                 case ItemType.Weapon:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("weapon"), true);
 
-                    // Show helpful info for bow weapons
                     var weaponProp = serializedObject.FindProperty("weapon");
                     var weaponTypeProp = weaponProp.FindPropertyRelative("weaponType");
                     if (weaponTypeProp.enumValueIndex == (int)WeaponType.Bow)
@@ -250,6 +293,27 @@ public class ItemData : ScriptableObject
 
                 case ItemType.Consumable:
                     UnityEditor.EditorGUILayout.PropertyField(serializedObject.FindProperty("consumable"), true);
+
+                    // Show helpful info for consumables
+                    var consumableProp = serializedObject.FindProperty("consumable");
+                    var stackableProp = consumableProp.FindPropertyRelative("stackable");
+                    var maxStackProp = consumableProp.FindPropertyRelative("maxStack");
+
+                    if (stackableProp.boolValue)
+                    {
+                        UnityEditor.EditorGUILayout.HelpBox(
+                            $"✅ Stackable: Yes (Max: {maxStackProp.intValue})\n" +
+                            "Consumables like food and potions will stack in inventory.",
+                            UnityEditor.MessageType.Info
+                        );
+                    }
+                    else
+                    {
+                        UnityEditor.EditorGUILayout.HelpBox(
+                            "⚠️ Not stackable - Each item will take a separate inventory slot.",
+                            UnityEditor.MessageType.Warning
+                        );
+                    }
                     break;
 
                 case ItemType.Resource:

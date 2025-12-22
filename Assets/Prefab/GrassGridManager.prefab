@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &136724338501105780
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 36941709903696652}
+  - component: {fileID: 3786757366911962302}
+  - component: {fileID: 2692389304651592}
+  m_Layer: 0
+  m_Name: GrassGridManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &36941709903696652
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 136724338501105780}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -243.68945, y: 10.545944, z: -102.88916}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 1
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3786757366911962302
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 136724338501105780}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 283def8b520887449ac54dd9bb751a4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cellSize: 10
+  gridSize: 2048
+  gridCenter: {x: 0, y: 0}
+  drawGizmos: 1
+  gridColor: {r: 0.5, g: 1, b: 0.5, a: 0.3}
+  clearedColor: {r: 1, g: 0.3, b: 0.3, a: 0.5}
+  gridLineFrequency: 1
+  drawCoordinates: 0
+  previewClearArea: 0
+  previewRadius: 5
+  drawTexturePreview: 0
+--- !u!114 &2692389304651592
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 136724338501105780}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6d18474667fd944a98695149b8cbe0d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spawnMask: {fileID: 2800000, guid: 9990692c7ea921a4d99cfcf30e3bd980, type: 3}
+  terrainPrefab: {fileID: 1454248994533908500, guid: fb91d850db1ee6c4180e3346fdbfa373, type: 3}
+  terrainPosition: {x: -250, y: 280, z: -250}
+  terrainRotation: {x: 0, y: 0, z: 0}
+  terrainScale: {x: 10000, y: 10000, z: 10000}
+  spawnTerrainInstance: 0
+  usePhysicsRaycast: 0
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 64
+  raycastDownDistance: 200
+  rayStartAbove: 5
+  alignToSurfaceNormal: 1
+  spawnOnStart: 1
+  seed: 12345
+  spawnHeightOffset: 0.05
+  decorationGroups:
+  - maskColor: {r: 0.36078432, g: 0.29411766, b: 0.23137255, a: 1}
+    colorTolerance: 0.1
+    useEuclideanColorTolerance: 1
+    prefabs:
+    - {fileID: 1514292523353370801, guid: 642af8393f602224199ec9274f4d7aac, type: 3}
+    density: 32000
+    minScale: 1
+    maxScale: 1
+    minYaw: 0
+    maxYaw: 360
+    maxSlope: 90
+    minSeparation: 1
+    yOffset: 0
+    maxAttemptsMultiplier: 4

@@ -41,7 +41,7 @@ public class MainMenuUI : MonoBehaviour
     private Coroutine clientConnectCoroutine;
     private bool isConnecting = false;
 
-    private void Awake()
+    private void Start()
     {
         manager = NetworkManager.singleton;
         if (manager == null)

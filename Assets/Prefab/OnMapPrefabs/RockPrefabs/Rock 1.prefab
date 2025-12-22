@@ -69,6 +69,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1542809642168262749}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -3229326475699168399}
   m_SourcePrefab: {fileID: 100100000, guid: a86f45d2351451a4eb313f5a68029c93, type: 3}
 --- !u!4 &1316277131615651523 stripped
 Transform:
@@ -101,6 +104,7 @@ MonoBehaviour:
   isDestroyed: 0
   isBeingDestroyed: 0
   uniqueId: 
+  maxInteractDistance: 3
   rockType: 0
   stonePrefab: {fileID: 6040415725971329579, guid: 7261133964df4dc4ba4761105d593507, type: 3}
   dustEffectPrefab: {fileID: 114944488089835927, guid: b909443b91d4c984e86f97c80a9ef8c7, type: 3}
@@ -130,6 +134,19 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 9.97
   m_Center: {x: 0.81, y: -1.1, z: 0}
+--- !u!114 &-3229326475699168399
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3609001560468488453}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70fb9ed15b07f854b8319663572e4224, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  surfaceMaterial: 0
 --- !u!1001 &5589016350062195159
 PrefabInstance:
   m_ObjectHideFlags: 0

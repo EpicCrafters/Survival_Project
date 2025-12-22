@@ -52,8 +52,18 @@ public class BowStringController : MonoBehaviour
     [Tooltip("Maximum angle deviation from camera forward (prevents extreme angles)")]
     public float maxAimAngleDeviation = 85f;
 
+    [Tooltip("Forward offset from arrow spawn point to avoid player colliders")]
+    public float spawnForwardOffset = 0.5f;
+
     [Tooltip("Show debug rays for aiming")]
     public bool showAimDebug = true;
+
+    [Header("Spawn Debug")]
+    [Tooltip("Show visual debug sphere when arrow spawns")]
+    public bool showSpawnDebug = true;
+
+    [Tooltip("Duration to show spawn debug sphere")]
+    public float spawnDebugDuration = 2f;
 
     // Private state
     private Vector3 middleBoneRestPosition;
@@ -170,26 +180,31 @@ public class BowStringController : MonoBehaviour
     /// </summary>
     public (Vector3 spawnPos, Vector3 shootDir, Quaternion spawnRot) GetRealisticArrowSpawnData()
     {
-        Vector3 spawnPos = arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
+        // Get base spawn position
+        Vector3 baseSpawnPos = arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
 
         if (aimCamera == null)
         {
             Vector3 fallbackDir = arrowSpawnPoint != null ? arrowSpawnPoint.forward : transform.forward;
-            return (spawnPos, fallbackDir, Quaternion.LookRotation(fallbackDir));
+            Vector3 offsetSpawnPos = baseSpawnPos + fallbackDir * spawnForwardOffset;
+            return (offsetSpawnPos, fallbackDir, Quaternion.LookRotation(fallbackDir));
         }
 
-        // CRITICAL FIX: Move spawn point FORWARD to avoid player colliders
+        // Get camera forward direction
         Vector3 cameraForward = aimCamera.transform.forward;
-        Vector3 safeSpawnPos = spawnPos + cameraForward * 0.5f; // Move 0.5m forward
 
+        // CRITICAL: Calculate safe spawn position by moving forward along camera direction
+        Vector3 finalSpawnPos = baseSpawnPos + cameraForward * spawnForwardOffset;
+
+        // Create ray from camera center
         Ray aimRay = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 targetPoint;
 
-        // Build ignore list for player
+        // Build ignore list for player colliders
         Collider[] playerColliders = playerRoot != null ?
             playerRoot.GetComponentsInChildren<Collider>() : new Collider[0];
 
-        // Raycast for target
+        // Raycast for target, ignoring player colliders
         RaycastHit[] hits = Physics.RaycastAll(aimRay, maxAimDistance, aimLayerMask);
         RaycastHit validHit = default;
         bool foundValidHit = false;
@@ -229,27 +244,28 @@ public class BowStringController : MonoBehaviour
             targetPoint = aimRay.GetPoint(maxAimDistance);
         }
 
-        // Calculate shoot direction from SAFE spawn position
-        Vector3 rawShootDir = (targetPoint - safeSpawnPos).normalized;
+        // Calculate shoot direction from SAFE spawn position (not base position)
+        Vector3 rawShootDir = (targetPoint - finalSpawnPos).normalized;
 
         if (showAimDebug)
         {
             Debug.DrawRay(aimCamera.transform.position, aimRay.direction * maxAimDistance, Color.cyan, 0.1f);
-            Debug.DrawLine(safeSpawnPos, targetPoint, Color.yellow, 0.1f);
-            Debug.DrawRay(safeSpawnPos, rawShootDir * 5f, Color.red, 0.1f);
+            Debug.DrawLine(baseSpawnPos, finalSpawnPos, Color.white, 0.1f); // Show offset
+            Debug.DrawLine(finalSpawnPos, targetPoint, Color.yellow, 0.1f);
+            Debug.DrawRay(finalSpawnPos, rawShootDir * 5f, Color.red, 0.1f);
         }
 
         // CONSTRAINT 1: Check if target is too close
-        float distanceToTarget = Vector3.Distance(safeSpawnPos, targetPoint);
+        float distanceToTarget = Vector3.Distance(finalSpawnPos, targetPoint);
         if (distanceToTarget < minAimDistance)
         {
-            Vector3 safeDir = cameraForward;
+            Vector3 constrainedDir = cameraForward;
             if (showAimDebug)
             {
-                Debug.DrawRay(safeSpawnPos, safeDir * 5f, Color.green, 0.1f);
+                Debug.DrawRay(finalSpawnPos, constrainedDir * 5f, Color.green, 0.1f);
                 Debug.Log($"[Bow] Target too close ({distanceToTarget:F2}m), using camera forward");
             }
-            return (safeSpawnPos, safeDir, Quaternion.LookRotation(safeDir));
+            return (finalSpawnPos, constrainedDir, Quaternion.LookRotation(constrainedDir));
         }
 
         // CONSTRAINT 2: Check angle deviation
@@ -265,32 +281,47 @@ public class BowStringController : MonoBehaviour
 
             if (showAimDebug)
             {
-                Debug.DrawRay(safeSpawnPos, clampedDir * 5f, Color.magenta, 0.1f);
+                Debug.DrawRay(finalSpawnPos, clampedDir * 5f, Color.magenta, 0.1f);
                 Debug.Log($"[Bow] Angle clamped from {angleFromCamera:F1}° to {maxAimAngleDeviation}°");
             }
 
-            return (safeSpawnPos, clampedDir, Quaternion.LookRotation(clampedDir));
+            return (finalSpawnPos, clampedDir, Quaternion.LookRotation(clampedDir));
         }
 
         // CONSTRAINT 3: Prevent backwards shooting
         float dotProduct = Vector3.Dot(cameraForward, rawShootDir);
         if (dotProduct < 0)
         {
-            Vector3 safeDir = cameraForward;
+            Vector3 forwardDir = cameraForward;
             if (showAimDebug)
             {
-                Debug.DrawRay(safeSpawnPos, safeDir * 5f, Color.blue, 0.1f);
+                Debug.DrawRay(finalSpawnPos, forwardDir * 5f, Color.blue, 0.1f);
                 Debug.Log($"[Bow] Would shoot backwards, using camera forward");
             }
-            return (safeSpawnPos, safeDir, Quaternion.LookRotation(safeDir));
+            return (finalSpawnPos, forwardDir, Quaternion.LookRotation(forwardDir));
         }
 
-        return (safeSpawnPos, rawShootDir, Quaternion.LookRotation(rawShootDir));
+        // Return safe spawn position with correct direction
+        return (finalSpawnPos, rawShootDir, Quaternion.LookRotation(rawShootDir));
     }
 
+    /// <summary>
+    /// Get the ACTUAL spawn position that will be used (includes forward offset)
+    /// </summary>
     public Vector3 GetArrowSpawnPosition()
     {
-        return arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
+        Vector3 basePos = arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
+
+        if (aimCamera != null)
+        {
+            // Apply the same forward offset used in GetRealisticArrowSpawnData
+            return basePos + aimCamera.transform.forward * spawnForwardOffset;
+        }
+        else
+        {
+            Vector3 forward = arrowSpawnPoint != null ? arrowSpawnPoint.forward : transform.forward;
+            return basePos + forward * spawnForwardOffset;
+        }
     }
 
     public Quaternion GetArrowSpawnRotation()
@@ -302,6 +333,29 @@ public class BowStringController : MonoBehaviour
     public ProjectileData GetProjectileData()
     {
         return projectileData;
+    }
+
+    /// <summary>
+    /// Debug visualization when arrow is spawned
+    /// Call this from your fire code to show where the arrow spawns
+    /// </summary>
+    public void DebugArrowSpawn(Vector3 spawnPosition, Vector3 shootDirection)
+    {
+        if (!showSpawnDebug) return;
+
+        // Draw debug sphere at spawn position
+        Debug.DrawRay(spawnPosition, Vector3.up * 0.5f, Color.green, spawnDebugDuration);
+        Debug.DrawRay(spawnPosition, Vector3.down * 0.5f, Color.green, spawnDebugDuration);
+        Debug.DrawRay(spawnPosition, Vector3.left * 0.5f, Color.green, spawnDebugDuration);
+        Debug.DrawRay(spawnPosition, Vector3.right * 0.5f, Color.green, spawnDebugDuration);
+        Debug.DrawRay(spawnPosition, Vector3.forward * 0.5f, Color.green, spawnDebugDuration);
+        Debug.DrawRay(spawnPosition, Vector3.back * 0.5f, Color.green, spawnDebugDuration);
+
+        // Draw shoot direction
+        Debug.DrawRay(spawnPosition, shootDirection * 10f, Color.red, spawnDebugDuration);
+
+        // Log to console
+        Debug.Log($"[BowString] 🏹 ARROW SPAWNED at {spawnPosition} | Direction: {shootDirection} | Distance from bow: {Vector3.Distance(spawnPosition, transform.position):F2}m");
     }
 
     private void OnDisable()
@@ -326,22 +380,35 @@ public class BowStringController : MonoBehaviour
     {
         if (!Application.isPlaying || !showAimDebug || aimCamera == null) return;
 
-        Vector3 spawnPos = arrowSpawnPoint != null ? arrowSpawnPoint.position : transform.position;
+        Vector3 basePos = arrowSpawnPoint != null ? arrowSpawnPoint.position : transform.position;
         Vector3 cameraForward = aimCamera.transform.forward;
+        Vector3 offsetPos = basePos + cameraForward * spawnForwardOffset;
+
+        // Draw base spawn point
+        Gizmos.color = Color.white;
+        Gizmos.DrawWireSphere(basePos, 0.05f);
+
+        // Draw safe spawn point
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(offsetPos, 0.05f);
+
+        // Draw offset line
+        Gizmos.color = Color.white;
+        Gizmos.DrawLine(basePos, offsetPos);
 
         // Draw camera forward
         Gizmos.color = Color.cyan;
-        Gizmos.DrawRay(spawnPos, cameraForward * 10f);
+        Gizmos.DrawRay(offsetPos, cameraForward * 10f);
 
         // Draw min distance sphere
         Gizmos.color = new Color(1f, 0f, 0f, 0.2f);
-        Gizmos.DrawWireSphere(spawnPos, minAimDistance);
+        Gizmos.DrawWireSphere(offsetPos, minAimDistance);
 
         // Draw max angle cone (approximate)
         Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
         Vector3 right = Vector3.Cross(cameraForward, Vector3.up).normalized;
         Vector3 maxAngleDir = Quaternion.AngleAxis(maxAimAngleDeviation, right) * cameraForward;
-        Gizmos.DrawRay(spawnPos, maxAngleDir * 10f);
+        Gizmos.DrawRay(offsetPos, maxAngleDir * 10f);
     }
 
     public bool IsDrawing => isDrawing;

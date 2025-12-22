@@ -175,13 +175,14 @@ GameObject:
   - component: {fileID: 4738174822407209357}
   - component: {fileID: 8109855832641535694}
   - component: {fileID: 18233231654409490}
+  - component: {fileID: -1768588845102836969}
   - component: {fileID: 1027158266273342718}
   - component: {fileID: 9207067838169121851}
   - component: {fileID: -5240942478297132605}
   - component: {fileID: 7702868265224866782}
   - component: {fileID: 6534695500491124050}
   - component: {fileID: 2365264757670327752}
-  - component: {fileID: -1768588845102836969}
+  - component: {fileID: 7720287261829590225}
   m_Layer: 0
   m_Name: Wolf FSM
   m_TagString: Untagged
@@ -204,6 +205,7 @@ Transform:
   m_Children:
   - {fileID: 8132328505981468562}
   - {fileID: 8369160596877796094}
+  - {fileID: 721298927817044874}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &4738174822407209357
@@ -268,6 +270,33 @@ CapsuleCollider:
   m_Height: 3.66
   m_Direction: 2
   m_Center: {x: 0, y: 1.54, z: 0.23}
+--- !u!54 &-1768588845102836969
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 532213249906536503}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!195 &1027158266273342718
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -329,6 +358,12 @@ MonoBehaviour:
   agent: {fileID: 1027158266273342718}
   ragdollRootBone: {fileID: 506789298287725040}
   baseRigidbody: {fileID: -1768588845102836969}
+  lootTable:
+  - item: {fileID: 11400000, guid: 380384b12d63340478dfca131eeca5da, type: 2}
+    amount: 5
+    dropChance: 1
+  destroyDelay: 10
+  dropPoint: {fileID: 721298927817044874}
   healthBarUI: {fileID: 7267355396312730070}
   enemySpotted: 0
   isPredator: 1
@@ -506,33 +541,19 @@ MonoBehaviour:
     m_Bits: 2560
   maxTargets: 8
   showDebugLogs: 1
---- !u!54 &-1768588845102836969
-Rigidbody:
+--- !u!114 &7720287261829590225
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 532213249906536503}
-  serializedVersion: 4
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70fb9ed15b07f854b8319663572e4224, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  surfaceMaterial: 3
 --- !u!1 &555411679960358860
 GameObject:
   m_ObjectHideFlags: 0
@@ -1342,6 +1363,37 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1880600712169690845}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1730895231211823721
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 721298927817044874}
+  m_Layer: 0
+  m_Name: DropPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &721298927817044874
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1730895231211823721}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.991, z: 0.218}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4707455307691891438}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1849137972169988787
 GameObject:

@@ -460,5 +460,10 @@ public class PlayerHoldingItem : NetworkBehaviour
     public bool IsHolding() => isHolding;
     public bool IsAWeapon() => isWeapon;
     public GameObject GetCurrentHeldObject() => currentHoldingItem;
+
+    public ItemData GetCurrentItemData()
+    {
+        return ItemData;
+    }
     public bool IsRangedWeapon() => isRangedWeapon;
 }

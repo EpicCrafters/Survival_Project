@@ -17,6 +17,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private GameInput gameInput;
     [SerializeField] private PlayerAnimator playerAnimator;
     [SerializeField] PlayerStatManager playerStatManager;
+    [SerializeField] PlayerItemUseHandler itemUseHandler;
 
 
 
@@ -25,6 +26,7 @@ public class Player : NetworkBehaviour
     [SerializeField] private float sprintSpeed;
     [SerializeField] private float rotationSpeed;
     [SerializeField] private float acceleration;
+    [SerializeField] private float jumpDelayTimer;
     [SerializeField] private float jumpForce;
     [SerializeField] private float jumpCooldown;
     [SerializeField] private float gravityMultiplier;
@@ -47,7 +49,8 @@ public class Player : NetworkBehaviour
     [Header("Debug Info")]
     [SerializeField] private bool showInventory;
     [Header("Stamina")]
-    [SerializeField] private float sprintStaminaDrainRate = 10f; // Stamina per second while sprinting
+    [SerializeField] private float sprintStaminaDrainRate; // Stamina per second while sprinting
+    [SerializeField] private float jumpStaminaDranRate;
 
     private CharacterController controller;
     [SerializeField] bool isGrounded;
@@ -175,40 +178,43 @@ public class Player : NetworkBehaviour
         if (aimTarget == null) return;
 
         Transform cam = Camera.main.transform;
-        Ray ray = new Ray(cam.position, cam.forward);
-        Vector3 targetPos = cam.position + cam.forward * 40f;
+        Vector3 followPoint = cam.position + cam.forward * 40f;   // default follow position
 
-        // Use RaycastAll to filter out player hits
+        // If not aiming → aimTarget simply follows camera
+        if (!itemUseHandler.IsAiming())
+        {
+            aimTarget.position = followPoint;
+            return;
+        }
+
+        // If aiming → try to find a valid hit
+        Ray ray = new Ray(cam.position, cam.forward);
         RaycastHit[] hits = Physics.RaycastAll(ray, 200f);
+
         RaycastHit validHit = default;
-        bool foundValidHit = false;
-        float closestDistance = 200f;
+        bool foundHit = false;
+        float closestDist = Mathf.Infinity;
 
         foreach (RaycastHit hit in hits)
         {
-            // Skip if this hit is part of the player (any child of player root)
+            // Ignore player's own body
             if (hit.transform.IsChildOf(transform))
-            {
                 continue;
-            }
 
-            // Find the closest valid hit
-            if (hit.distance < closestDistance)
+            if (hit.distance < closestDist)
             {
-                closestDistance = hit.distance;
+                closestDist = hit.distance;
                 validHit = hit;
-                foundValidHit = true;
+                foundHit = true;
             }
         }
 
-        // Use the valid hit point or default far point
-        if (foundValidHit)
-        {
-            targetPos = validHit.point;
-        }
+        // If a surface was hit, aim there. Otherwise aim far.
+        Vector3 targetPos = foundHit ? validHit.point : followPoint;
 
         aimTarget.position = targetPos;
     }
+
     private void HandleNormalMovement()
     {
         // Lấy hướng camera để nhân vật di chuyển theo
@@ -395,11 +401,21 @@ public class Player : NetworkBehaviour
 
     private void TriggerJump()
     {
-        // Check if player has enough stamina to jump
         if (playerStatManager != null && playerStatManager.CurrentStamina < 20f)
         {
             return; // Not enough stamina, can't jump
         }
+        StartCoroutine(JumpDelay(jumpDelayTimer));
+        playerAnimator.TriggerJump();
+        CmdDoJump();
+    }
+
+
+    IEnumerator JumpDelay(float delayTime)
+    {
+        yield return new WaitForSeconds(delayTime);
+        // Check if player has enough stamina to jump
+
 
         if (canJump && isGrounded && (!isOnSlope || slopeAngle <= maxSlopeAngle))
         {
@@ -408,15 +424,12 @@ public class Player : NetworkBehaviour
             // Consume stamina for jumping
             if (isServer)
             {
-                playerStatManager.UseStamina(20f);
+                playerStatManager.UseStamina(jumpStaminaDranRate);
             }
             else
             {
-                CmdUseStaminaForJump(20f);
+                CmdUseStaminaForJump(jumpStaminaDranRate);
             }
-
-            playerAnimator.TriggerJump();
-            CmdDoJump();
         }
     }
 
@@ -513,8 +526,9 @@ public class Player : NetworkBehaviour
     }
 
     // Các event từ GameInput
-    private void GameInput_OnSprintStarted(object sender, System.EventArgs e) {
-        
+    private void GameInput_OnSprintStarted(object sender, System.EventArgs e)
+    {
+
         if (playerStatManager != null && playerStatManager.CurrentStamina > 5f)
         {
             isSprinting = true;

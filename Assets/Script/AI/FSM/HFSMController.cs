@@ -2,6 +2,8 @@
 using UnityEngine;
 using UnityEngine.AI;
 using Mirror;
+using System;
+using System.Collections;
 
 
 public class HFSMController : NetworkBehaviour, IDamageable
@@ -23,8 +25,12 @@ public class HFSMController : NetworkBehaviour, IDamageable
     public Rigidbody baseRigidbody; // Root rigidbody (KHÔNG phải ragdoll)
     private AIRagdoll aIRagdoll;
     private List<Rigidbody> ragdollRigidbodies = new List<Rigidbody>(); // Chỉ chứa ragdoll bones
+    [Header("Loot Drop")]
+    [SerializeField] private List<LootEntry> lootTable = new();
+    [SerializeField] private float destroyDelay = 20f;
+    [SerializeField] private Transform dropPoint;
 
-   
+
 
     [Header("Thanh máu (UI)")]
     public HealthBarUI healthBarUI;
@@ -70,7 +76,15 @@ public class HFSMController : NetworkBehaviour, IDamageable
     //  KHỞI TẠO & CẤU HÌNH THÀNH PHẦN
     // ==========================================================
     private void Awake() => InitializeComponents();
+    [Serializable]
+    public class LootEntry
+    {
+        public ItemData item;
+        [Min(1)] public int amount = 1;
 
+        [Tooltip("Tỉ lệ rớt (0–1)")]
+        [Range(0f, 1f)] public float dropChance = 1f;
+    }
     private void InitializeComponents()
     {
         animator?.EnableAnimator();
@@ -274,33 +288,75 @@ public class HFSMController : NetworkBehaviour, IDamageable
         else
             ChangeState(new RecoveryState(this, 2f));
     }
-
-    protected virtual void Die(HitInfo? hit = null)
+    private void DropLoot()
     {
-        if (!isServer) return;
+        if (!isServer || lootTable == null || lootTable.Count == 0)
+            return;
 
-        isDead = true;
-        syncedIsDead = true;
-
-        Debug.Log($"{name} died! HasHitInfo={hit.HasValue}");
-
-        baseRigidbody.isKinematic = false;
-        baseRigidbody.useGravity = false;
-
-        if (agent != null && agent.enabled)
-            agent.enabled = false;
-
-        CurrentState = null;
-
-        // Apply knockback if we have hit info
-        if (hit.HasValue && hit.Value.itemData != null)
+        foreach (var loot in lootTable)
         {
-            ApplyDeathKnockback(hit.Value);
-        }
+            if (loot.item == null) continue;
+            if (UnityEngine.Random.value > loot.dropChance) continue;
 
-        RpcDie();
+            for (int i = 0; i < loot.amount; i++)
+            {
+                Vector3 pos = dropPoint != null
+                    ? dropPoint.position
+                    : transform.position + Vector3.up * 0.5f;
+
+                GameObject lootObj = Instantiate(
+                    loot.item.worldPrefab,
+                    pos + UnityEngine.Random.insideUnitSphere * 0.2f,
+                    Quaternion.identity
+                );
+
+                if (lootObj.TryGetComponent<Rigidbody>(out var rb))
+                {
+                    rb.AddForce(UnityEngine.Random.insideUnitSphere * 2f, ForceMode.Impulse);
+                }
+
+                NetworkServer.Spawn(lootObj);
+            }
+        }
     }
 
+   protected virtual void Die(HitInfo? hit = null)
+{
+    if (!isServer) return;
+    if (isDead) return;
+
+    isDead = true;
+    syncedIsDead = true;
+
+    baseRigidbody.isKinematic = false;
+    baseRigidbody.useGravity = false;
+
+    
+    CurrentState = null;
+
+   
+
+    if (hit.HasValue)
+        ApplyDeathKnockback(hit.Value);
+
+    RpcDie();
+
+    StartCoroutine(RemoveAfterDelay());
+}
+
+    private IEnumerator RemoveAfterDelay()
+    {
+        yield return new WaitForSeconds(destroyDelay);
+        DropLoot();
+        if (pooled)
+        {
+            Sleep(); // quay về pool
+        }
+        else
+        {
+            NetworkServer.Destroy(gameObject);
+        }
+    }
     private void ApplyDeathKnockback(HitInfo hit)
     {
         // Get knockback settings from weapon

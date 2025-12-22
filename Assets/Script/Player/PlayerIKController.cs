@@ -1,12 +1,70 @@
 ﻿using BSS.PoseBlender;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
+using Mirror;
 
 [RequireComponent(typeof(Animator))]
 [DefaultExecutionOrder(400)]  // Chạy SAU PlayableAnimationBlender (300)
-public class PlayerIKController : MonoBehaviour
+public class PlayerIKController : NetworkBehaviour
 {
     private Animator animator;
+
+    [Header("Eye Control - Điều khiển mắt")]
+    [Tooltip("Left eye transform")]
+    public Transform leftEye;
+
+    [Tooltip("Right eye transform")]
+    public Transform rightEye;
+
+    [Tooltip("Maximum horizontal rotation (left/right) in degrees")]
+    [Range(0f, 90f)]
+    public float horizontalRange = 30f;
+
+    [Tooltip("Maximum vertical rotation (up/down) in degrees")]
+    [Range(0f, 90f)]
+    public float verticalRange = 20f;
+
+    [Tooltip("Invert horizontal rotation direction")]
+    public bool invertHorizontal = false;
+
+    [Tooltip("Invert vertical rotation direction")]
+    public bool invertVertical = false;
+
+    [Tooltip("Normalized horizontal look direction (-1 = left, 1 = right)")]
+    [Range(-1.5f, 1.5f)]
+    public float horizontalLook = 0f;
+
+    [Tooltip("Normalized vertical look direction (-1 = down, 1 = up)")]
+    [Range(-1.5f, 1.5f)]
+    public float verticalLook = 0f;
+
+    [Tooltip("Smooth the eye movement")]
+    public bool smoothEyeMovement = true;
+
+    [Tooltip("Eyes follow the head look target")]
+    public bool eyeFollowLookTarget = false;
+
+    private Quaternion leftEyeInitialRotation;
+    private Quaternion rightEyeInitialRotation;
+    private Quaternion leftEyeCurrentRotation;
+    private Quaternion rightEyeCurrentRotation;
+    private bool eyeRotationsInitialized = false;
+
+    [Header("Network Eye Sync - Mirror")]
+    [Tooltip("How often to send eye position updates (updates per second)")]
+    [Range(5f, 60f)]
+    public float eyeSyncUpdateRate = 20f;
+
+    [Tooltip("Interpolation speed for remote players' eyes")]
+    [Range(1f, 30f)]
+    public float eyeInterpolationSpeed = 15f;
+
+    // SyncVar for eye look data with hook for smooth interpolation
+    [SyncVar(hook = nameof(OnEyeLookChanged))]
+    private Vector2 syncedEyeLook = Vector2.zero;
+
+    private float lastEyeSyncTime;
+    private Vector2 targetEyeLook;
 
     [Header("Head Look At - Nhìn mục tiêu")]
     public Transform lookTarget;
@@ -40,9 +98,9 @@ public class PlayerIKController : MonoBehaviour
     [Header("Right Hand IK (Support) - Tay phải kéo dây cung")]
     public bool enableRightHandIK = false;
     public Transform rightHandIKTarget;
-    public Transform rightHandOverride;  // Transform động từ dây cung
-    public Transform rightHandPoleHint;  // Hint position mặc định
-    public Transform rightHandPoleHintOverride;  // ✅ Hint position động từ dây cung
+    public Transform rightHandOverride;
+    public Transform rightHandPoleHint;
+    public Transform rightHandPoleHintOverride;
 
     [Range(0f, 1f)]
     public float rightHandIKWeight = 1f;
@@ -68,7 +126,6 @@ public class PlayerIKController : MonoBehaviour
 
     void Start()
     {
-        // Lấy component Animator
         animator = GetComponent<Animator>();
 
         // Lấy các xương từ Humanoid rig
@@ -87,18 +144,79 @@ public class PlayerIKController : MonoBehaviour
         leftLowerArm = animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
         leftUpperArm = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
 
+        // Lấy xương mắt
+        if (leftEye == null)
+            leftEye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
+        if (rightEye == null)
+            rightEye = animator.GetBoneTransform(HumanBodyBones.RightEye);
+
+        // ✅ Capture eye rotations IMMEDIATELY before any animation runs
+        CaptureEyeInitialRotations();
+
         // Tắt IK ban đầu
         enableLeftHandIK = false;
         enableRightHandIK = false;
         leftHandIKWeight = 0f;
         rightHandIKWeight = 0f;
         currentLeftHandIKWeight = 0f;
+
+        // Initialize target for remote clients
+        targetEyeLook = syncedEyeLook;
+    }
+
+    /// <summary>
+    /// Mirror hook callback when eye look data changes
+    /// </summary>
+    private void OnEyeLookChanged(Vector2 oldValue, Vector2 newValue)
+    {
+        targetEyeLook = newValue;
+    }
+
+    void CaptureEyeInitialRotations()
+    {
+        if (leftEye != null)
+        {
+            leftEyeInitialRotation = leftEye.localRotation;
+            leftEyeCurrentRotation = leftEye.localRotation;
+        }
+        if (rightEye != null)
+        {
+            rightEyeInitialRotation = rightEye.localRotation;
+            rightEyeCurrentRotation = rightEye.localRotation;
+        }
+        eyeRotationsInitialized = true;
     }
 
     void Update()
     {
-        // Cập nhật hướng nhìn
-        LookAtTarget();
+        // Network eye sync logic
+        if (isLocalPlayer)
+        {
+            // LOCAL PLAYER: Send eye data to server
+            SyncEyeToServer();
+        }
+        else
+        {
+            // REMOTE PLAYER: Interpolate eye data from network
+            InterpolateRemoteEyeData();
+        }
+
+        // Cập nhật hướng nhìn (only for local player)
+        if (isLocalPlayer)
+        {
+            LookAtTarget();
+
+            // ✅ Update eye look direction if following look target
+            if (eyeFollowLookTarget && lookTarget != null && leftEye != null && eyeRotationsInitialized)
+            {
+                Vector3 directionToTarget = (lookTarget.position - leftEye.position).normalized;
+                Vector3 localDirection = transform.InverseTransformDirection(directionToTarget);
+
+                // Update look values based on target
+                horizontalLook = Mathf.Clamp(localDirection.x * 2f, -1f, 1f);
+                verticalLook = Mathf.Clamp(localDirection.y * 2f, -1f, 1f);
+            }
+        }
 
         float delta = Time.deltaTime;
         float targetWeight = 1f;
@@ -118,8 +236,52 @@ public class PlayerIKController : MonoBehaviour
     }
 
     /// <summary>
-    /// Cập nhật vị trí target tay phải từ override (dây cung động)
+    /// Sync local player's eye data to server (Mirror)
     /// </summary>
+    private void SyncEyeToServer()
+    {
+        // Rate limiting
+        if (Time.time - lastEyeSyncTime < 1f / eyeSyncUpdateRate)
+            return;
+
+        lastEyeSyncTime = Time.time;
+
+        // Compress to 0-1 range for network efficiency
+        Vector2 compressedEyeLook = new Vector2(
+            (horizontalLook + 1f) * 0.5f, // Convert -1~1 to 0~1
+            (verticalLook + 1f) * 0.5f
+        );
+
+        // Only send if changed significantly (reduce bandwidth)
+        if (Vector2.Distance(syncedEyeLook, compressedEyeLook) > 0.01f)
+        {
+            CmdUpdateEyeLook(compressedEyeLook);
+        }
+    }
+
+    /// <summary>
+    /// Command to update eye look on server
+    /// </summary>
+    [Command]
+    private void CmdUpdateEyeLook(Vector2 eyeLook)
+    {
+        syncedEyeLook = eyeLook;
+    }
+
+    /// <summary>
+    /// Interpolate remote player's eye data
+    /// </summary>
+    private void InterpolateRemoteEyeData()
+    {
+        // Decompress from 0-1 back to -1~1
+        float targetHorizontal = targetEyeLook.x * 2f - 1f;
+        float targetVertical = targetEyeLook.y * 2f - 1f;
+
+        // Smooth interpolation
+        horizontalLook = Mathf.Lerp(horizontalLook, targetHorizontal, Time.deltaTime * eyeInterpolationSpeed);
+        verticalLook = Mathf.Lerp(verticalLook, targetVertical, Time.deltaTime * eyeInterpolationSpeed);
+    }
+
     private void UpdateRightHandIKTarget()
     {
         if (enableRightHandIK && rightHandIKTarget != null && rightHandOverride != null)
@@ -129,9 +291,6 @@ public class PlayerIKController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Xử lý nhìn mục tiêu (head look at)
-    /// </summary>
     private void LookAtTarget()
     {
         // Kiểm tra null
@@ -164,13 +323,19 @@ public class PlayerIKController : MonoBehaviour
         if (enableFootIK)
             ApplyFootIKInLateUpdate();
 
-        // Cập nhật pivot aim (cho head look)
-        if (pivotAim == null || shoulderTransform == null || lookTarget == null)
-            return;
+        // ✅ Áp dụng Eye Control - chạy CUỐI CÙNG để override animation
+        ApplyEyeControl();
 
-        Vector3 aimDir = lookTarget.position - pivotAim.position;
-        pivotAim.position = shoulderTransform.position;
-        pivotAim.rotation = Quaternion.LookRotation(aimDir);
+        // Cập nhật pivot aim (cho head look) - only for local player
+        if (isLocalPlayer)
+        {
+            if (pivotAim == null || shoulderTransform == null || lookTarget == null)
+                return;
+
+            Vector3 aimDir = lookTarget.position - pivotAim.position;
+            pivotAim.position = shoulderTransform.position;
+            pivotAim.rotation = Quaternion.LookRotation(aimDir);
+        }
     }
 
     void OnAnimatorMove()
@@ -180,46 +345,87 @@ public class PlayerIKController : MonoBehaviour
 
     void OnAnimatorIK(int layerIndex)
     {
-        // Để trống - xử lý IK thủ công trong LateUpdate
+        // ✅ Force override eye bones in OnAnimatorIK to prevent animation control
+        if (animator != null && leftEye != null && rightEye != null && eyeRotationsInitialized)
+        {
+            // Tell animator to use our rotation for eyes
+            animator.SetBoneLocalRotation(HumanBodyBones.LeftEye, leftEyeCurrentRotation);
+            animator.SetBoneLocalRotation(HumanBodyBones.RightEye, rightEyeCurrentRotation);
+        }
     }
 
     /// <summary>
-    /// Áp dụng IK tay phải (kéo dây cung)
+    /// ✅ Điều khiển mắt - chạy sau tất cả IK và animation
+    /// Eye bone local space: Z = forward (look direction), X = right, Y = up
     /// </summary>
+    private void ApplyEyeControl()
+    {
+        if (leftEye == null || rightEye == null) return;
+
+        // Tính rotation dựa trên look values
+        // In local space where Z is forward:
+        // - Horizontal look (left/right) rotates around Y-axis (yaw)
+        // - Vertical look (up/down) rotates around X-axis (pitch)
+        float yRotation = horizontalLook * horizontalRange * (invertHorizontal ? -1f : 1f);
+        float xRotation = -verticalLook * verticalRange * (invertVertical ? 1f : -1f);
+
+        // Tạo rotation mục tiêu với trục đúng
+        Quaternion deltaRotation = Quaternion.Euler(xRotation, yRotation, 0f);
+        Quaternion targetRotation = leftEyeInitialRotation * deltaRotation;
+
+        if (smoothEyeMovement)
+        {
+            // Smooth interpolation - blend from CURRENT to TARGET (ignore animation)
+            leftEyeCurrentRotation = Quaternion.Slerp(
+                leftEye.localRotation,
+                targetRotation,
+                Time.deltaTime * 10f
+            );
+            rightEyeCurrentRotation = Quaternion.Slerp(
+                rightEye.localRotation,
+                targetRotation,
+                Time.deltaTime * 10f
+            );
+        }
+        else
+        {
+            // Instant rotation - completely override animation
+            leftEyeCurrentRotation = targetRotation;
+            rightEyeCurrentRotation = targetRotation;
+        }
+
+        // Apply the rotations
+        leftEye.localRotation = leftEyeCurrentRotation;
+        rightEye.localRotation = rightEyeCurrentRotation;
+    }
+
     private void ApplyRightHandIKManual()
     {
-        // Kiểm tra điều kiện
         if (rightHandIKTarget == null || rightHandIKWeight <= 0.01f)
             return;
 
         if (rightHand == null || rightLowerArm == null || rightUpperArm == null)
             return;
 
-        // Lưu rotation gốc
         Quaternion origUpper = rightUpperArm.rotation;
         Quaternion origLower = rightLowerArm.rotation;
         Quaternion origHand = rightHand.rotation;
         Vector3 origHandPos = rightHand.position;
 
-        // Lấy target position và rotation
         Vector3 targetPos = rightHandIKTarget.position;
         Quaternion targetRot = rightHandIKTarget.rotation;
 
-        // ✅ Tính pole position (hint) - ƯU TIÊN override từ dây cung
         Vector3 polePos;
         if (rightHandPoleHintOverride != null)
         {
-            // Sử dụng hint động từ dây cung (ưu tiên)
             polePos = rightHandPoleHintOverride.position;
         }
         else if (rightHandPoleHint != null)
         {
-            // Sử dụng hint tĩnh
             polePos = rightHandPoleHint.position;
         }
         else
         {
-            // Tính toán tự động nếu không có hint
             Vector3 shoulderToTarget = targetPos - rightUpperArm.position;
             float armLength = Vector3.Distance(rightUpperArm.position, rightLowerArm.position) +
                              Vector3.Distance(rightLowerArm.position, rightHand.position);
@@ -237,7 +443,6 @@ public class PlayerIKController : MonoBehaviour
             polePos = midPoint + bendDirection * (armLength * 0.4f);
         }
 
-        // Giải Two-Bone IK
         TwoBoneIKSolver.Solve(
             rightUpperArm,
             rightLowerArm,
@@ -248,10 +453,8 @@ public class PlayerIKController : MonoBehaviour
             true
         );
 
-        // Áp dụng rotation target
         rightHand.rotation = targetRot;
 
-        // Blend với weight nếu < 1
         if (rightHandIKWeight < 1f)
         {
             rightUpperArm.rotation = Quaternion.Slerp(origUpper, rightUpperArm.rotation, rightHandIKWeight);
@@ -261,24 +464,18 @@ public class PlayerIKController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Áp dụng IK tay trái (cầm cung)
-    /// </summary>
     private void ApplyLeftHandIKManual()
     {
-        // Kiểm tra điều kiện
         if (!enableLeftHandIK || leftHandIKTarget == null || currentLeftHandIKWeight <= 0.01f)
             return;
 
         if (leftHand == null || leftLowerArm == null || leftUpperArm == null)
             return;
 
-        // Lưu rotation gốc
         Quaternion origUpper = leftUpperArm.rotation;
         Quaternion origLower = leftLowerArm.rotation;
         Quaternion origHand = leftHand.rotation;
 
-        // Tính pole position (hint)
         Vector3 polePos;
         if (leftHandHint != null)
         {
@@ -286,7 +483,6 @@ public class PlayerIKController : MonoBehaviour
         }
         else
         {
-            // Tính toán tự động
             Vector3 shoulderToTarget = leftHandIKTarget.position - leftUpperArm.position;
             float armLength = Vector3.Distance(leftUpperArm.position, leftLowerArm.position) +
                              Vector3.Distance(leftLowerArm.position, leftHand.position);
@@ -304,7 +500,6 @@ public class PlayerIKController : MonoBehaviour
             polePos = midPoint + bendDirection * (armLength * 0.4f);
         }
 
-        // Giải Two-Bone IK
         TwoBoneIKSolver.Solve(
             leftUpperArm,
             leftLowerArm,
@@ -315,61 +510,81 @@ public class PlayerIKController : MonoBehaviour
             false
         );
 
-        // Áp dụng rotation target
         leftHand.rotation = leftHandIKTarget.rotation;
 
-        // Blend với weight
         leftUpperArm.rotation = Quaternion.Slerp(origUpper, leftUpperArm.rotation, currentLeftHandIKWeight);
         leftLowerArm.rotation = Quaternion.Slerp(origLower, leftLowerArm.rotation, currentLeftHandIKWeight);
         leftHand.rotation = Quaternion.Slerp(origHand, leftHandIKTarget.rotation, currentLeftHandIKWeight);
     }
 
-    /// <summary>
-    /// Áp dụng Foot IK trong LateUpdate
-    /// </summary>
     private void ApplyFootIKInLateUpdate()
     {
-        // Blend mượt weight
         smoothLeftWeight = Mathf.Lerp(smoothLeftWeight, IK_LeftFootWeight, Time.deltaTime * smoothnessSpeed);
         smoothRightWeight = Mathf.Lerp(smoothRightWeight, IK_RightFootWeight, Time.deltaTime * smoothnessSpeed);
 
-        // Áp dụng cho từng chân
         ApplyFootIKDirect(leftFoot, smoothLeftWeight);
         ApplyFootIKDirect(rightFoot, smoothRightWeight);
     }
 
-    /// <summary>
-    /// Áp dụng IK trực tiếp cho 1 chân
-    /// </summary>
     private void ApplyFootIKDirect(Transform footTransform, float ikWeight)
     {
         if (!footTransform || ikWeight <= 0.01f) return;
 
-        // Raycast từ trên xuống
         Vector3 start = footTransform.position + Vector3.up * 0.3f;
 
         if (Physics.Raycast(start, Vector3.down, out RaycastHit hit, raycastDistance, groundMask))
         {
-            // Tính vị trí và rotation mới
             Vector3 pos = hit.point + footIkOffset;
             Quaternion rot = Quaternion.LookRotation(
                 Vector3.ProjectOnPlane(transform.forward, hit.normal),
                 hit.normal
             );
 
-            // Blend với weight
             footTransform.position = Vector3.Lerp(footTransform.position, pos, ikWeight);
             footTransform.rotation = Quaternion.Slerp(footTransform.rotation, rot, ikWeight);
         }
     }
 
     // ========================================================================
-    // PUBLIC METHODS - Các phương thức công khai để setup/control IK
+    // PUBLIC METHODS - Eye Control
     // ========================================================================
 
     /// <summary>
-    /// Setup IK cho cung (bow)
+    /// Set eye look direction with values from -1 to 1
     /// </summary>
+    public void SetEyeLookDirection(float horizontal, float vertical)
+    {
+        horizontalLook = Mathf.Clamp(horizontal, -1f, 1f);
+        verticalLook = Mathf.Clamp(vertical, -1f, 1f);
+    }
+
+    /// <summary>
+    /// Look at a specific world position with eyes
+    /// </summary>
+    public void LookAtPositionWithEyes(Vector3 worldPosition)
+    {
+        if (leftEye == null) return;
+
+        Vector3 directionToTarget = (worldPosition - leftEye.position).normalized;
+        Vector3 localDirection = transform.InverseTransformDirection(directionToTarget);
+
+        horizontalLook = Mathf.Clamp(localDirection.x * 2f, -1f, 1f);
+        verticalLook = Mathf.Clamp(localDirection.y * 2f, -1f, 1f);
+    }
+
+    /// <summary>
+    /// Reset eyes to center position
+    /// </summary>
+    public void ResetEyes()
+    {
+        horizontalLook = 0f;
+        verticalLook = 0f;
+    }
+
+    // ========================================================================
+    // PUBLIC METHODS - Bow IK
+    // ========================================================================
+
     public void SetupBowIK(GameObject bowObject)
     {
         if (bowObject == null) return;
@@ -377,7 +592,6 @@ public class PlayerIKController : MonoBehaviour
         BowStringController bowController = bowObject.GetComponentInChildren<BowStringController>();
         if (bowController == null) return;
 
-        // Setup tay trái (cầm cung)
         if (bowController.rightHandIKTarget != null)
         {
             SetLeftHandIKTarget(bowController.rightHandIKTarget);
@@ -386,9 +600,6 @@ public class PlayerIKController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Xóa IK của cung
-    /// </summary>
     public void ClearBowIK()
     {
         enableLeftHandIK = false;
@@ -396,7 +607,7 @@ public class PlayerIKController : MonoBehaviour
         enableRightHandIK = false;
         rightHandOverride = null;
         rightHandPoleHint = null;
-        rightHandPoleHintOverride = null;  // ✅ Clear cả override
+        rightHandPoleHintOverride = null;
     }
 
     // ========================================================================
@@ -422,33 +633,21 @@ public class PlayerIKController : MonoBehaviour
     // RIGHT HAND IK SETTERS
     // ========================================================================
 
-    /// <summary>
-    /// Set target động cho tay phải (transform di chuyển theo dây cung)
-    /// </summary>
     public void SetRightHandIKTarget(Transform target)
     {
         rightHandOverride = target;
     }
 
-    /// <summary>
-    /// Set target trực tiếp (không qua override)
-    /// </summary>
     public void SetRightHandIKTargetDirect(Transform target)
     {
         rightHandIKTarget = target;
     }
 
-    /// <summary>
-    /// ✅ Set hint tĩnh cho tay phải
-    /// </summary>
     public void SetRightHandPoleHint(Transform poleHint)
     {
         rightHandPoleHint = poleHint;
     }
 
-    /// <summary>
-    /// ✅ Set hint động cho tay phải (override từ dây cung)
-    /// </summary>
     public void SetRightHandPoleHintOverride(Transform poleHintOverride)
     {
         rightHandPoleHintOverride = poleHintOverride;

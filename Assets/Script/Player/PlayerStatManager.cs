@@ -39,6 +39,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [Header("Hunger Effects")]
     [SerializeField] private float starvationDamageInterval = 2f;
     [SerializeField] private int starvationDamage = 1;
+    [SerializeField] private int minimumHealthFromStarvation = 20; // NEW: Health won't go below this from starvation
     [SerializeField] private float regenInterval = 1.5f;
     [SerializeField] private int regenAmount = 1;
 
@@ -49,7 +50,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [SerializeField] private PlayerRagdoll playerRagdoll;
     [SerializeField] private Animator animator;
     [SerializeField] private CharacterController characterController;
-    [SerializeField] private  PlayableAnimationBlender playableAnimationBlender;
+    [SerializeField] private PlayableAnimationBlender playableAnimationBlender;
 
     private bool isDead = false;
 
@@ -166,6 +167,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
 
     private void HandleRegenAndStarvationServer()
     {
+        // Health regeneration when hunger is high (80%+)
         if (currentHunger >= maxHunger * 0.8f && currentHealth < maxHealth)
         {
             regenTimer += Time.fixedDeltaTime;
@@ -178,13 +180,26 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
         else
             regenTimer = 0f;
 
-        if (currentHunger <= 0f && currentHealth > 0)
+        // Starvation damage when hunger is completely depleted
+        // BUT health won't go below the minimum threshold
+        if (currentHunger <= 0f && currentHealth > minimumHealthFromStarvation)
         {
             starvationTimer += Time.fixedDeltaTime;
             if (starvationTimer >= starvationDamageInterval)
             {
                 starvationTimer = 0f;
-                Damage(starvationDamage);
+
+                // Apply damage but ensure we don't go below minimum
+                int damageToApply = starvationDamage;
+                if (currentHealth - damageToApply < minimumHealthFromStarvation)
+                {
+                    damageToApply = currentHealth - minimumHealthFromStarvation;
+                }
+
+                if (damageToApply > 0)
+                {
+                    DamageFromStarvation(damageToApply);
+                }
             }
         }
         else
@@ -204,6 +219,17 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     // ==========================================================
     // DAMAGE & HEAL - WITH BODY PART SUPPORT
     // ==========================================================
+
+    // NEW: Separate method for starvation damage that doesn't trigger death
+    [Server]
+    private void DamageFromStarvation(int amount)
+    {
+        currentHealth = Mathf.Max(minimumHealthFromStarvation, currentHealth - amount);
+        OnHealthSync(currentHealth, currentHealth);
+
+        Debug.Log($"Starvation damage: {amount}. Health: {currentHealth}/{maxHealth}");
+    }
+
     [Server]
     public void Damage(int amount)
     {
@@ -236,7 +262,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
 
         if (currentHealth <= 0)
         {
-            //DieServer(hit);
+            DieServer(hit);
         }
     }
 
@@ -261,7 +287,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [Server]
     private void DieServer()
     {
-        DieServer(new HitInfo(Vector3.zero, Vector3.zero, Vector3.zero, null, null));
+       // DieServer(new HitInfo(Vector3.zero, Vector3.zero, Vector3.zero, null, null));
     }
 
     [Server]
@@ -283,7 +309,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             }
         }
 
-        //RpcDie(hit);
+        RpcDie();
     }
 
     private void ApplyDeathKnockback(HitInfo hit)
@@ -334,23 +360,28 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     }
 
     [ClientRpc]
-    //private void RpcDie(HitInfo hit)
-    //{
-    //    isDead = true;
+    private void RpcDie()
+    {
+        isDead = true;
 
-    //    // Disable movement and CharacterController
-      
+        // Disable movement
+        if (isLocalPlayer)
+        {
+            var movement = GetComponent<PlayerMovement>();
+            if (movement != null)
+                movement.enabled = false;
+        }
 
-    //    // Disable animator
-        
-    //    // Enable ragdoll (this also disables CharacterController)
-    //    if (playerRagdoll != null)
-    //        playerRagdoll.SetRagdoll(true);
+        // Disable animator
+        if (animator != null)
+            animator.enabled = false;
 
-      
+        // Enable ragdoll
+        if (playerRagdoll != null)
+            playerRagdoll.SetRagdoll(true);
 
-    //    Debug.Log($"{gameObject.name} client died");
-    //}
+        Debug.Log($"{gameObject.name} client died");
+    }
 
     private void OnHealthSync(int oldValue, int newValue)
         => OnHealthChanged?.Invoke(newValue, maxHealth);
@@ -448,5 +479,12 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             );
             DieServer(testHit);
         }
+    }
+
+    [ContextMenu("Drain Hunger Completely")]
+    private void DrainHungerTest()
+    {
+        if (isServer)
+            ChangeHunger(-currentHunger);
     }
 }

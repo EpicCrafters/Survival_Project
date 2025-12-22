@@ -344,6 +344,7 @@ GameObject:
   - component: {fileID: 9136742553784647229}
   - component: {fileID: 1469426668603884320}
   - component: {fileID: 5214040704824401315}
+  - component: {fileID: 4324106931996382584}
   m_Layer: 0
   m_Name: Rabbit
   m_TagString: Untagged
@@ -367,6 +368,7 @@ Transform:
   - {fileID: 3951552718043926915}
   - {fileID: 1219728582144215696}
   - {fileID: 590173329442394347}
+  - {fileID: 8950750945908789109}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &3393510371384017917
@@ -519,6 +521,9 @@ MonoBehaviour:
   agent: {fileID: 3311042824306368283}
   ragdollRootBone: {fileID: 2494469351106818098}
   baseRigidbody: {fileID: 7239389506590741340}
+  lootTable: []
+  destroyDelay: 20
+  dropPoint: {fileID: 8950750945908789109}
   healthBarUI: {fileID: 8677973972105019991}
   enemySpotted: 0
   isPredator: 0
@@ -594,6 +599,19 @@ MonoBehaviour:
   baseCol: {fileID: -8101811524407365310}
   bodyParts: []
   showGizmos: 1
+--- !u!114 &4324106931996382584
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 503161307057783782}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 70fb9ed15b07f854b8319663572e4224, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  surfaceMaterial: 3
 --- !u!1 &854498610503104236
 GameObject:
   m_ObjectHideFlags: 0
@@ -1013,6 +1031,37 @@ Transform:
   m_Children:
   - {fileID: 6016704140877526742}
   m_Father: {fileID: 3419465272527837975}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1714623010146262862
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8950750945908789109}
+  m_Layer: 0
+  m_Name: DropPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8950750945908789109
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1714623010146262862}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 669469005568876906}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2205643178565233690
 GameObject:
