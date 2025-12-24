@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
-
 [System.Serializable]
 public class StarterItem
 {
@@ -34,7 +34,7 @@ public class InventoryManager : MonoBehaviour
 
     [Header("Input")]
     [SerializeField] private GameInput gameInput;
-    
+
     //Replace Add Item Data old
     [Header("Starter Items")]
     [SerializeField] private List<StarterItem> starterItems = new List<StarterItem>();
@@ -191,9 +191,17 @@ public class InventoryManager : MonoBehaviour
 
         if (ok)
         {
+            if (IsCraftingSlot(fromSlot) || IsCraftingSlot(toSlot))
+            {
+                CraftingManager.Instance.OnCraftingSlotChanged();
+            }
             pendingRedraw = true;
         }
 
+    }
+    private bool IsCraftingSlot(InventorySlot slot)
+    {
+        return craftingSlots.Contains(slot);
     }
 
     // ---------------------------
@@ -358,6 +366,10 @@ public class InventoryManager : MonoBehaviour
 
         SetAllItemRaycast(true);
         RedrawUI();
+
+        var slot = GetSlotByIndex(targetSlot);
+        if (IsCraftingSlot(slot))
+            CraftingManager.Instance.OnCraftingSlotChanged();
     }
 
     public void CancelSplit()
@@ -520,16 +532,17 @@ public class InventoryManager : MonoBehaviour
     }
     private void SpawnWorldItem(ItemData data, int count)
     {
-        //if (data.worldPrefab == null) return;
+        if (data.worldPrefab == null) return;
 
-        //Vector3 dropPos = GetPlayerDropPosition();
+        Vector3 pos = GetPlayerDropPosition();
 
-        //GameObject go = Instantiate(data.worldPrefab, dropPos, Quaternion.identity);
-        //noi drop item
+        GameObject go = Instantiate(data.worldPrefab, pos, Quaternion.identity);
+
         //var pickup = go.GetComponent<WorldItemPickup>();
         //if (pickup != null)
         //    pickup.Init(data, count);
     }
+
     private Vector3 GetPlayerDropPosition()
     {
         return Camera.main.transform.position
@@ -598,4 +611,24 @@ public class InventoryManager : MonoBehaviour
         IndexSlotBar = newSlot;
         ChangeHotbarSlot(IndexSlotBar);
     }
+    public InventorySlot GetSlotByIndex(int index)
+    {
+        if (index < 0) return null;
+
+        if (index < hotbarSlots.Length)
+            return hotbarSlots[index];
+
+        index -= hotbarSlots.Length;
+
+        if (index < mainInventorySlots.Length)
+            return mainInventorySlots[index];
+
+        index -= mainInventorySlots.Length;
+
+        if (index < craftingSlots.Length)
+            return craftingSlots[index];
+
+        return null;
+    }
+
 }
