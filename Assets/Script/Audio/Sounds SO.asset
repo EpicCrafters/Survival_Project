@@ -1,0 +1,85 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cc55be03c9303246ae89dc183f638d8, type: 3}
+  m_Name: Sounds SO
+  m_EditorClassIdentifier: 
+  sounds:
+  - name: PlayerFootstep
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 0347a93ca6b9530439b5f5ff595b2598, type: 3}
+    - {fileID: 8300000, guid: 38af5bd6b700f6f42a0ae806f9249aa9, type: 3}
+    - {fileID: 8300000, guid: c7842ca3d4943684cb42ba92bb2095f4, type: 3}
+    - {fileID: 8300000, guid: 4364832ea020ab44fa3315af2e4cc60e, type: 3}
+    - {fileID: 8300000, guid: a3bdc7297672178459ea8f3cf82fa9a1, type: 3}
+    - {fileID: 8300000, guid: f19dc0bd4c5f64643b3bf021d5f79c63, type: 3}
+    - {fileID: 8300000, guid: 2ada329af03841347869ad317daec362, type: 3}
+  - name: Collect
+    volume: 1
+    mixer: {fileID: 0}
+    sounds: []
+  - name: UI_Click
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: e576b920b171ce141b84d0d73463ee9b, type: 3}
+  - name: EnemyHit
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 887efb7d78876704d832cbc11e0a90ae, type: 3}
+  - name: EnemySlashed
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: ba19bc3b6c0c1b24599ac4f81f209459, type: 3}
+  - name: ArrowRelease
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 88566454811bb9d46aa3b9b37abd0887, type: 3}
+  - name: Hit
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 887efb7d78876704d832cbc11e0a90ae, type: 3}
+  - name: Open
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 6d57c07e7a8f0bb4f93e71b5c623fbbd, type: 3}
+  - name: Close
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: e43ac58a2a0ded1469e65d8671a2bf57, type: 3}
+  - name: Fire
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 336cc2380e486a3409453d5ab52531fa, type: 3}
+  - name: Chop
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 898e7c75ccb7e81499083dea0475d370, type: 3}
+  - name: Swing
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 6fd57b124806b4e4aae19d1dd5cca9c3, type: 3}
+  - name: CraftingDone
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: 6fd1131dc0c44364da776c01e55d2e4a, type: 3}

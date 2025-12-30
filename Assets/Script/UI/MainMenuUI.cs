@@ -20,6 +20,11 @@ public class MainMenuUI : MonoBehaviour
     public TMP_InputField ServerAddressInput;
     public TMP_InputField PortInput; // Added for port configuration
 
+    [Header("Loading Screen")]
+    public GameObject LoadingScreen;  // Assign a panel in inspector
+    public TMP_Text LoadingStatusText;  // Text for status updates
+    public GameObject LoadingSpinner;  // Spinner with pulsing animation
+
     [Header("Optional Status Display")]
     public TMP_Text NetworkStatusText; // Optional - create if you want status display
 
@@ -40,6 +45,7 @@ public class MainMenuUI : MonoBehaviour
     private NetworkManager manager;
     private Coroutine clientConnectCoroutine;
     private bool isConnecting = false;
+    private Coroutine spinnerPulseCoroutine;
 
     private void Start()
     {
@@ -52,6 +58,15 @@ public class MainMenuUI : MonoBehaviour
 
         if (MenuUI == null) MenuUI = gameObject;
         if (GameplayUI != null) GameplayUI.SetActive(false);
+
+        //Play Music
+        AudioManager.Instance.PlayMenuMusicWithFade();
+
+        // Initialize loading screen as hidden
+        if (LoadingScreen != null)
+        {
+            LoadingScreen.SetActive(false);
+        }
 
         // Setup button listeners
         if (HostButton != null) { HostButton.onClick.RemoveAllListeners(); HostButton.onClick.AddListener(OnHostClicked); }
@@ -78,6 +93,7 @@ public class MainMenuUI : MonoBehaviour
         if (PortInput != null) PortInput.onEndEdit.RemoveListener(OnPortChanged);
 
         if (clientConnectCoroutine != null) StopCoroutine(clientConnectCoroutine);
+        if (spinnerPulseCoroutine != null) StopCoroutine(spinnerPulseCoroutine);
 
         if (NetworkClient.active)
         {
@@ -122,6 +138,14 @@ public class MainMenuUI : MonoBehaviour
     {
         if (manager == null) return;
 
+        // Fade out music when entering game scene
+        AudioManager.Instance.StopMusic(1.5f);
+        // Play ambient sound when game scene loads
+        AudioManager.Instance.PlayGameAmbientWithFade();
+
+        // Show loading screen
+        ShowLoadingScreen("Starting Host...");
+
         // Update network address from input field
         if (ServerAddressInput != null && !string.IsNullOrWhiteSpace(ServerAddressInput.text))
             manager.networkAddress = ServerAddressInput.text.Trim();
@@ -129,6 +153,7 @@ public class MainMenuUI : MonoBehaviour
         if (manager.isNetworkActive)
         {
             Debug.LogWarning("[Menu] NetworkManager already active. Entering gameplay UI.");
+            HideLoadingScreen();
             EnterGameplayUI();
             var p = FindObjectOfType<PlayerFreezeUntilReady>();
             if (p != null) p.ForceActivate();
@@ -151,6 +176,11 @@ public class MainMenuUI : MonoBehaviour
     {
         if (manager == null) return;
 
+        // Fade out music when entering game scene
+        AudioManager.Instance.StopMusic(1.5f);
+        // Play ambient sound when game scene loads
+        AudioManager.Instance.PlayGameAmbientWithFade();
+
         string addr = "localhost";
         if (ServerAddressInput != null && !string.IsNullOrWhiteSpace(ServerAddressInput.text))
             addr = ServerAddressInput.text.Trim();
@@ -158,6 +188,9 @@ public class MainMenuUI : MonoBehaviour
         manager.networkAddress = addr;
 
         Debug.Log($"[Menu] Client connecting to {manager.networkAddress}");
+
+        // Show loading screen
+        ShowLoadingScreen($"Connecting to {addr}...");
 
         if (clientConnectCoroutine != null) StopCoroutine(clientConnectCoroutine);
         clientConnectCoroutine = StartCoroutine(ClientConnectRoutine(manager));
@@ -184,32 +217,134 @@ public class MainMenuUI : MonoBehaviour
 #endif
     }
 
+    // ----------------- Loading Screen Methods -----------------
+    private void ShowLoadingScreen(string statusMessage = "Loading...")
+    {
+        if (LoadingScreen != null)
+        {
+            LoadingScreen.SetActive(true);
+        }
+
+        if (LoadingStatusText != null)
+        {
+            LoadingStatusText.text = statusMessage;
+        }
+
+        if (LoadingSpinner != null)
+        {
+            LoadingSpinner.SetActive(true);
+            // Start the pulsing animation
+            spinnerPulseCoroutine = StartCoroutine(PulseSpinner());
+        }
+
+        // Disable menu buttons during loading
+        SetMenuButtonsInteractable(false);
+    }
+
+    private void HideLoadingScreen()
+    {
+        if (LoadingScreen != null)
+        {
+            LoadingScreen.SetActive(false);
+        }
+
+        if (LoadingSpinner != null)
+        {
+            LoadingSpinner.SetActive(false);
+            // Stop the pulsing animation
+            if (spinnerPulseCoroutine != null)
+            {
+                StopCoroutine(spinnerPulseCoroutine);
+                spinnerPulseCoroutine = null;
+            }
+        }
+
+        // Re-enable menu buttons if needed
+        SetMenuButtonsInteractable(true);
+    }
+
+    private IEnumerator PulseSpinner()
+    {
+        // Ensure the spinner has an Image component
+        Image spinnerImage = LoadingSpinner.GetComponent<Image>();
+        if (spinnerImage == null) yield break;
+
+        float pulseSpeed = 2f; // Speed of the pulse effect
+        float minAlpha = 0.3f; // Minimum alpha value (faded)
+        float maxAlpha = 1.0f; // Maximum alpha value (fully lit)
+        float currentTime = 0f;
+
+        while (true)
+        {
+            // Calculate alpha using sine wave for smooth pulsing
+            float alpha = minAlpha + (maxAlpha - minAlpha) * (Mathf.Sin(currentTime * pulseSpeed) + 1f) / 2f;
+
+            // Apply the alpha to the spinner image
+            Color color = spinnerImage.color;
+            color.a = alpha;
+            spinnerImage.color = color;
+
+            currentTime += Time.deltaTime;
+            yield return null;
+        }
+    }
+
+    private void SetMenuButtonsInteractable(bool interactable)
+    {
+        if (HostButton != null) HostButton.interactable = interactable;
+        if (ClientButton != null) ClientButton.interactable = interactable;
+        if (QuitButton != null) QuitButton.interactable = interactable;
+        if (ServerAddressInput != null) ServerAddressInput.interactable = interactable;
+        if (PortInput != null) PortInput.interactable = interactable;
+    }
+
+    private void UpdateLoadingStatus(string message)
+    {
+        if (LoadingStatusText != null)
+        {
+            LoadingStatusText.text = message;
+        }
+    }
+
     // ----------------- Network Operations -----------------
     private IEnumerator WaitForHostThenEnter()
     {
+        UpdateLoadingStatus("Starting server...");
+
         float timer = 0f;
         while (!NetworkServer.active && timer < hostStartupWait)
         {
             timer += Time.deltaTime;
+            UpdateLoadingStatus($"Starting server... {Mathf.FloorToInt(timer / hostStartupWait * 100)}%");
             yield return null;
         }
 
         if (!NetworkServer.active)
+        {
+            UpdateLoadingStatus("Server taking longer than expected...");
             Debug.LogWarning("[Menu] NetworkServer.active still false after wait - proceeding anyway.");
+        }
 
+        UpdateLoadingStatus("Connecting local client...");
         timer = 0f;
         while (!NetworkClient.isConnected && timer < hostStartupWait)
         {
             timer += Time.deltaTime;
+            UpdateLoadingStatus($"Connecting local client... {Mathf.FloorToInt(timer / hostStartupWait * 100)}%");
             yield return null;
         }
 
         if (!NetworkClient.isConnected)
-            Debug.LogWarning("[Menu] Local client not connected quickly after StartHost. But continuing to enter gameplay UI.");
+        {
+            UpdateLoadingStatus("Local client connection delayed...");
+            Debug.LogWarning("[Menu] Local client not connected quickly after StartHost.");
+        }
 
-        // Host still loads environment scenes locally so the host's visuals exist immediately.
-        yield return StartCoroutine(LoadMultipleScenesAdditive(environmentSceneNames));
+        // Host loads environment scenes
+        UpdateLoadingStatus("Loading environment...");
+        yield return StartCoroutine(LoadMultipleScenesAdditiveWithProgress(environmentSceneNames));
 
+        HideLoadingScreen(); // Hide loading screen before entering gameplay
         EnterGameplayUI();
         var p = FindObjectOfType<PlayerFreezeUntilReady>();
         if (p != null) p.ForceActivate();
@@ -222,6 +357,9 @@ public class MainMenuUI : MonoBehaviour
         if (nm.transport == null)
         {
             Debug.LogError("[Menu] NetworkManager.transport is null! Assign a transport (KcpTransport/Telepathy) in the NetworkManager inspector.");
+            UpdateLoadingStatus("Error: No transport configured!");
+            yield return new WaitForSeconds(2f);
+            HideLoadingScreen();
             isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
@@ -230,11 +368,14 @@ public class MainMenuUI : MonoBehaviour
         if (NetworkClient.isConnecting)
         {
             Debug.LogWarning("[Menu] NetworkClient already connecting.");
+            UpdateLoadingStatus("Already connecting...");
+            yield return new WaitForSeconds(1f);
+            HideLoadingScreen();
             isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
         }
-
+        bool exceptionOccurred = false;
         try
         {
             nm.StartClient();
@@ -242,6 +383,15 @@ public class MainMenuUI : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogError($"[Menu] StartClient threw exception: {ex}");
+            UpdateLoadingStatus($"Error: {ex.Message}");
+            // Store the exception or use a flag
+            exceptionOccurred = true;
+        }
+
+        if (exceptionOccurred)
+        {
+            yield return new WaitForSeconds(2f);
+            HideLoadingScreen();
             isConnecting = false;
             clientConnectCoroutine = null;
             yield break;
@@ -251,6 +401,8 @@ public class MainMenuUI : MonoBehaviour
         while (!NetworkClient.isConnected && timer < clientConnectTimeout && isConnecting)
         {
             timer += Time.deltaTime;
+            float progress = Mathf.Clamp01(timer / clientConnectTimeout);
+            UpdateLoadingStatus($"Connecting... {Mathf.FloorToInt(progress * 100)}%");
             yield return null;
         }
 
@@ -259,26 +411,20 @@ public class MainMenuUI : MonoBehaviour
         if (NetworkClient.isConnected)
         {
             Debug.Log("[Menu] Client successfully connected to server.");
+            UpdateLoadingStatus("Connected! Loading environment...");
 
-            // Optionally load environment scenes locally for client (same as Host)
             if (clientLoadEnvironmentOnConnect)
             {
-                Debug.Log("[Menu] Client will load environment scenes locally (clientLoadEnvironmentOnConnect = true).");
-                yield return StartCoroutine(LoadMultipleScenesAdditive(environmentSceneNames));
+                yield return StartCoroutine(LoadMultipleScenesAdditiveWithProgress(environmentSceneNames));
 
-                // After local load, notify server that we're ready if you expect server handshakes.
-                if (NetworkClient.isConnected)
-                {
-                    DebugSendEnvLoadedMessage();
-                    Debug.Log("[ClientDebug] (send commented) EnvLoadedMessage debug wrapper executed (clientConnect).");
-                }
-
+                HideLoadingScreen(); // Hide loading screen
                 EnterGameplayUI();
                 var p = FindObjectOfType<PlayerFreezeUntilReady>();
                 if (p != null) p.ForceActivate();
             }
             else
             {
+                HideLoadingScreen(); // Hide loading screen
                 EnterGameplayUI();
                 var p = FindObjectOfType<PlayerFreezeUntilReady>();
                 if (p != null) p.ForceActivate();
@@ -286,7 +432,14 @@ public class MainMenuUI : MonoBehaviour
         }
         else
         {
-            Debug.LogError("[Menu] Client failed to connect within timeout. Stopping client and showing error.");
+            UpdateLoadingStatus("Connection failed!");
+            Debug.LogError("[Menu] Client failed to connect within timeout.");
+
+            // Show error for a moment before hiding
+            yield return new WaitForSeconds(2f);
+
+            HideLoadingScreen();
+
             if (NetworkManager.singleton != null)
             {
                 NetworkManager.singleton.StopClient();
@@ -335,7 +488,7 @@ public class MainMenuUI : MonoBehaviour
         }
     }
 
-    // ----------------- Scene loading helper -----------------
+    // ----------------- Scene loading helpers -----------------
     private IEnumerator LoadMultipleScenesAdditive(List<string> scenes)
     {
         if (scenes == null || scenes.Count == 0)
@@ -380,6 +533,66 @@ public class MainMenuUI : MonoBehaviour
 
             yield return null;
         }
+    }
+
+    // New coroutine with progress tracking (without progress bar)
+    private IEnumerator LoadMultipleScenesAdditiveWithProgress(List<string> scenes)
+    {
+        if (scenes == null || scenes.Count == 0)
+        {
+            Debug.Log("[Menu] No environment scenes specified to load.");
+            UpdateLoadingStatus("No scenes to load.");
+            yield break;
+        }
+
+        for (int i = 0; i < scenes.Count; i++)
+        {
+            var scene = scenes[i];
+            if (string.IsNullOrEmpty(scene)) continue;
+
+            UpdateLoadingStatus($"Loading {scene} ({i + 1}/{scenes.Count})...");
+
+            if (!Application.CanStreamedLevelBeLoaded(scene))
+            {
+                Debug.LogError($"[Menu] Scene '{scene}' cannot be loaded.");
+                UpdateLoadingStatus($"Error: Scene '{scene}' not in build settings!");
+                continue;
+            }
+
+            if (IsSceneLoaded(scene))
+            {
+                UpdateLoadingStatus($"{scene} already loaded.");
+                continue;
+            }
+
+            var op = SceneManager.LoadSceneAsync(scene, LoadSceneMode.Additive);
+            if (op == null)
+            {
+                Debug.LogError($"[Menu] Failed to start async load for '{scene}'.");
+                UpdateLoadingStatus($"Failed to load {scene}");
+                continue;
+            }
+
+            // Track loading progress
+            while (!op.isDone)
+            {
+                float overallProgress = (i + op.progress) / scenes.Count;
+                UpdateLoadingStatus($"Loading {scene}... {Mathf.FloorToInt(overallProgress * 100)}%");
+                yield return null;
+            }
+
+            Debug.Log($"[Menu] Scene '{scene}' loaded.");
+            UpdateLoadingStatus($"{scene} loaded successfully!");
+
+            // Scene-specific setup
+            if (NetworkClient.isConnected && !NetworkServer.active)
+                TrySwitchResourceManagersInLoadedScene(scene);
+
+            yield return null;
+        }
+
+        UpdateLoadingStatus("Environment loaded!");
+        yield return new WaitForSeconds(0.5f); // Brief pause to show completion
     }
 
     // ----------------- UI State Management -----------------
