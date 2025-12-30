@@ -8,7 +8,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
 {
     [Header("References - Tham chiếu")]
     [SerializeField] private PlayerHoldingItem playerHoldingItem;
-    [SerializeField] private PlayerCombat playerCombat;
+    [SerializeField] public PlayerCombat playerCombat;
     [SerializeField] private PlayerAnimator playerAnimator;
     [SerializeField] private PlayerStatManager playerStats;
     [SerializeField] private GameInput gameInput;
@@ -16,11 +16,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
     [SerializeField] private PlayerIKController ikController;
     [SerializeField] private PlayableAnimationBlender playableAnimationBlender;
 
-    [Header("Bow Aiming - Ngắm cung")]
-    [SerializeField] private CinemachineVirtualCamera aimCamera;
-    [SerializeField] private GameObject crosshair;
-    [SerializeField] private float normalFOV = 60f;
-    [SerializeField] private float aimFOV = 40f;
+
 
     // Properties public
     public PlayerHoldingItem PlayerHoldingItem => playerHoldingItem;
@@ -75,8 +71,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
             gameInput.OnAimCanceled += HandleAimCanceled;
         }
 
-        if (crosshair != null)
-            crosshair.SetActive(false);
+
     }
 
     public override void OnStopLocalPlayer()
@@ -158,12 +153,19 @@ public class PlayerItemUseHandler : NetworkBehaviour
     /// <summary>
     /// Xử lý khi bắt đầu aim (chuột phải)
     /// </summary>
+
+
+    /// Xử lý khi bắt đầu aim (chuột phải)
+    /// </summary>
     private void HandleAimStarted(object sender, System.EventArgs e)
     {
         if (!isLocalPlayer) return;
 
         var itemData = playerHoldingItem.ItemData;
         if (itemData == null || itemData.weapon == null) return;
+
+        // ✅ Only allow aiming for Bow weapons
+        if (itemData.weapon.weaponType != WeaponType.Bow) return;
 
         currentStrategy = ItemUseStrategyFactory.GetStrategy(itemData);
         if (currentStrategy == null) return;
@@ -183,16 +185,13 @@ public class PlayerItemUseHandler : NetworkBehaviour
             ikController.SetRightHandIKEnabled(true);
 
             // ✅ Setup right hand pole hint override (hướng khuỷu tay)
-           
-                ikController.SetRightHandPoleHintOverride(currentBowRightHintOverride);
-             
-            
+            ikController.SetRightHandPoleHintOverride(currentBowRightHintOverride);
 
             Debug.Log($"[PlayerItemUseHandler] ✅ Aiming với override: {currentBowStringOverride.name}");
         }
 
         currentStrategy.OnAimStarted(itemData, this);
-        EnableBowAiming(true);
+
     }
 
     /// <summary>
@@ -204,6 +203,9 @@ public class PlayerItemUseHandler : NetworkBehaviour
 
         var itemData = playerHoldingItem.ItemData;
         if (itemData == null || currentStrategy == null) return;
+
+        // ✅ Only process aim cancel for Bow weapons
+        if (itemData.weapon == null || itemData.weapon.weaponType != WeaponType.Bow) return;
 
         // Tắt left hand IK
         ikController.SetLeftHandIKEnabled(false);
@@ -217,38 +219,16 @@ public class PlayerItemUseHandler : NetworkBehaviour
         {
             ikController.SetRightHandIKEnabled(false);
             ikController.SetRightHandIKWeight(0f);
-            //ikController.SetRightHandPoleHintOverride(null); // ✅ Clear hint override
+            ikController.SetRightHandPoleHintOverride(null); // ✅ Clear hint override
         }
 
-        EnableBowAiming(false);
+
     }
 
     // ===========================================================
     // AIMING HELPERS
     // ===========================================================
 
-    /// <summary>
-    /// Bật/tắt chế độ ngắm cung
-    /// </summary>
-    public void EnableBowAiming(bool enable)
-    {
-        if (aimCamera != null)
-        {
-            aimCamera.Priority = enable ? 11 : 9;
-            aimCamera.m_Lens.FieldOfView = enable ? aimFOV : normalFOV;
-        }
-
-        if (crosshair != null)
-            crosshair.SetActive(enable);
-    }
-
-    // ===========================================================
-    // BOW IK SETTERS - Lưu các transform từ cung
-    // ===========================================================
-
-    /// <summary>
-    /// Set IK target tĩnh cho cung (tay trái cầm cung)
-    /// </summary>
     public void SetBowIKTarget(Transform ikTarget)
     {
         if (ikTarget != null)
@@ -300,7 +280,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         currentBowStringOverride = null;
         currentBowRightHintOverride = null; // ✅ Clear hint override
 
-        EnableBowAiming(false);
+
     }
 
     /// <summary>

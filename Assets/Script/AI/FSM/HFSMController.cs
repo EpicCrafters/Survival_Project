@@ -273,7 +273,7 @@ public class HFSMController : NetworkBehaviour, IDamageable
         healthSystem.Damage(amount);
         syncedHealth = healthSystem.GetHealth();
 
-       
+
         if (healthSystem.GetHealth() <= 0)
         {
             // Apply knockback on death with hit info
@@ -320,29 +320,29 @@ public class HFSMController : NetworkBehaviour, IDamageable
         }
     }
 
-   protected virtual void Die(HitInfo? hit = null)
-{
-    if (!isServer) return;
-    if (isDead) return;
+    protected virtual void Die(HitInfo? hit = null)
+    {
+        if (!isServer) return;
+        if (isDead) return;
 
-    isDead = true;
-    syncedIsDead = true;
+        isDead = true;
+        syncedIsDead = true;
 
-    baseRigidbody.isKinematic = false;
-    baseRigidbody.useGravity = false;
+        baseRigidbody.isKinematic = false;
+        baseRigidbody.useGravity = false;
 
-    
-    CurrentState = null;
 
-   
+        CurrentState = null;
 
-    if (hit.HasValue)
-        ApplyDeathKnockback(hit.Value);
 
-    RpcDie();
 
-    StartCoroutine(RemoveAfterDelay());
-}
+        if (hit.HasValue)
+            ApplyDeathKnockback(hit.Value);
+
+        RpcDie();
+
+        StartCoroutine(RemoveAfterDelay());
+    }
 
     private IEnumerator RemoveAfterDelay()
     {
@@ -420,7 +420,7 @@ public class HFSMController : NetworkBehaviour, IDamageable
     // ==========================================================
     //  CLIENT RPCs
     // ==========================================================
- 
+
 
     [ClientRpc]
     private void RpcPlayHitAnimation()
@@ -471,10 +471,14 @@ public class HFSMController : NetworkBehaviour, IDamageable
         currentTarget = null;
         enemySpotted = false;
 
+        // Safe NavMeshAgent handling
         if (agent != null && agent.enabled)
         {
-            agent.isStopped = true;
-            agent.ResetPath();
+            if (agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.ResetPath();
+            }
             agent.enabled = false;
         }
 
@@ -492,28 +496,47 @@ public class HFSMController : NetworkBehaviour, IDamageable
 
         if (agent != null)
         {
+            // Try to place on NavMesh
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
+            {
+                transform.position = hit.position;
+            }
+
             agent.enabled = true;
 
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
-                agent.Warp(hit.position);
-            else
-                agent.Warp(transform.position);
-
-            agent.isStopped = false;
-            agent.ResetPath();
+            // Use coroutine for delayed NavMeshAgent operations
+            StartCoroutine(WakeUpNavMeshDelayed());
         }
 
         animator?.EnableAnimator();
 
-        if (isServer)
+        Debug.Log($"[HFSMController] {name} woke up (id={uniqueId})");
+    }
+
+    private System.Collections.IEnumerator WakeUpNavMeshDelayed()
+    {
+        yield return null; // Wait one frame
+
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
-            CurrentState?.OnExit();
-            CurrentState = null;
+            agent.Warp(transform.position);
+            agent.isStopped = false;
+            agent.ResetPath();
+
+            if (isServer)
+            {
+                CurrentState?.OnExit();
+                CurrentState = null;
+                if (CanRunState(typeof(NormalState)))
+                    ChangeState(new NormalState(this));
+            }
+        }
+        else if (isServer)
+        {
+            // NavMesh not ready, still enter NormalState
             if (CanRunState(typeof(NormalState)))
                 ChangeState(new NormalState(this));
         }
-
-        Debug.Log($"[HFSMController] {name} woke up (id={uniqueId})");
     }
 
     // ==========================================================
@@ -536,17 +559,24 @@ public class HFSMController : NetworkBehaviour, IDamageable
     public void OnRespawn()
     {
         if (!gameObject.activeSelf) return;
+
         InitializeComponents();
         Debug.Log($"✅ {name} Reactivated (id={uniqueId})");
+
         pooled = false;
         aIRagdoll?.SetRagdoll(false);
         animator?.EnableAnimator();
 
-        if (agent != null)
+        // CRITICAL: Only use NavMeshAgent if it's properly placed
+        if (agent != null && agent.enabled && agent.isOnNavMesh)
         {
-            agent.enabled = true;
-            agent.Warp(transform.position);
             agent.isStopped = false;
+            agent.ResetPath();
+        }
+        else if (agent != null && agent.enabled)
+        {
+            // Agent is enabled but not on NavMesh yet - just set isStopped
+            Debug.LogWarning($"[HFSMController] {name} agent not on NavMesh during OnRespawn");
         }
 
         isDead = false;

@@ -26,7 +26,11 @@ MonoBehaviour:
     damage: 10
     range: 0
     combos:
-    - animation: {fileID: -4791504522942941401, guid: 9636b926dc9bfa142a4cbc16ded814ab, type: 3}
+    - animation: {fileID: 7400000, guid: 201a984b2dd4fe54391ed2e58e80d6d3, type: 2}
+    projectileData: {fileID: 0}
+    maxChargeTime: 1.5
+    arrowProjectilePrefab: {fileID: 0}
+    arrowVisualPrefab: {fileID: 0}
     knockback:
       horizontalForce: 20
       upwardForce: 20
@@ -43,6 +47,9 @@ MonoBehaviour:
   consumable:
     healAmount: 0
     fillAmount: 0
+    hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10
@@ -55,3 +62,8 @@ MonoBehaviour:
     groundMask:
       serializedVersion: 2
       m_Bits: 0
+    verticalOffset: 0
+    placementAnchorOffset: {x: 0, y: 0, z: 0}
+    maxCornerDrop: 0.4
+    raiseToHighest: 1
+    placementRole: {fileID: 0}

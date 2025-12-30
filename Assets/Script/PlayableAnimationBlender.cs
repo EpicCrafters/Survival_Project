@@ -98,6 +98,7 @@ public class PlayableAnimationBlender : NetworkBehaviour
     [Header("Setup")]
     [SerializeField] private Animator animator;
     [SerializeField] private Transform animationRoot;
+    [SerializeField] private PlayerCombat combat;
 
     [Header("Look Offset Settings")]
     [SerializeField] private List<BoneOffset> lookBones = new List<BoneOffset>();
@@ -301,6 +302,8 @@ public class PlayableAnimationBlender : NetworkBehaviour
 
     void LateUpdate()
     {
+
+        if (combat.isAttacking == true) return;
         if (!Application.isPlaying) return;
 
         float deltaTime = Time.deltaTime;

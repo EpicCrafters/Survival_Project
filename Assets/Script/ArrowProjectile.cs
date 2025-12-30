@@ -18,6 +18,15 @@ public class ArrowProjectile : NetworkBehaviour
     [SerializeField] private AudioClip hitWoodSound;
     [SerializeField] private AudioClip hitStoneSound;
 
+    [Header("Hit Effects")]
+    [SerializeField]
+    [Tooltip("Bật/tắt hiệu ứng khi đánh trúng")]
+    private bool enableHitEffects = true;
+
+    [SerializeField]
+    [Tooltip("Bật để phát effect ngay cả khi đánh trúng bề mặt thường (không có IDamageable)")]
+    private bool enableSurfaceHitEffects = true;
+
     [Header("Raycast Settings")]
     [SerializeField] private LayerMask ignoreStickLayers;
     [SerializeField] private LayerMask damageableLayers;
@@ -30,38 +39,35 @@ public class ArrowProjectile : NetworkBehaviour
     [SerializeField][Range(0f, 1f)] private float surfaceAlignmentStrength = 0.3f;
     [SerializeField] private float maxStickAngle = 85f;
 
-    // State flags
     private bool hasHit = false;
     private bool isStuck = false;
     private bool isInitialized = false;
 
-    // Movement
     private Vector3 currentPosition;
     private Vector3 previousPosition;
     private Vector3 currentTipPosition;
     private Vector3 previousTipPosition;
     private Vector3 velocity;
 
-    // SyncVars
     [SyncVar] private GameObject shooter;
     [SyncVar] private int itemId;
     [SyncVar] private float damage;
     [SyncVar] private float speed;
     [SyncVar(hook = nameof(OnVelocityChanged))] private Vector3 syncedVelocity;
 
-    // Cached values
     private float gravityMultiplier = 1f;
     private const float DEFAULT_DAMAGE = 10f;
     private const float DEFAULT_SPEED = 20f;
     private const float DEFAULT_LIFETIME = 10f;
     private const float DEFAULT_STUCK_LIFETIME = 5f;
+    private Collider lastHitCollider;
 
     #region Initialization
 
     private void Awake()
     {
-        // ✅ DON'T set positions here - wait for Initialize()
-        Debug.Log($"[ArrowProjectile] Awake - Position: {transform.position}");
+        currentPosition = transform.position;
+        previousPosition = transform.position;
     }
 
     public override void OnStartServer()
@@ -126,12 +132,9 @@ public class ArrowProjectile : NetworkBehaviour
     {
         if (!isServer) return;
 
-        Debug.Log($"[ArrowProjectile] ========== INITIALIZE ==========");
-        Debug.Log($"[ArrowProjectile] Position at Initialize START: {transform.position}");
-        Debug.Log($"[ArrowProjectile] Velocity to apply: {initialVelocity} (magnitude: {initialVelocity.magnitude})");
-
         shooter = shooterObject;
         itemId = weaponItemId;
+        isInitialized = true;
 
         if (data != null)
         {
@@ -143,22 +146,11 @@ public class ArrowProjectile : NetworkBehaviour
 
         velocity = initialVelocity;
         syncedVelocity = initialVelocity;
-
-        // ✅ CRITICAL FIX: Set current position to ACTUAL spawn position
         currentPosition = transform.position;
         previousPosition = transform.position;
 
         currentTipPosition = transform.position + transform.forward * arrowTipOffset;
         previousTipPosition = currentTipPosition;
-
-        Debug.Log($"[ArrowProjectile] currentPosition set to: {currentPosition}");
-        Debug.Log($"[ArrowProjectile] Velocity set to: {velocity}");
-
-        // ✅ NOW mark as initialized so FixedUpdate can run
-        isInitialized = true;
-
-        Debug.Log($"[ArrowProjectile] ✅ Initialized! Next FixedUpdate will move from {currentPosition}");
-        Debug.Log($"[ArrowProjectile] ========== INITIALIZE COMPLETE ==========");
 
         RpcApplyVelocity(initialVelocity);
         IgnoreShooterCollision();
@@ -200,7 +192,6 @@ public class ArrowProjectile : NetworkBehaviour
     {
         if (!isServer)
         {
-            Debug.Log($"[ArrowProjectile CLIENT] RpcApplyVelocity - Position: {transform.position}, Velocity: {initialVelocity}");
             velocity = initialVelocity;
             currentPosition = transform.position;
             previousPosition = transform.position;
@@ -260,7 +251,7 @@ public class ArrowProjectile : NetworkBehaviour
             if (showDebugRay)
             {
                 Debug.DrawRay(hit.point, hit.normal * 0.5f, Color.green, 5f);
-                Debug.Log($"Arrow hit: {hit.collider.name} (Layer={LayerMask.LayerToName(hit.collider.gameObject.layer)}, Trigger={hit.collider.isTrigger}) at {hit.point}");
+                Debug.Log($"Arrow hit: {hit.collider.name}");
             }
 
             ProcessHit(hit);
@@ -272,33 +263,29 @@ public class ArrowProjectile : NetworkBehaviour
         if (hasHit) return;
         hasHit = true;
 
+        lastHitCollider = hit.collider;
+
         Vector3 hitPoint = hit.point;
         Vector3 hitNormal = hit.normal;
         Vector3 hitDirection = velocity.normalized;
 
         bool canDamage = IsLayerInMask(hit.collider.gameObject.layer, damageableLayers);
+        bool dealtDamage = false;
 
+        // Apply damage if possible
         if (canDamage)
         {
-            ApplyDamage(hit.collider.gameObject, hitPoint, hitNormal, hitDirection);
+            dealtDamage = ApplyDamage(hit.collider.gameObject, hitPoint, hitNormal, hitDirection);
+        }
 
-            if (showDebugRay)
-            {
-                Debug.Log($"✅ Arrow dealt damage to: {hit.collider.name}");
-            }
-        }
-        else
-        {
-            if (showDebugRay)
-            {
-                Debug.Log($"❌ Arrow hit non-damageable surface: {hit.collider.name}");
-            }
-        }
+        // ⚡ CALL RPC TO PLAY EFFECTS ON ALL CLIENTS ⚡
+        string surfaceTag = hit.collider.tag;
+        RpcPlayHitEffects(hitPoint, hitNormal, dealtDamage, surfaceTag, hit.collider.gameObject.name);
 
         StickToSurface(hit.collider.transform, hitPoint, hitNormal, hitDirection);
     }
 
-    private void ApplyDamage(GameObject target, Vector3 hitPoint, Vector3 hitNormal, Vector3 hitDirection)
+    private bool ApplyDamage(GameObject target, Vector3 hitPoint, Vector3 hitNormal, Vector3 hitDirection)
     {
         IDamageable damageable = target.GetComponent<IDamageable>();
         if (damageable == null)
@@ -309,7 +296,7 @@ public class ArrowProjectile : NetworkBehaviour
         if (damageable == null)
         {
             Debug.LogWarning($"[Arrow] Hit damageable layer but no IDamageable component found on {target.name}");
-            return;
+            return false;
         }
 
         ItemData weaponData = itemId > 0 ? ItemDatabase.Get(itemId) : null;
@@ -317,6 +304,54 @@ public class ArrowProjectile : NetworkBehaviour
         damageable.Damage(Mathf.RoundToInt(damage), info);
 
         Debug.Log($"[Arrow] Applied {damage} damage to {target.name}");
+        return true;
+    }
+
+    /// <summary>
+    /// ⚡ NEW RPC - Plays hit effects on all clients
+    /// </summary>
+    [ClientRpc]
+    private void RpcPlayHitEffects(Vector3 hitPoint, Vector3 hitNormal, bool dealtDamage, string surfaceTag, string hitObjectName)
+    {
+        // Play impact particles
+        PlayImpactParticles(hitPoint, hitNormal);
+
+        // Play impact sound (using tag to determine sound type)
+        AudioClip clip = GetImpactSoundForTag(surfaceTag);
+        if (clip != null)
+        {
+            AudioSource.PlayClipAtPoint(clip, hitPoint, 0.5f);
+        }
+
+        // Play HitEffectManager effects if available
+        if (enableHitEffects && HitEffectManager.Instance != null)
+        {
+            // Try to find the collider by name (not perfect but works for most cases)
+            Collider[] nearbyColliders = Physics.OverlapSphere(hitPoint, 0.5f);
+            Collider targetCollider = null;
+
+            foreach (var col in nearbyColliders)
+            {
+                if (col.gameObject.name == hitObjectName)
+                {
+                    targetCollider = col;
+                    break;
+                }
+            }
+
+            if (dealtDamage && targetCollider != null)
+            {
+                // Blood effect for damageable targets
+                HitEffectManager.Instance.PlayHitEffect(hitPoint, hitNormal, targetCollider, targetCollider.gameObject);
+                Debug.Log($"[Arrow Client] Played blood effect");
+            }
+            else if (!dealtDamage && enableSurfaceHitEffects && targetCollider != null)
+            {
+                // Surface effect for non-damageable targets
+                HitEffectManager.Instance.PlayHitEffect(hitPoint, hitNormal, targetCollider, targetCollider.gameObject);
+                Debug.Log($"[Arrow Client] Played surface effect");
+            }
+        }
     }
 
     #endregion
@@ -336,10 +371,8 @@ public class ArrowProjectile : NetworkBehaviour
         transform.position = adjustedHitPoint;
         transform.rotation = stuckRotation;
 
+        // Create stuck visual on server
         GameObject stuckVisual = CreateStuckVisual(hitTransform, adjustedHitPoint, stuckRotation);
-
-        PlayImpactSound(hitTransform.tag, hitPoint);
-        PlayImpactParticles(hitPoint, hitNormal);
 
         NetworkIdentity surfaceNid = hitTransform.GetComponentInParent<NetworkIdentity>();
 
@@ -347,13 +380,9 @@ public class ArrowProjectile : NetworkBehaviour
         if (surfaceNid != null)
         {
             transformPath = GetTransformPath(hitTransform, surfaceNid.transform);
-
-            if (showDebugRay)
-            {
-                Debug.Log($"[Arrow] Sticking to: {hitTransform.name}, NetID: {surfaceNid.netId}, Path: '{transformPath}'");
-            }
         }
 
+        // Send to all clients
         RpcStickToSurface(
             surfaceNid != null ? surfaceNid.netId : 0,
             transformPath,
@@ -363,8 +392,10 @@ public class ArrowProjectile : NetworkBehaviour
             hitDirection
         );
 
+        // ⚡ INCREASED DELAY - Give time for RPC to reach clients
         CancelInvoke(nameof(DestroyArrow));
-        Invoke(nameof(DestroyArrow), 0.2f);
+        float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
+        Invoke(nameof(DestroyArrow), stuckTime);
     }
 
     private string GetTransformPath(Transform target, Transform root)
@@ -450,7 +481,7 @@ public class ArrowProjectile : NetworkBehaviour
     private void RpcStickToSurface(uint surfaceNetId, string transformPath, Vector3 hitPoint,
         Quaternion stuckRotation, Vector3 hitNormal, Vector3 hitDirection)
     {
-        if (isServer) return;
+        if (isServer) return; // Server already handled this
 
         isStuck = true;
         currentPosition = hitPoint;
@@ -467,15 +498,7 @@ public class ArrowProjectile : NetworkBehaviour
 
                 if (targetTransform == null)
                 {
-                    Debug.LogWarning($"[Arrow Client] Could not find transform path: '{transformPath}' on {surfaceIdentity.name}");
                     targetTransform = surfaceIdentity.transform;
-                }
-                else
-                {
-                    if (showDebugRay)
-                    {
-                        Debug.Log($"[Arrow Client] Found body part: {targetTransform.name} via path '{transformPath}'");
-                    }
                 }
             }
             else
@@ -488,22 +511,22 @@ public class ArrowProjectile : NetworkBehaviour
         {
             CreateStuckVisual(targetTransform, hitPoint, stuckRotation);
         }
-
-        PlayImpactParticles(hitPoint, hitNormal);
+        else
+        {
+            // Fallback: create visual without parenting
+            Debug.LogWarning("[Arrow] Could not find parent transform, creating unparented visual");
+            if (arrowStuckVisualPrefab != null)
+            {
+                GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, stuckRotation);
+                float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
+                Destroy(stuckVisual, stuckTime);
+            }
+        }
     }
 
     #endregion
 
     #region Audio & Effects
-
-    private void PlayImpactSound(string surfaceTag, Vector3 position)
-    {
-        AudioClip clip = GetImpactSoundForTag(surfaceTag);
-        if (clip != null)
-        {
-            RpcPlaySound(clip.name, position);
-        }
-    }
 
     private AudioClip GetImpactSoundForTag(string surfaceTag)
     {
@@ -526,12 +549,6 @@ public class ArrowProjectile : NetworkBehaviour
 
         GameObject particles = Instantiate(impactParticles, position, Quaternion.LookRotation(normal));
         Destroy(particles, 2f);
-    }
-
-    [ClientRpc]
-    private void RpcPlaySound(string clipName, Vector3 position)
-    {
-        Debug.Log($"Play sound: {clipName} at {position}");
     }
 
     #endregion
@@ -575,19 +592,6 @@ public class ArrowProjectile : NetworkBehaviour
             Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
             Gizmos.DrawWireSphere(tipPos, raycastRadius);
         }
-        else
-        {
-            Gizmos.color = Color.green;
-            Gizmos.DrawRay(tipPos, transform.forward * 0.5f);
-
-            Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
-            Gizmos.DrawWireSphere(tipPos, raycastRadius);
-        }
-
-#if UNITY_EDITOR
-        UnityEditor.Handles.Label(tipPos + Vector3.up * 0.1f, "Arrow Tip");
-        UnityEditor.Handles.Label(transform.position, "Center");
-#endif
     }
 
     #endregion

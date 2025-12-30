@@ -25,7 +25,7 @@ public class BowStringController : MonoBehaviour
 
     [Header("Arrow Spawn")]
     public Transform arrowSpawnPoint;
-    public Transform arrowVisualPoint;
+    public GameObject arrowVisualPoint;
 
     [Header("Right Hand IK")]
     [Tooltip("Transform for RIGHT hand to follow string (auto-created as child of stringMiddleBone)")]
@@ -111,18 +111,8 @@ public class BowStringController : MonoBehaviour
         isDrawing = true;
         isReleasing = false;
         currentDrawAmount = 0f;
+        arrowVisualPoint.SetActive(true);
 
-        // Spawn mũi tên visual (mô phỏng khi kéo dây cung)
-        if (projectileData != null && projectileData.visualPrefab != null && arrowVisualPoint != null)
-        {
-            currentArrowVisual = Instantiate(projectileData.visualPrefab, arrowVisualPoint);
-            currentArrowVisual.transform.localPosition = Vector3.zero;
-            currentArrowVisual.transform.localRotation = Quaternion.identity;
-        }
-        else
-        {
-            Debug.LogWarning("[BowString] Không có Projectile Data hoặc Visual Prefab!");
-        }
     }
 
     // Update % kéo cung (0 → 1)
@@ -145,9 +135,7 @@ public class BowStringController : MonoBehaviour
         isDrawing = false;
         isReleasing = true;
 
-        // Xóa mũi tên giả
-        if (currentArrowVisual != null)
-            Destroy(currentArrowVisual);
+        arrowVisualPoint.SetActive(false);
     }
 
     // Hủy kéo cung giữa chừng

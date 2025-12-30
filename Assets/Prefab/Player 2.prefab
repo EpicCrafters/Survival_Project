@@ -117,13 +117,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3982075481164586338}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.51633817, y: 0.5732078, z: 0.45835614, w: 0.44129065}
-  m_LocalPosition: {x: 0.2, y: -0.09, z: 1.68}
+  m_LocalRotation: {x: 0.59304917, y: 0.46259633, z: 0.3512652, w: 0.55759317}
+  m_LocalPosition: {x: 0.0031, y: 0.00076, z: 0.01656}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 349371081783382847}
-  m_LocalEulerAnglesHint: {x: 184, y: -79, z: -92.67801}
+  m_LocalEulerAnglesHint: {x: 160.344, y: -81.979, z: -93.03198}
 --- !u!1 &4374500749721667315
 GameObject:
   m_ObjectHideFlags: 0
@@ -749,6 +749,10 @@ MonoBehaviour:
   playerAnimator: {fileID: 3264871134979126737}
   playerHoldingItem: {fileID: 1418801298050016171}
   weaponHandler: {fileID: 8971317824985975248}
+  itemSwitchLockoutTime: 0.5
+  isAttacking: 0
+  isReadyToAttack: 1
+  canSwitchItems: 1
 --- !u!114 &8971317824985975248
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -804,10 +808,6 @@ MonoBehaviour:
   animator: {fileID: 4751871965091081300}
   ikController: {fileID: 8619790328612939904}
   playableAnimationBlender: {fileID: 6139904063114402170}
-  aimCamera: {fileID: 0}
-  crosshair: {fileID: 0}
-  normalFOV: 60
-  aimFOV: 40
 --- !u!114 &-3601070411862362847
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1174,7 +1174,7 @@ PrefabInstance:
       addedObject: {fileID: 928275154241635567}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 2f2f47c8a56a9bb469ad98c706fe25a5, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 6896393670614847676}
+      addedObject: {fileID: 8009459463422983612}
     - targetCorrespondingSourceObject: {fileID: 7036213049465896255, guid: 2f2f47c8a56a9bb469ad98c706fe25a5, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4092061327114283114}
@@ -1610,6 +1610,7 @@ MonoBehaviour:
   syncInterval: 0
   animator: {fileID: 4751871965091081300}
   animationRoot: {fileID: 0}
+  combat: {fileID: 5528069724715214631}
   lookBones:
   - boneName: Spine
     bone: {fileID: 44356832366786442}
@@ -1906,7 +1907,7 @@ MonoBehaviour:
   baseRigidbody: {fileID: 6111313350395515524}
   showGizmos: 1
   getUpDelay: 2
---- !u!114 &6896393670614847676
+--- !u!114 &8009459463422983612
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1915,10 +1916,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 2042934489711750292}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3e643094cc272fe4aa1e5645a2a392a2, type: 3}
+  m_Script: {fileID: 11500000, guid: 4d5a3024eadbc8b41aa2bed149847c89, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_AudioSource: {fileID: 0}
 --- !u!1 &2274864769113410414 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: -8139853090755257685, guid: 2f2f47c8a56a9bb469ad98c706fe25a5, type: 3}

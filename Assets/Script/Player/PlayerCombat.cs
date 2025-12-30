@@ -9,44 +9,78 @@ public class PlayerCombat : NetworkBehaviour
     [SerializeField] private PlayerHoldingItem playerHoldingItem;
     [SerializeField] private WeaponAnimatorHandler weaponHandler;
 
-    private bool isAttacking = false;
-    private bool isReadyToAttack = true;
-    private int comboStep = 0;
-    private bool canCombo = false;
-    private bool queuedAttack = false;
+    [Header("Combat Settings")]
+    [Tooltip("Time after attack starts before player can switch items")]
+    [SerializeField] private float itemSwitchLockoutTime = 0.5f;
 
-    //public override void OnStartLocalPlayer()
-    //{
-    //    base.OnStartLocalPlayer();
+    // Combat state
+    public bool isAttacking = false;
+    public bool isReadyToAttack = true;
+    private float attackStartTime = 0f;
+    public bool canSwitchItems = true;
 
-    //    gameInput = GetComponentInChildren<GameInput>(true);
-    //    if (gameInput != null)
-    //    {
-    //        gameInput.gameObject.SetActive(true);
-    //        gameInput.OnAttack += HandleAttackInput;
-    //        Debug.Log($"[{name}] LocalPlayer input enabled.");
-    //    }
-    //}
+    // Combo variables (commented for future use)
+    // private int comboStep = 0;
+    // private bool canCombo = false;
+    // private bool queuedAttack = false;
 
     public override void OnStartClient()
     {
         base.OnStartClient();
-
     }
 
-    //public override void OnStopLocalPlayer()
-    //{
-    //    if (gameInput != null)
-    //        gameInput.OnAttack -= HandleAttackInput;
-    //}
 
+
+    /// <summary>
+    /// Attempt to perform an attack. Called by input handler.
+    /// </summary>
     public void TryAttack()
     {
         if (!isLocalPlayer) return;
-        if (!isReadyToAttack) return;
         if (!playerHoldingItem.IsAWeapon()) return;
 
+        // Only attack if ready (prevents animation reset)
+        if (isReadyToAttack)
+        {
+            PerformAttack();
+        }
+        else
+        {
+            Debug.Log($"[{name}] Attack ignored - still attacking");
+        }
+    }
+
+    /// <summary>
+    /// Execute the attack
+    /// </summary>
+    private void PerformAttack()
+    {
+        isReadyToAttack = false;
+        isAttacking = true;
+        attackStartTime = Time.time;
+        canSwitchItems = false;
+
         CmdDoAttack();
+
+        Debug.Log($"[{name}] Performing attack");
+    }
+
+
+
+    /// <summary>
+    /// Check if player can currently switch items
+    /// </summary>
+    public bool CanSwitchItems()
+    {
+        return canSwitchItems;
+    }
+
+    /// <summary>
+    /// Check if player is currently attacking
+    /// </summary>
+    public bool IsAttacking()
+    {
+        return isAttacking;
     }
 
     // ------------------ Mirror Networking ------------------
@@ -62,19 +96,17 @@ public class PlayerCombat : NetworkBehaviour
         playerAnimator.TriggerAttack();
     }
 
-    // ------------------ Damage Command (Called by ItemHitBox) ------------------
+    // ------------------ Damage Commands ------------------
     [Command(requiresAuthority = false)]
     public void CmdDealDamage(uint targetNetId, int damage, Vector3 hitPoint, Vector3 hitNormal, int itemId,
         float knockbackHorizontal, float boneSearchRadius, bool enableKnockback)
     {
-        // Use Mirror's NetworkServer to find spawned objects
         if (!NetworkServer.spawned.TryGetValue(targetNetId, out NetworkIdentity targetIdentity))
         {
             Debug.LogWarning($"[Server] Target netId {targetNetId} not found in spawned objects");
             return;
         }
 
-        // Find the IDamageable component
         IDamageable target = targetIdentity.GetComponent<IDamageable>();
         if (target == null)
             target = targetIdentity.GetComponentInChildren<IDamageable>();
@@ -85,7 +117,6 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        // Get item data for HitInfo
         ItemData itemData = ItemDatabase.Get(itemId);
         if (itemData == null)
         {
@@ -93,14 +124,11 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        // Create HitInfo with knockback data
         Vector3 hitDirection = (targetIdentity.transform.position - transform.position).normalized;
         HitInfo hit = new HitInfo(hitPoint, hitNormal, hitDirection, gameObject, itemData);
 
-        // Apply damage
         target.Damage(damage, hit);
 
-        // If target will die and is HFSMController, send knockback via RPC
         if (target is HFSMController aiController && enableKnockback && aiController.IsDead())
         {
             aiController.RpcApplyDeathKnockback(hitPoint, hitDirection, knockbackHorizontal, boneSearchRadius);
@@ -108,13 +136,12 @@ public class PlayerCombat : NetworkBehaviour
 
         Debug.Log($"[Server] {name} dealt {damage} damage to {targetIdentity.name} with {itemData.itemName}");
     }
+
     [Command]
     public void CmdDamageResource(string uniqueId, int damage, int toolId, ResourceType resourceType)
     {
-        // Server validates and processes the mining
         if (string.IsNullOrEmpty(uniqueId)) return;
 
-        // Find the ResourceManager that owns this resource
         ResourceManager rm = ResourceManager.GetManagerForUniqueId(uniqueId);
         if (rm == null)
         {
@@ -122,29 +149,22 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        // Get current record
         if (rm.core.TryGetRecord(uniqueId, out var record))
         {
             int newHealth = record.curHealth - damage;
 
             if (newHealth <= 0)
             {
-                // Resource destroyed - handle rewards
                 GiveMiningRewards(connectionToClient.identity, resourceType, toolId);
-
-                // Update resource state to destroyed
                 rm.ApplyResourceStateChange(uniqueId, true, 0, ResourceChangeSource.Network);
             }
             else
             {
-                // Just update health
                 rm.ApplyResourceStateChange(uniqueId, record.isChopped, newHealth, ResourceChangeSource.Network);
             }
 
             Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged: {damage} -> health {newHealth}");
 
-            // --- CRITICAL: BROADCAST TO ALL CLIENTS ---
-            // Find the ResourceManagerRouter in the scene and broadcast the change
             ResourceManagerRouter router = FindObjectOfType<ResourceManagerRouter>();
             if (router != null)
             {
@@ -164,14 +184,12 @@ public class PlayerCombat : NetworkBehaviour
     [Command]
     public void CmdDamageNonPersistent(uint targetNetId, int damage, Vector3 hitPoint, Vector3 hitNormal, int itemId)
     {
-        // Use Mirror's NetworkServer to find spawned objects
         if (!NetworkServer.spawned.TryGetValue(targetNetId, out NetworkIdentity targetIdentity))
         {
             Debug.LogWarning($"[Server] Target netId {targetNetId} not found in spawned objects");
             return;
         }
 
-        // Find the IDamageable component
         IDamageable target = targetIdentity.GetComponent<IDamageable>();
         if (target == null)
             target = targetIdentity.GetComponentInChildren<IDamageable>();
@@ -182,7 +200,6 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        // Get item data for HitInfo
         ItemData itemData = ItemDatabase.Get(itemId);
         if (itemData == null)
         {
@@ -190,11 +207,9 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        // Create HitInfo
         Vector3 hitDirection = (targetIdentity.transform.position - transform.position).normalized;
         HitInfo hit = new HitInfo(hitPoint, hitNormal, hitDirection, gameObject, itemData);
 
-        // Apply damage (this triggers OnDamageReceived on the log)
         target.Damage(damage, hit);
 
         Debug.Log($"[Server] {name} dealt {damage} damage to non-persistent resource {targetIdentity.name}");
@@ -202,31 +217,75 @@ public class PlayerCombat : NetworkBehaviour
 
     private void GiveMiningRewards(NetworkIdentity player, ResourceType resourceType, int toolId)
     {
-        // Your existing reward logic here
-        // This runs on server, so you can safely add items to player's inventory
         Debug.Log($"[PlayerCombat] Granting rewards for mining {resourceType} with tool {toolId}");
-
-        // Example:
-        // PlayerInventory inventory = player.GetComponent<PlayerInventory>();
-        // inventory.AddItem(rewardItem, rewardCount);
+        // Add your reward logic here
     }
 
-    // ------------------ Animation event callbacks ------------------
+    // ------------------ Animation Event Callbacks ------------------
+
+    public void DebugEvent()
+    {
+        Debug.Log("Event call from player combat work");
+    }
+
+    public void AttackStarted()
+    {
+        canSwitchItems = false;
+    }
+    /// <summary>
+    /// Called by animation event - marks end of attack sequence
+    /// MUST BE PUBLIC for animation events to call it
+    /// </summary>
+    public void EndAttack()
+    {
+        isAttacking = false;
+        isReadyToAttack = true;
+        canSwitchItems = true;
+
+        Debug.Log($"[PlayerCombat] EndAttack called - Ready for new attack");
+    }
+
+    /// <summary>
+    /// Called by animation event - allows item switching mid-attack
+    /// MUST BE PUBLIC for animation events to call it
+    /// </summary>
+    public void AllowItemSwitch()
+    {
+        canSwitchItems = true;
+        Debug.Log($"[PlayerCombat] AllowItemSwitch called - Can switch items now");
+    }
+
+    // Legacy support (if your old animation events use these names)
+    public void OpenComboWindow() { }
+    public void CloseComboWindow() { }
+    public void EndCombo()
+    {
+
+    }
+
+    // ========== COMBO SYSTEM (For future implementation) ==========
+    /*
     public void OpenComboWindow()
     {
         canCombo = true;
+        Debug.Log($"[{name}] Combo window opened");
+        
         if (queuedAttack)
         {
             queuedAttack = false;
             if (isLocalPlayer)
             {
-                Debug.Log($"[{name}] Queued attack executed.");
-                CmdDoAttack();
+                Debug.Log($"[{name}] Executing queued attack");
+                PerformAttack();
             }
         }
     }
 
-    public void CloseComboWindow() => canCombo = false;
+    public void CloseComboWindow()
+    {
+        canCombo = false;
+        Debug.Log($"[{name}] Combo window closed");
+    }
 
     public void EndCombo()
     {
@@ -235,6 +294,9 @@ public class PlayerCombat : NetworkBehaviour
         isReadyToAttack = true;
         canCombo = false;
         queuedAttack = false;
-        Debug.Log($"[{name}] Combo ended.");
+        canSwitchItems = true;
+        
+        Debug.Log($"[{name}] Combo ended - Ready for new attack");
     }
+    */
 }

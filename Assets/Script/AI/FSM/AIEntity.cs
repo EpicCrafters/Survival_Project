@@ -88,11 +88,16 @@ public class AIEntity : NetworkBehaviour
             controller.isSleeping = true;
 
         // 🚫 TẮT NAVMESHAGENT (tiết kiệm hiệu năng)
-        if (navAgent != null && navAgent.enabled)
+        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
         {
             navAgent.isStopped = true;
             navAgent.velocity = Vector3.zero;
             navAgent.ResetPath();
+            navAgent.enabled = false;
+        }
+        else if (navAgent != null && navAgent.enabled)
+        {
+            // Agent not on NavMesh, just disable
             navAgent.enabled = false;
         }
 
@@ -116,7 +121,40 @@ public class AIEntity : NetworkBehaviour
         // ✅ BẬT LẠI NAVMESHAGENT
         if (navAgent != null)
         {
+            // Try to place on NavMesh first
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
+            {
+                transform.position = hit.position;
+            }
+
             navAgent.enabled = true;
+
+            // Wait one frame before using NavMeshAgent methods
+            StartCoroutine(WakeUpDelayed());
+        }
+        else
+        {
+            // No NavMeshAgent, just wake animator
+            if (animator != null)
+            {
+                animator.EnableAnimator();
+            }
+
+            if (isServer && controller?.CurrentState != null)
+            {
+                controller.CurrentState.Update();
+            }
+        }
+
+        Debug.Log($"[AIEntity] ⏰ {gameObject.name} Wake - NavAgent: ON | Animator: Active");
+    }
+
+    private System.Collections.IEnumerator WakeUpDelayed()
+    {
+        yield return null; // Wait one frame
+
+        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+        {
             navAgent.isStopped = false;
             navAgent.velocity = Vector3.zero;
         }
@@ -132,7 +170,5 @@ public class AIEntity : NetworkBehaviour
         {
             controller.CurrentState.Update();
         }
-
-        Debug.Log($"[AIEntity] ⏰ {gameObject.name} Wake - NavAgent: ON | Animator: Active");
     }
 }

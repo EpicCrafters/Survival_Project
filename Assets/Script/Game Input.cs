@@ -8,6 +8,7 @@ public class GameInput : MonoBehaviour
     public event EventHandler OnJump;
     public event EventHandler OnInteract;
     public event EventHandler OnShowInventory;
+    public event EventHandler OnShowPauseMenu;
     public event EventHandler<float> OnScroll;
     public event EventHandler<int> OnNumberKeyPressed;
     public event EventHandler OnDropItem;
@@ -25,7 +26,7 @@ public class GameInput : MonoBehaviour
     public event EventHandler OnAimCanceled;
 
     [SerializeField] private InputActionAsset inputActions;
-
+    private InputAction pauseAction;
     private InputAction moveAction;
     private InputAction Sprint;
     private InputAction Jump;
@@ -43,6 +44,11 @@ public class GameInput : MonoBehaviour
 
     private void Awake()
     {
+
+        pauseAction = inputActions.FindAction("pauseMenu");
+        pauseAction.Enable();
+        pauseAction.performed += PauseAction_performed;
+
         moveAction = inputActions.FindAction("Move");
         moveAction.Enable();
 
@@ -91,7 +97,7 @@ public class GameInput : MonoBehaviour
         dropAction.performed += DropAction_performed;
     }
 
-  
+   
 
     private void Update()
     {
@@ -128,7 +134,10 @@ public class GameInput : MonoBehaviour
             _ => Key.None
         };
     }
-
+    private void PauseAction_performed(InputAction.CallbackContext obj)
+    {
+        OnShowPauseMenu?.Invoke(this,EventArgs.Empty);
+    }
     private void DropAction_performed(InputAction.CallbackContext obj)
     {
         OnDropItem?.Invoke(this, EventArgs.Empty);

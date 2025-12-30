@@ -15,6 +15,7 @@ MonoBehaviour:
   materialType: 1
   particleEffect: {fileID: 2914161617585109466, guid: 19e6d05df31c25d439e355a61e644aef, type: 3}
   decalPrefab: {fileID: 0}
-  hitSounds: []
+  hitSounds:
+  - {fileID: 8300000, guid: 887efb7d78876704d832cbc11e0a90ae, type: 3}
   cameraShakeIntensity: 0.1
   decalLifetime: 10

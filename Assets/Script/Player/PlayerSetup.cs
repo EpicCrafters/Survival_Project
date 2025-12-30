@@ -28,13 +28,19 @@ public class PlayerSetup : NetworkBehaviour
         InventoryManager.instance?.SetPlayerHolding(holdingItem);
         InventoryManager.instance.SetGameInput(gameInput);
 
+        
+
         // ============ 1. Assign Camera to Player ============
         cameraManager = FindObjectOfType<CameraManager>();
         if (cameraManager != null)
             cameraManager.AssignCameraTargets(transform);
         GameObject aimObj = new GameObject($"AimTarget_{netId}");
         aimTarget = aimObj.transform;
-
+        PauseMenuUI pauseMenu = FindObjectOfType<PauseMenuUI>();
+        if (pauseMenu != null)
+        {
+            pauseMenu.SetGameInput(gameInput);
+        }
         player.SetAimTarget(aimTarget);
         playerIKController.SetAimTargetIK(aimTarget);
         if (playableAnimationBlender != null)

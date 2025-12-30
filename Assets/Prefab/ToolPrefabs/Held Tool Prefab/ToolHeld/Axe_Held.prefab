@@ -24,16 +24,16 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 147236489983863904}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalRotation: {x: -0.6715308, y: 0.73957574, z: 0.036598217, w: -0.027104273}
+  m_LocalPosition: {x: 0.00334, y: 0.00226, z: -0.0001}
+  m_LocalScale: {x: 0.01, y: 0.01, z: 0.01}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4013633404667621473}
   - {fileID: 5460105225449570312}
   - {fileID: 6696028941426251847}
   m_Father: {fileID: 5821756132212881220}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: -1.016, y: 185.121, z: -84.524}
 --- !u!1 &3917852107130775319
 GameObject:
   m_ObjectHideFlags: 0
@@ -131,13 +131,20 @@ MonoBehaviour:
   endPoint: {fileID: 6696028941426251847}
   startOffset: {x: 0, y: 1.33, z: 0}
   endOffset: {x: 0, y: 0, z: 1.5}
-  hitLayers:
+  damageableLayers:
     serializedVersion: 2
-    m_Bits: 256
+    m_Bits: 0
+  effectOnlyLayers:
+    serializedVersion: 2
+    m_Bits: 0
   maxHitsPerCheck: 10
+  singleHitPerActivation: 1
+  enableHitEffects: 1
+  enableDebugLogs: 0
   showDebugGizmos: 1
   inactiveColor: {r: 1, g: 1, b: 0, a: 0.5}
   activeColor: {r: 1, g: 0, b: 0, a: 0.8}
+  exhaustedColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.5}
 --- !u!1 &7211099553588629233
 GameObject:
   m_ObjectHideFlags: 0

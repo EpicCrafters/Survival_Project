@@ -15,17 +15,24 @@ public class HitEffectManager : MonoBehaviour
     [Header("Pooling Settings")]
     public int particlePoolSize = 20; // số lượng particle được pool cho mỗi loại vật liệu
 
+    [Header("Audio Settings")]
+    [Range(0f, 1f)]
+    public float soundVolume = 0.5f;
+    [Range(0f, 1.2f)]
+    public float pitchVariation = 0.1f; // Random pitch để tạo sự đa dạng
+
     [Header("References")]
     public Transform effectsParent;  // nơi chứa particle
     public Transform decalsParent;   // nơi chứa decal
+
+    [Header("Debug")]
+    public bool enableDebugLogs = false;
 
     // Database chuyển MaterialType -> HitEffectData
     private Dictionary<MaterialType, HitEffectData> effectDatabase;
 
     // Pool particle theo từng MaterialType
     private Dictionary<MaterialType, Queue<ParticleSystem>> particlePool;
-
-    private AudioSource audioSource;
 
     void Awake()
     {
@@ -52,11 +59,6 @@ public class HitEffectManager : MonoBehaviour
                 effectDatabase[data.materialType] = data;
             }
         }
-
-        // Tạo audio source dùng để phát âm thanh khi va chạm
-        audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.playOnAwake = false;
-        audioSource.spatialBlend = 1f; // 3D sound
 
         InitializePools();
 
@@ -85,12 +87,13 @@ public class HitEffectManager : MonoBehaviour
         }
     }
 
-   
+
     public void PlayHitEffect(Vector3 position, Vector3 normal, Collider collider, GameObject hitObject = null)
     {
         if (collider == null)
         {
-            Debug.LogWarning("[HitEffectManager] Collider is null");
+            if (enableDebugLogs)
+                Debug.LogWarning("[HitEffectManager] Collider is null");
             return;
         }
 
@@ -100,12 +103,15 @@ public class HitEffectManager : MonoBehaviour
         // Kiểm tra xem có custom effect không (ưu tiên override)
         HitEffectData customEffect = SurfaceDetector.DetectCustomEffect(collider);
 
+        if (enableDebugLogs)
+            Debug.Log($"[HitEffectManager] Playing hit effect for {material} at {position}");
+
         // Gọi vào phương thức cũ để xử lý
         PlayHitEffect(position, normal, material, hitObject, customEffect);
     }
 
-   
-  
+
+
     public void PlayHitEffect(Vector3 position, Vector3 normal, MaterialType material,
         GameObject hitObject = null, HitEffectData customEffect = null)
     {
@@ -115,9 +121,13 @@ public class HitEffectManager : MonoBehaviour
 
         if (data == null)
         {
-            Debug.LogWarning($"[HitEffectManager] No effect data for {material}");
+            if (enableDebugLogs)
+                Debug.LogWarning($"[HitEffectManager] No effect data for {material}");
             return;
         }
+
+        // ⚡ PLAY SOUND FIRST (most important for feedback)
+        PlayHitSound(position, data);
 
         // Particle
         PlayParticleEffect(position, normal, material);
@@ -127,9 +137,6 @@ public class HitEffectManager : MonoBehaviour
         {
             SpawnDecal(position, normal, data);
         }
-
-        // Âm thanh
-        PlayHitSound(position, data);
 
         // Camera shake (nếu hệ thống camera hỗ trợ)
         if (data.cameraShakeIntensity > 0)
@@ -143,6 +150,8 @@ public class HitEffectManager : MonoBehaviour
         // Nếu không có pool cho loại này hoặc pool hết particle
         if (!particlePool.ContainsKey(material) || particlePool[material].Count == 0)
         {
+            if (enableDebugLogs)
+                Debug.LogWarning($"[HitEffectManager] No particle in pool for {material}");
             return;
         }
 
@@ -183,16 +192,49 @@ public class HitEffectManager : MonoBehaviour
         Destroy(decal, data.decalLifetime);
     }
 
+    /// <summary>
+    /// ⚡ FIXED - Now properly plays sounds with error checking
+    /// </summary>
     void PlayHitSound(Vector3 position, HitEffectData data)
     {
-        // Nếu có danh sách âm thanh 
-        if (data.hitSounds != null && data.hitSounds.Length > 0)
+        // Check if sound array exists and has clips
+        if (data.hitSounds == null || data.hitSounds.Length == 0)
         {
-            AudioClip clip = data.hitSounds[Random.Range(0, data.hitSounds.Length)];
-            if (clip != null)
-            {
-                AudioSource.PlayClipAtPoint(clip, position);
-            }
+            if (enableDebugLogs)
+                Debug.LogWarning($"[HitEffectManager] No hit sounds configured for {data.materialType}");
+            return;
         }
+
+        // Pick random sound
+        AudioClip clip = data.hitSounds[Random.Range(0, data.hitSounds.Length)];
+
+        if (clip == null)
+        {
+            if (enableDebugLogs)
+                Debug.LogWarning($"[HitEffectManager] Sound clip is null for {data.materialType}");
+            return;
+        }
+
+        // ⚡ CRITICAL FIX: Create temporary GameObject with AudioSource
+        GameObject tempAudio = new GameObject($"HitSound_{data.materialType}");
+        tempAudio.transform.position = position;
+
+        AudioSource source = tempAudio.AddComponent<AudioSource>();
+        source.clip = clip;
+        source.volume = soundVolume;
+        source.pitch = 1f + Random.Range(-pitchVariation, pitchVariation); // Add pitch variation
+        source.spatialBlend = 1f; // Full 3D sound
+        source.rolloffMode = AudioRolloffMode.Linear;
+        source.minDistance = 1f;
+        source.maxDistance = 50f;
+        source.playOnAwake = false;
+
+        source.Play();
+
+        if (enableDebugLogs)
+            Debug.Log($"[HitEffectManager] ✅ Playing sound '{clip.name}' at {position} for {data.materialType}");
+
+        // Destroy after clip finishes
+        Destroy(tempAudio, clip.length + 0.1f);
     }
 }

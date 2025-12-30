@@ -38,6 +38,7 @@ public class IdleState : State
     {
         timer = Random.Range(2f, 5f);
         controller.animator.PlayIdleAnimation();
+        if(controller.agent.isOnNavMesh)
         controller.agent.ResetPath();
     }
 

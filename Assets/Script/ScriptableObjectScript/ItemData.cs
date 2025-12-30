@@ -163,9 +163,7 @@ public class ItemData : ScriptableObject
     [Header("Building")]
     public BuildingStats building;
 
-    /// <summary>
-    /// Helper method to get knockback settings
-    /// </summary>
+    
     public KnockbackSettings GetKnockbackSettings()
     {
         if (type == ItemType.Weapon && weapon != null)
@@ -177,9 +175,7 @@ public class ItemData : ScriptableObject
         return new KnockbackSettings();
     }
 
-    /// <summary>
-    /// Helper method to get projectile data for ranged weapons
-    /// </summary>
+    
     public ProjectileData GetProjectileData()
     {
         if (type == ItemType.Weapon && weapon != null && weapon.weaponType == WeaponType.Bow)
@@ -189,9 +185,7 @@ public class ItemData : ScriptableObject
         return null;
     }
 
-    /// <summary>
-    /// Helper method to check if item can stack
-    /// </summary>
+    
     public bool IsStackable()
     {
         switch (type)
@@ -210,9 +204,7 @@ public class ItemData : ScriptableObject
         }
     }
 
-    /// <summary>
-    /// Helper method to get max stack size
-    /// </summary>
+   
     public int GetMaxStack()
     {
         switch (type)
@@ -230,7 +222,13 @@ public class ItemData : ScriptableObject
                 return 1;
         }
     }
-
+    private void OnValidate()
+    {
+        if (type == ItemType.Consumable && consumable == null)
+        {
+            consumable = new ConsumableStats();
+        }
+    }
 #if UNITY_EDITOR
     [UnityEditor.CustomEditor(typeof(ItemData))]
     public class ItemDataEditor : UnityEditor.Editor
