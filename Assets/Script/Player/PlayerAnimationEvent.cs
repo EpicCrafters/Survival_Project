@@ -4,6 +4,7 @@ public class PlayerAnimationEvents : MonoBehaviour
 {
     [SerializeField] private PlayerHoldingItem holding;
     [SerializeField] private PlayerCombat combat;
+   
 
     private void Awake()
     {
@@ -75,6 +76,8 @@ public class PlayerAnimationEvents : MonoBehaviour
         }
     }
 
+
+   
 
     /// </summary>
     public void EndAttack()

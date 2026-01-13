@@ -48,6 +48,11 @@ MonoBehaviour:
     mixer: {fileID: 0}
     sounds:
     - {fileID: 8300000, guid: 88566454811bb9d46aa3b9b37abd0887, type: 3}
+  - name: BowCharge
+    volume: 1
+    mixer: {fileID: 0}
+    sounds:
+    - {fileID: 8300000, guid: b958517dd4e0cef4f9213fce8083b59f, type: 3}
   - name: Hit
     volume: 1
     mixer: {fileID: 0}

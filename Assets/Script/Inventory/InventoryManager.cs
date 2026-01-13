@@ -2,6 +2,7 @@
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
+
 [System.Serializable]
 public class StarterItem
 {
@@ -31,11 +32,9 @@ public class InventoryManager : MonoBehaviour
     [SerializeField] private InventorySlot[] craftingSlots;
     public IReadOnlyList<InventorySlot> CraftingSlots => craftingSlots;
 
-
-    [Header("Input")]
+    [Header("Input - Will be auto-connected")]
     [SerializeField] private GameInput gameInput;
 
-    //Replace Add Item Data old
     [Header("Starter Items")]
     [SerializeField] private List<StarterItem> starterItems = new List<StarterItem>();
 
@@ -44,39 +43,58 @@ public class InventoryManager : MonoBehaviour
 
     [SerializeField] private PlayerHoldingItem playerHolding;
 
-    // Optional counter map
     private Dictionary<ItemData, int> itemCounts = new Dictionary<ItemData, int>();
+    private bool isInventoryOpen = false;
+    private bool isLocalPlayer = false;
 
     private void Awake()
     {
-        instance = this;
+        // ⭐ Set up singleton FIRST - before anything else
+        if (instance == null)
+        {
+            instance = this;
+            Debug.Log("[InventoryManager] Singleton instance created");
+        }
+        else if (instance != this)
+        {
+            Debug.LogWarning("[InventoryManager] Duplicate instance found, destroying...");
+            Destroy(gameObject);
+            return;
+        }
 
-        int totalSlots =
-        hotbarSlots.Length +
-        mainInventorySlots.Length +
-        craftingSlots.Length;
-
+        int totalSlots = hotbarSlots.Length + mainInventorySlots.Length + craftingSlots.Length;
         controller = new InventoryController(totalSlots);
-
     }
 
-    private void Start()
+    // ✅ Call this from PlayerSetup.OnStartLocalPlayer()
+    public void Initialize(bool isLocal)
     {
-        int idx = 0;
+        isLocalPlayer = isLocal;
 
-        // Hotbar
-        foreach (var slot in hotbarSlots)
-            slot.index = idx++;
+        if (!isLocalPlayer)
+        {
+            // Disable inventory UI for non-local players
+            enabled = false;
+            Debug.Log("[InventoryManager] Disabled for non-local player");
+            return;
+        }
 
-        // Inventory
-        foreach (var slot in mainInventorySlots)
-            slot.index = idx++;
+        Debug.Log("[InventoryManager] Initializing for local player");
 
-        // Crafting
-        foreach (var slot in craftingSlots)
-            slot.index = idx++;
+        // Find and connect GameInput (optional, can be set via SetGameInput)
+        if (gameInput == null)
+        {
+            gameInput = GetComponent<GameInput>();
+        }
 
-        foreach (StarterItem starterItem in starterItems)
+        if (gameInput != null)
+        {
+            gameInput.Initialize(true);
+            SetGameInput(gameInput);
+            Debug.Log("[InventoryManager] GameInput auto-connected");
+
+        }
+         foreach (StarterItem starterItem in starterItems)
         {
             if (starterItem.item != null)
             {
@@ -86,36 +104,55 @@ public class InventoryManager : MonoBehaviour
                 }
             }
         }
+
         ChangeHotbarSlot(IndexSlotBar);
+    }
+
+    private void Start()
+    {
+        if (!isLocalPlayer) return;
+
+        int idx = 0;
+
+        foreach (var slot in hotbarSlots)
+            slot.index = idx++;
+
+        foreach (var slot in mainInventorySlots)
+            slot.index = idx++;
+
+        foreach (var slot in craftingSlots)
+            slot.index = idx++;
+
+       
     }
 
     private void Update()
     {
+        if (!isLocalPlayer) return;
         UpdateSplitGhost();
     }
 
-    // ---------------------------
     // ADD ITEM
-    // ---------------------------
     public bool AddItem(ItemData itemData)
     {
+        if (!isLocalPlayer) return false;
+
         bool added = controller.AddItem(itemData);
 
         if (added)
         {
             if (!itemCounts.ContainsKey(itemData)) itemCounts[itemData] = 0;
             itemCounts[itemData]++;
-
             RedrawUI();
         }
         return added;
     }
 
-    // ---------------------------
     // REMOVE ITEM
-    // ---------------------------
     public bool RemoveItem(ItemData itemData, int amount)
     {
+        if (!isLocalPlayer) return false;
+
         int totalHave = 0;
 
         for (int i = 0; i < controller.slots.Count; i++)
@@ -152,15 +189,20 @@ public class InventoryManager : MonoBehaviour
         return true;
     }
 
-    // ---------------------------
     // HOTBAR SELECTION
-    // ---------------------------
     public void ChangeHotbarSlot(int index, bool force = false)
     {
-        if (index < 0 || index >= hotbarSlots.Length)
-            return;
+        if (!isLocalPlayer) return;
 
-        if (selectedHotbarIndex != index)
+        if (index < 0 || index >= hotbarSlots.Length)
+        {
+            Debug.LogWarning($"[InventoryManager] Invalid hotbar index: {index}");
+            return;
+        }
+
+        Debug.Log($"[InventoryManager] ChangeHotbarSlot called: {index} (force: {force})");
+
+        if (selectedHotbarIndex != index || force)
         {
             if (selectedHotbarIndex >= 0)
                 hotbarSlots[selectedHotbarIndex].Deselect();
@@ -173,17 +215,27 @@ public class InventoryManager : MonoBehaviour
 
         if (playerHolding != null)
         {
-            if (itUI != null) playerHolding.HoldingItem(itUI.ItemData);
-
-            else playerHolding.Clear();
+            if (itUI != null)
+            {
+                Debug.Log($"[InventoryManager] Setting held item: {itUI.ItemData.itemName}");
+                playerHolding.HoldingItem(itUI.ItemData);
+            }
+            else
+            {
+                Debug.Log("[InventoryManager] Clearing held item (slot empty)");
+                playerHolding.Clear();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[InventoryManager] PlayerHoldingItem is NULL!");
         }
     }
 
-    // ---------------------------
-    // DRAG & DROP CALLBACK
-    // ---------------------------
     public void OnItemDropped(InventorySlot fromSlot, InventorySlot toSlot)
     {
+        if (!isLocalPlayer) return;
+
         int from = fromSlot.index;
         int to = toSlot.index;
 
@@ -197,18 +249,16 @@ public class InventoryManager : MonoBehaviour
             }
             pendingRedraw = true;
         }
-
     }
+
     private bool IsCraftingSlot(InventorySlot slot)
     {
         return craftingSlots.Contains(slot);
     }
 
-    // ---------------------------
-    // REDRAW UI
-    // ---------------------------
     public void RedrawUI()
     {
+        if (!isLocalPlayer) return;
         if (isDraggingItem) return;
 
         ClearAllUI();
@@ -253,6 +303,7 @@ public class InventoryManager : MonoBehaviour
                 Destroy(it.gameObject);
         }
     }
+
     private void CreateItemUI(int index, InventorySlot slot)
     {
         ItemStack st = controller.GetSlot(index);
@@ -272,11 +323,11 @@ public class InventoryManager : MonoBehaviour
         ui.Bind(st);
     }
 
-    // ---------------------------
     // SPLIT LOGIC
-    // ---------------------------
     public void StartSplit(int slotIndex)
     {
+        if (!isLocalPlayer) return;
+
         var s = controller.GetSlot(slotIndex);
         if (s == null || s.count <= 1) return;
 
@@ -291,6 +342,7 @@ public class InventoryManager : MonoBehaviour
 
     public void IncreaseSplit(int slotIndex)
     {
+        if (!isLocalPlayer) return;
         if (!splitState.active) return;
         if (splitState.sourceSlot != slotIndex) return;
 
@@ -300,24 +352,23 @@ public class InventoryManager : MonoBehaviour
         if (controller.Split(slotIndex, 1, out ItemStack more))
         {
             splitState.buffer.count += more.count;
-
             RedrawUI();
             SetAllItemRaycast(false);
         }
     }
+
     private void UpdateSplitGhost()
     {
         if (!splitState.active)
         {
             if (ghostInstance != null)
                 Destroy(ghostInstance.gameObject);
-
             return;
         }
 
         if (ghostUI == null)
         {
-            Debug.LogError("ghostUI chưa được gán trong InventoryManager");
+            Debug.LogError("ghostUI not assigned in InventoryManager");
             return;
         }
 
@@ -326,14 +377,11 @@ public class InventoryManager : MonoBehaviour
             ghostInstance = Instantiate(ghostUI, uiCanvas.transform);
             ghostInstance.SetGhostVisual();
 
-            //  FIX SCALE + SIZE
             RectTransform ghostRT = ghostInstance.GetComponent<RectTransform>();
-
             ghostRT.anchorMin = new Vector2(0.5f, 0.5f);
             ghostRT.anchorMax = new Vector2(0.5f, 0.5f);
             ghostRT.pivot = new Vector2(0.5f, 0.5f);
-
-            ghostRT.sizeDelta = new Vector2(64, 64); // hoặc size slot của bạn
+            ghostRT.sizeDelta = new Vector2(64, 64);
             ghostRT.localScale = Vector3.one;
         }
 
@@ -343,17 +391,15 @@ public class InventoryManager : MonoBehaviour
         ghostInstance.transform.position = Input.mousePosition;
         ghostInstance.Bind(splitState.buffer);
     }
+
     public void PlaceSplit(int targetSlot)
     {
-
+        if (!isLocalPlayer) return;
         if (!splitState.active) return;
 
         var buffer = splitState.buffer;
-
-        // Stack / place từng phần
         controller.PlaceStackPartial(targetSlot, buffer);
 
-        // Nếu còn dư → trả về inventory
         if (buffer.count > 0)
         {
             controller.AddStack(buffer);
@@ -374,24 +420,17 @@ public class InventoryManager : MonoBehaviour
 
     public void CancelSplit()
     {
-        if (!splitState.active)
-        {
-            Debug.Log("khong chay splitStateAtive");
-            return;
-        }
-        Debug.Log("da chay splitActive");
+        if (!isLocalPlayer) return;
+        if (!splitState.active) return;
+
         int src = splitState.sourceSlot;
         ItemStack buffer = splitState.buffer;
 
-        bool returned = false;
-
-        // 1 Ưu tiên trả về slot gốc
         if (src >= 0)
         {
-            returned = controller.PlaceStackPartial(src, buffer);
+            controller.PlaceStackPartial(src, buffer);
         }
 
-        // 2️ Nếu slot gốc không nhận hết → trả phần còn lại về inventory
         if (buffer.count > 0)
         {
             controller.AddStack(buffer);
@@ -405,8 +444,10 @@ public class InventoryManager : MonoBehaviour
         SetAllItemRaycast(true);
         RedrawUI();
     }
+
     public void EndDrag(InventoryItem item)
     {
+        if (!isLocalPlayer) return;
         if (item == null) return;
 
         isDraggingItem = false;
@@ -415,13 +456,11 @@ public class InventoryManager : MonoBehaviour
 
         if (!item.droppedOnSlot && !droppedInInventory)
         {
-            //  DROP RA WORLD
             DropItemToWorld(item);
             Destroy(item.gameObject);
             return;
         }
 
-        // --- logic cũ ---
         if (item.originSlot == null)
         {
             Destroy(item.gameObject);
@@ -435,7 +474,6 @@ public class InventoryManager : MonoBehaviour
                 pendingRedraw = false;
                 RedrawUI();
             }
-
             Destroy(item.gameObject);
         }
         else
@@ -453,56 +491,53 @@ public class InventoryManager : MonoBehaviour
 
     private void SetAllItemRaycast(bool enable)
     {
-        int count = 0;
-
         foreach (var slot in hotbarSlots)
         {
             if (slot == null) continue;
-
             var items = slot.GetComponentsInChildren<InventoryItem>(true);
             foreach (var it in items)
             {
                 var img = it.GetComponentInChildren<Image>(true);
                 if (img != null)
-                {
                     img.raycastTarget = enable;
-                    count++;
-                }
             }
         }
 
         foreach (var slot in mainInventorySlots)
         {
             if (slot == null) continue;
-
             var items = slot.GetComponentsInChildren<InventoryItem>(true);
             foreach (var it in items)
             {
                 var img = it.GetComponentInChildren<Image>(true);
                 if (img != null)
-                {
                     img.raycastTarget = enable;
-                    count++;
-                }
             }
         }
-
-        //Debug.Log($"[SetAllItemRaycast] enable={enable}, affected {count} InventoryItem");
     }
-    //refund item
+
     public void OnInventoryClosed()
     {
-        Debug.Log("vao dc ham close");
-        // Hủy split nếu đang split
+        if (!isLocalPlayer) return;
+
+        isInventoryOpen = false;
+        Debug.Log("[InventoryManager] Inventory closed");
+
         if (splitState.active)
         {
-            Debug.Log("hoan tra item");
             CancelSplit();
         }
-        // Hủy drag nếu đang drag
         isDraggingItem = false;
     }
-    //check inventoryUI
+
+    public void OnInventoryOpened()
+    {
+        if (!isLocalPlayer) return;
+
+        isInventoryOpen = true;
+        Debug.Log("[InventoryManager] Inventory opened");
+    }
+
     public bool IsPointerInsideInventory()
     {
         return RectTransformUtility.RectangleContainsScreenPoint(
@@ -511,6 +546,7 @@ public class InventoryManager : MonoBehaviour
             uiCanvas.worldCamera
         );
     }
+
     private void DropItemToWorld(InventoryItem item)
     {
         int fromIndex = item.originSlot.index;
@@ -518,54 +554,50 @@ public class InventoryManager : MonoBehaviour
 
         if (stack == null) return;
 
-        // Lấy 1 item hoặc cả stack (tùy design)
         int dropCount = 1;
-
         stack.count -= dropCount;
         if (stack.count <= 0)
             controller.slots[fromIndex] = null;
 
-        // Spawn world item
         SpawnWorldItem(stack.data, dropCount);
-
         RedrawUI();
     }
+
     private void SpawnWorldItem(ItemData data, int count)
     {
         if (data.worldPrefab == null) return;
 
         Vector3 pos = GetPlayerDropPosition();
-
         GameObject go = Instantiate(data.worldPrefab, pos, Quaternion.identity);
 
-        //var pickup = go.GetComponent<WorldItemPickup>();
-        //if (pickup != null)
-        //    pickup.Init(data, count);
+        // ✅ If you need to spawn on network, call a Command on your NetworkBehaviour player script
+        // Example: playerNetworkScript.CmdSpawnWorldItem(data.id, count, pos);
     }
 
     private Vector3 GetPlayerDropPosition()
     {
-        return Camera.main.transform.position
-             + Camera.main.transform.forward * 2f;
+        return Camera.main.transform.position + Camera.main.transform.forward * 2f;
     }
 
-    // ---------------------------
-    // COUNTER
-    // ---------------------------
     public int GetItemCount(ItemData itemData)
     {
         if (itemCounts.TryGetValue(itemData, out int value))
             return value;
-
         return 0;
     }
+
     public void SetPlayerHolding(PlayerHoldingItem holding)
     {
+        if (!isLocalPlayer) return;
+
         playerHolding = holding;
+        Debug.Log($"[InventoryManager] PlayerHolding set: {(holding != null ? "SUCCESS" : "NULL")}");
     }
 
     public void SetGameInput(GameInput input)
     {
+        if (!isLocalPlayer) return;
+
         if (gameInput != null)
         {
             gameInput.OnScroll -= HandleScroll;
@@ -578,30 +610,43 @@ public class InventoryManager : MonoBehaviour
         {
             gameInput.OnScroll += HandleScroll;
             gameInput.OnNumberKeyPressed += HandleNumberKey;
+            Debug.Log("[InventoryManager] GameInput connected successfully for local player");
         }
-    }
-    private void HandleScroll(object sender, float scrollValue)
-    {
-        if (scrollValue > 0)
+        else
         {
-            ScrollSlot(-1); // Cuộn lên
-        }
-        else if (scrollValue < 0)
-        {
-            ScrollSlot(1); // Cuộn xuống
+            Debug.LogWarning("[InventoryManager] GameInput set to NULL");
         }
     }
 
-    // Xử lý khi nhấn phím số 1–9 để chọn hotbar
+    private void HandleScroll(object sender, float scrollValue)
+    {
+        if (!isLocalPlayer) return;
+
+        Debug.Log($"[InventoryManager] Scroll event: {scrollValue}");
+
+        if (scrollValue > 0)
+        {
+            ScrollSlot(-1);
+        }
+        else if (scrollValue < 0)
+        {
+            ScrollSlot(1);
+        }
+    }
+
     private void HandleNumberKey(object sender, int index)
     {
+        if (!isLocalPlayer) return;
+
+        Debug.Log($"[InventoryManager] Number key pressed: {index + 1}");
+
         if (index >= 0 && index < hotbarSlots.Length)
         {
             IndexSlotBar = index;
-            ChangeHotbarSlot(IndexSlotBar, true); // force refresh
+            ChangeHotbarSlot(IndexSlotBar, true);
         }
     }
-    // Cuộn qua các ô hotbar bằng chuột
+
     private void ScrollSlot(int direction)
     {
         if (hotbarSlots == null || hotbarSlots.Length == 0)
@@ -609,8 +654,10 @@ public class InventoryManager : MonoBehaviour
 
         int newSlot = (selectedHotbarIndex + direction + hotbarSlots.Length) % hotbarSlots.Length;
         IndexSlotBar = newSlot;
+        Debug.Log($"[InventoryManager] Scrolling to slot: {newSlot}");
         ChangeHotbarSlot(IndexSlotBar);
     }
+
     public InventorySlot GetSlotByIndex(int index)
     {
         if (index < 0) return null;
@@ -631,4 +678,17 @@ public class InventoryManager : MonoBehaviour
         return null;
     }
 
+    private void OnDestroy()
+    {
+        if (isLocalPlayer && gameInput != null)
+        {
+            gameInput.OnScroll -= HandleScroll;
+            gameInput.OnNumberKeyPressed -= HandleNumberKey;
+        }
+
+        if (isLocalPlayer && instance == this)
+        {
+            instance = null;
+        }
+    }
 }

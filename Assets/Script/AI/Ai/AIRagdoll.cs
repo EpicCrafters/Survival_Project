@@ -29,9 +29,8 @@ public class AIRagdoll : MonoBehaviour
 
     void Awake()
     {
-        baseRigidbody = GetComponent<Rigidbody>();
-        ragdollBodies = GetComponentsInChildren<Rigidbody>();
-        ragdollColliders = GetComponentsInChildren<Collider>();
+   
+       
 
         // Thiết lập layers - AI sử dụng layer AIDamageable
         SetupLayers();
@@ -56,7 +55,7 @@ public class AIRagdoll : MonoBehaviour
     private void SetupLayers()
     {
         int aiDamageableLayer = LayerMask.NameToLayer("AIDamageable");
-        int ignoreRaycastLayer = LayerMask.NameToLayer("Default");
+        int ignoreRaycastLayer = LayerMask.NameToLayer("AIMain");
 
         // Base collider → layer Ignore Raycast (không bị hit bởi arrows khi còn sống)
         if (baseCol != null)

@@ -25,6 +25,9 @@ public class UIManager : MonoBehaviour
     [SerializeField] private GameObject HealthBar; // GameObject chứa thanh máu của mục tiêu (kẻ địch, công trình,...)
     [SerializeField] private Image fillImage;      // Hình ảnh thanh máu của mục tiêu
 
+    [Header("Death UI")]
+    [SerializeField] private GameObject playerHUD; // Main HUD to hide when dead
+
     public HealthBarUI healthBar { get; private set; }
 
     private float targetHealthFill; // Lưu tỉ lệ máu hiện tại của player (0-1)
@@ -122,12 +125,21 @@ public class UIManager : MonoBehaviour
         if (eWord != null)
             eWord.text = newText;
     }
+
     public void ToggleInventory(bool show)
     {
         if (mainInventory != null)
             mainInventory.SetActive(show);
     }
 
+    /// <summary>
+    /// Show/hide the main player HUD
+    /// </summary>
+    public void SetHUDActive(bool active)
+    {
+        if (playerHUD != null)
+            playerHUD.SetActive(active);
+    }
 
     // Lớp con để quản lý thanh máu của mục tiêu 
     public class HealthBarUI

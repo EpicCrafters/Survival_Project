@@ -14,6 +14,12 @@ public class CookingCampFire : MonoBehaviour, Iinteractable, IHasCustomText
     [SerializeField] protected float fuelBurnRate = 0.1f;
     protected float currentFuel = 0f;
 
+
+    [Header("Audio")]
+    [SerializeField] private AudioSource fireSound;
+    [SerializeField] private float audioFadeSpeed = 1.5f;
+    private Coroutine audioCoroutine;
+
     [Header("Cooking Slots")]
     [SerializeField] protected CookingSlot[] cookingSlots = new CookingSlot[4];
 
@@ -410,6 +416,15 @@ public class CookingCampFire : MonoBehaviour, Iinteractable, IHasCustomText
             }
             lightCoroutine = StartCoroutine(FadeLightCoroutine());
         }
+        if (fireSound != null)
+        {
+            float targetVolume = shouldShowFire ? 0.6f : 0f;
+
+            if (audioCoroutine != null)
+                StopCoroutine(audioCoroutine);
+
+            audioCoroutine = StartCoroutine(FadeAudio(targetVolume));
+        }
     }
 
     protected IEnumerator FadeLightCoroutine()
@@ -668,7 +683,26 @@ public class CookingCampFire : MonoBehaviour, Iinteractable, IHasCustomText
             Debug.LogWarning($"[CookingCampFire] No visual prefab assigned for {state} state in recipe {recipe.recipeName}");
         }
     }
+    IEnumerator FadeAudio(float targetVolume)
+    {
+        if (fireSound == null) yield break;
 
+        if (!fireSound.isPlaying)
+            fireSound.Play();
+
+        while (!Mathf.Approximately(fireSound.volume, targetVolume))
+        {
+            fireSound.volume = Mathf.MoveTowards(
+                fireSound.volume,
+                targetVolume,
+                audioFadeSpeed * Time.deltaTime
+            );
+            yield return null;
+        }
+
+        if (targetVolume <= 0f)
+            fireSound.Stop();
+    }
     protected void CleanupSlotVisual(int slotIndex)
     {
         if (rawVisuals[slotIndex] != null)

@@ -633,35 +633,7 @@ public class PlayerIKController : NetworkBehaviour
     // RIGHT HAND IK SETTERS
     // ========================================================================
 
-    public void SetRightHandIKTarget(Transform target)
-    {
-        rightHandOverride = target;
-    }
-
-    public void SetRightHandIKTargetDirect(Transform target)
-    {
-        rightHandIKTarget = target;
-    }
-
-    public void SetRightHandPoleHint(Transform poleHint)
-    {
-        rightHandPoleHint = poleHint;
-    }
-
-    public void SetRightHandPoleHintOverride(Transform poleHintOverride)
-    {
-        rightHandPoleHintOverride = poleHintOverride;
-    }
-
-    public void SetRightHandIKEnabled(bool enabled)
-    {
-        enableRightHandIK = enabled;
-    }
-
-    public void SetRightHandIKWeight(float weight)
-    {
-        rightHandIKWeight = Mathf.Clamp01(weight);
-    }
+ 
 
     // ========================================================================
     // GETTERS

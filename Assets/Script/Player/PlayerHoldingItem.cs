@@ -185,56 +185,56 @@ public class PlayerHoldingItem : NetworkBehaviour
     {
         cachedBowController = bowObject.GetComponentInChildren<BowStringController>();
 
-        if (cachedBowController == null)
-        {
-            Debug.LogWarning("[PlayerHoldingItem] ⚠️ Không tìm thấy BowStringController!");
-            return;
-        }
+        //if (cachedBowController == null)
+        //{
+        //    Debug.LogWarning("[PlayerHoldingItem] ⚠️ Không tìm thấy BowStringController!");
+        //    return;
+        //}
 
-        Debug.Log($"[PlayerHoldingItem] ✅ Cached BowStringController: {cachedBowController.gameObject.name}");
+        //Debug.Log($"[PlayerHoldingItem] ✅ Cached BowStringController: {cachedBowController.gameObject.name}");
 
-        Transform rightHandHoldPoint = null;
-        Transform rightHintPosition = null;
+        //Transform rightHandHoldPoint = null;
+        //Transform rightHintPosition = null;
 
-        if (cachedBowController.stringMiddleBone != null)
-        {
-            Transform offsetRightHand = cachedBowController.stringMiddleBone.Find("offsetRightHand");
-            if (offsetRightHand != null)
-            {
-                rightHandHoldPoint = offsetRightHand.Find("rightHandHoldPoint");
-            }
+        //if (cachedBowController.stringMiddleBone != null)
+        //{
+        //    Transform offsetRightHand = cachedBowController.stringMiddleBone.Find("offsetRightHand");
+        //    if (offsetRightHand != null)
+        //    {
+        //        rightHandHoldPoint = offsetRightHand.Find("rightHandHoldPoint");
+        //    }
 
-            Transform hintOffset = FindChildRecursive(cachedBowController.stringMiddleBone, "Offset Right Hint");
-            if (hintOffset != null)
-            {
-                rightHintPosition = FindChildRecursive(hintOffset, "rightHintPosition", "RightHintPosition");
-            }
-        }
+        //    Transform hintOffset = FindChildRecursive(cachedBowController.stringMiddleBone, "Offset Right Hint");
+        //    if (hintOffset != null)
+        //    {
+        //        rightHintPosition = FindChildRecursive(hintOffset, "rightHintPosition", "RightHintPosition");
+        //    }
+        //}
 
-        PlayerIKController ikController = GetComponent<PlayerIKController>();
-        if (ikController != null)
-        {
-            if (cachedBowController.rightHandIKTarget != null)
-            {
-                ikController.SetLeftHandIKTarget(cachedBowController.rightHandIKTarget);
-                ikController.SetLeftHandIKEnabled(true);
-                ikController.SetLeftHandIKWeight(1f);
-                Debug.Log($"[PlayerHoldingItem] ✅ Setup left hand IK target: {cachedBowController.rightHandIKTarget.name}");
-            }
+        //PlayerIKController ikController = GetComponent<PlayerIKController>();
+        //if (ikController != null)
+        //{
+        //    if (cachedBowController.rightHandIKTarget != null)
+        //    {
+        //        ikController.SetLeftHandIKTarget(cachedBowController.rightHandIKTarget);
+        //        ikController.SetLeftHandIKEnabled(true);
+        //        ikController.SetLeftHandIKWeight(1f);
+        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup left hand IK target: {cachedBowController.rightHandIKTarget.name}");
+        //    }
 
-            if (rightHandHoldPoint != null)
-            {
-                ikController.SetRightHandIKTarget(rightHandHoldPoint);
-                ikController.SetRightHandIKWeight(1f);
-                Debug.Log($"[PlayerHoldingItem] ✅ Setup right hand IK target: {rightHandHoldPoint.name}");
-            }
+        //    if (rightHandHoldPoint != null)
+        //    {
+        //        ikController.SetRightHandIKTarget(rightHandHoldPoint);
+        //        ikController.SetRightHandIKWeight(1f);
+        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup right hand IK target: {rightHandHoldPoint.name}");
+        //    }
 
-            if (rightHintPosition != null)
-            {
-                ikController.SetRightHandPoleHintOverride(rightHintPosition);
-                Debug.Log($"[PlayerHoldingItem] ✅ Setup right hint override: {rightHintPosition.name}");
-            }
-        }
+        //    if (rightHintPosition != null)
+        //    {
+        //        ikController.SetRightHandPoleHintOverride(rightHintPosition);
+        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup right hint override: {rightHintPosition.name}");
+        //    }
+        //}
 
         PlayerItemUseHandler useHandler = GetComponent<PlayerItemUseHandler>();
         if (useHandler != null)
@@ -249,20 +249,20 @@ public class PlayerHoldingItem : NetworkBehaviour
                 Debug.LogWarning("[PlayerHoldingItem] ⚠️ Arrow spawn point is NULL on bow controller!");
             }
 
-            if (cachedBowController.rightHandIKTarget != null)
-            {
-                useHandler.SetBowIKTarget(cachedBowController.rightHandIKTarget);
-            }
+            //if (cachedBowController.rightHandIKTarget != null)
+            //{
+            //    useHandler.SetBowIKTarget(cachedBowController.rightHandIKTarget);
+            //}
 
-            if (rightHandHoldPoint != null)
-            {
-                useHandler.SetBowStringOverride(rightHandHoldPoint);
-            }
+            //if (rightHandHoldPoint != null)
+            //{
+            //    useHandler.SetBowStringOverride(rightHandHoldPoint);
+            //}
 
-            if (rightHintPosition != null)
-            {
-                useHandler.SetBowRightHintOverride(rightHintPosition);
-            }
+            //if (rightHintPosition != null)
+            //{
+            //    useHandler.SetBowRightHintOverride(rightHintPosition);
+            //}
         }
         else
         {

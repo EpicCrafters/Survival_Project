@@ -34,11 +34,6 @@ public class ArrowProjectile : NetworkBehaviour
     [SerializeField] private bool showDebugRay = true;
     [SerializeField] private float arrowTipOffset = 0.5f;
 
-    [Header("Stick Settings")]
-    [SerializeField] private float penetrationDepth = 0.15f;
-    [SerializeField][Range(0f, 1f)] private float surfaceAlignmentStrength = 0.3f;
-    [SerializeField] private float maxStickAngle = 85f;
-
     private bool hasHit = false;
     private bool isStuck = false;
     private bool isInitialized = false;
@@ -278,11 +273,14 @@ public class ArrowProjectile : NetworkBehaviour
             dealtDamage = ApplyDamage(hit.collider.gameObject, hitPoint, hitNormal, hitDirection);
         }
 
-        // ⚡ CALL RPC TO PLAY EFFECTS ON ALL CLIENTS ⚡
+        // Play hit effects on all clients
         string surfaceTag = hit.collider.tag;
         RpcPlayHitEffects(hitPoint, hitNormal, dealtDamage, surfaceTag, hit.collider.gameObject.name);
 
-        StickToSurface(hit.collider.transform, hitPoint, hitNormal, hitDirection);
+        // Create stuck visual and destroy the flying arrow
+        // Use the current arrow rotation at impact
+        Quaternion impactRotation = transform.rotation;
+        StickToSurface(hit.collider.transform, hitPoint, hitNormal, impactRotation);
     }
 
     private bool ApplyDamage(GameObject target, Vector3 hitPoint, Vector3 hitNormal, Vector3 hitDirection)
@@ -307,16 +305,13 @@ public class ArrowProjectile : NetworkBehaviour
         return true;
     }
 
-    /// <summary>
-    /// ⚡ NEW RPC - Plays hit effects on all clients
-    /// </summary>
     [ClientRpc]
     private void RpcPlayHitEffects(Vector3 hitPoint, Vector3 hitNormal, bool dealtDamage, string surfaceTag, string hitObjectName)
     {
         // Play impact particles
         PlayImpactParticles(hitPoint, hitNormal);
 
-        // Play impact sound (using tag to determine sound type)
+        // Play impact sound
         AudioClip clip = GetImpactSoundForTag(surfaceTag);
         if (clip != null)
         {
@@ -326,7 +321,6 @@ public class ArrowProjectile : NetworkBehaviour
         // Play HitEffectManager effects if available
         if (enableHitEffects && HitEffectManager.Instance != null)
         {
-            // Try to find the collider by name (not perfect but works for most cases)
             Collider[] nearbyColliders = Physics.OverlapSphere(hitPoint, 0.5f);
             Collider targetCollider = null;
 
@@ -341,13 +335,11 @@ public class ArrowProjectile : NetworkBehaviour
 
             if (dealtDamage && targetCollider != null)
             {
-                // Blood effect for damageable targets
                 HitEffectManager.Instance.PlayHitEffect(hitPoint, hitNormal, targetCollider, targetCollider.gameObject);
                 Debug.Log($"[Arrow Client] Played blood effect");
             }
             else if (!dealtDamage && enableSurfaceHitEffects && targetCollider != null)
             {
-                // Surface effect for non-damageable targets
                 HitEffectManager.Instance.PlayHitEffect(hitPoint, hitNormal, targetCollider, targetCollider.gameObject);
                 Debug.Log($"[Arrow Client] Played surface effect");
             }
@@ -358,44 +350,37 @@ public class ArrowProjectile : NetworkBehaviour
 
     #region Stick To Surface
 
-    private void StickToSurface(Transform hitTransform, Vector3 hitPoint, Vector3 hitNormal, Vector3 hitDirection)
+    private void StickToSurface(Transform hitTransform, Vector3 hitPoint, Vector3 hitNormal, Quaternion impactRotation)
     {
         if (!isServer) return;
 
         isStuck = true;
 
-        Quaternion stuckRotation = CalculateStickRotation(hitDirection, hitNormal);
-        Vector3 adjustedHitPoint = CalculatePenetrationPoint(hitPoint, hitDirection, hitNormal);
+        // Get stuck lifetime
+        float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
 
-        currentPosition = adjustedHitPoint;
-        transform.position = adjustedHitPoint;
-        transform.rotation = stuckRotation;
-
-        // Create stuck visual on server
-        GameObject stuckVisual = CreateStuckVisual(hitTransform, adjustedHitPoint, stuckRotation);
+        // Create stuck visual on server with the impact rotation
+        CreateStuckVisual(hitTransform, hitPoint, impactRotation, stuckTime);
 
         NetworkIdentity surfaceNid = hitTransform.GetComponentInParent<NetworkIdentity>();
-
         string transformPath = "";
         if (surfaceNid != null)
         {
             transformPath = GetTransformPath(hitTransform, surfaceNid.transform);
         }
 
-        // Send to all clients
+        // Send to all clients to create their stuck visuals and hide flying arrow
         RpcStickToSurface(
             surfaceNid != null ? surfaceNid.netId : 0,
             transformPath,
-            adjustedHitPoint,
-            stuckRotation,
-            hitNormal,
-            hitDirection
+            hitPoint,
+            impactRotation,
+            stuckTime
         );
 
-        // ⚡ INCREASED DELAY - Give time for RPC to reach clients
+        // Small delay before destroying to ensure RPC reaches clients first
         CancelInvoke(nameof(DestroyArrow));
-        float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
-        Invoke(nameof(DestroyArrow), stuckTime);
+        Invoke(nameof(DestroyArrow), 0.1f);
     }
 
     private string GetTransformPath(Transform target, Transform root)
@@ -415,78 +400,31 @@ public class ArrowProjectile : NetworkBehaviour
         return string.Join("/", path);
     }
 
-    private Quaternion CalculateStickRotation(Vector3 hitDirection, Vector3 hitNormal)
+    private void CreateStuckVisual(Transform parentTransform, Vector3 hitPoint, Quaternion impactRotation, float stuckLifetime)
     {
-        Vector3 intoSurface = -hitNormal;
-        float angleToSurface = Vector3.Angle(hitDirection, intoSurface);
+        if (arrowStuckVisualPrefab == null) return;
 
-        float dynamicBlend = surfaceAlignmentStrength;
-
-        if (angleToSurface > maxStickAngle)
-        {
-            float excessAngle = angleToSurface - maxStickAngle;
-            dynamicBlend = Mathf.Lerp(surfaceAlignmentStrength, 0.8f, excessAngle / (180f - maxStickAngle));
-        }
-
-        Vector3 blendedDirection = Vector3.Slerp(hitDirection, intoSurface, dynamicBlend).normalized;
-        return Quaternion.LookRotation(blendedDirection);
-    }
-
-    private Vector3 CalculatePenetrationPoint(Vector3 hitPoint, Vector3 hitDirection, Vector3 hitNormal)
-    {
-        Vector3 intoSurface = -hitNormal;
-        float angleToSurface = Vector3.Angle(hitDirection, intoSurface);
-
-        float dynamicBlend = surfaceAlignmentStrength;
-        if (angleToSurface > maxStickAngle)
-        {
-            float excessAngle = angleToSurface - maxStickAngle;
-            dynamicBlend = Mathf.Lerp(surfaceAlignmentStrength, 0.8f, excessAngle / (180f - maxStickAngle));
-        }
-
-        Vector3 blendedDirection = Vector3.Slerp(hitDirection, intoSurface, dynamicBlend).normalized;
-        Vector3 penetrationOffset = blendedDirection * penetrationDepth;
-
-        return hitPoint + penetrationOffset;
-    }
-
-    private GameObject CreateStuckVisual(Transform parentTransform, Vector3 hitPoint, Quaternion stuckRotation)
-    {
-        if (arrowStuckVisualPrefab == null) return null;
-
-        GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, stuckRotation);
-
+        // Use the exact rotation from the flying arrow at impact
+        GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, impactRotation);
         stuckVisual.transform.SetParent(parentTransform, true);
-        stuckVisual.transform.position = hitPoint;
-        stuckVisual.transform.rotation = stuckRotation;
 
-        Transform arrowModel = stuckVisual.transform.Find("ArrowModel");
-        if (arrowModel != null)
+        // Set lifetime on the ArrowStuckVisual script if it exists
+        ArrowStuckVisual visualScript = stuckVisual.GetComponent<ArrowStuckVisual>();
+        if (visualScript != null)
         {
-            Vector3 parentScale = parentTransform.lossyScale;
-            arrowModel.localScale = new Vector3(
-                1f / parentScale.x,
-                1f / parentScale.y,
-                1f / parentScale.z
-            );
+            visualScript.SetLifetime(stuckLifetime);
         }
-
-        float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
-        Destroy(stuckVisual, stuckTime);
-
-        return stuckVisual;
     }
 
     [ClientRpc]
-    private void RpcStickToSurface(uint surfaceNetId, string transformPath, Vector3 hitPoint,
-        Quaternion stuckRotation, Vector3 hitNormal, Vector3 hitDirection)
+    private void RpcStickToSurface(uint surfaceNetId, string transformPath, Vector3 hitPoint, Quaternion impactRotation, float stuckLifetime)
     {
-        if (isServer) return; // Server already handled this
+        if (isServer) return; // Server already created the visual
 
         isStuck = true;
-        currentPosition = hitPoint;
-        transform.position = hitPoint;
-        transform.rotation = stuckRotation;
+
+        // Hide the flying arrow on clients immediately
+        HideFlyingArrow();
 
         Transform targetTransform = null;
 
@@ -495,7 +433,6 @@ public class ArrowProjectile : NetworkBehaviour
             if (!string.IsNullOrEmpty(transformPath))
             {
                 targetTransform = surfaceIdentity.transform.Find(transformPath);
-
                 if (targetTransform == null)
                 {
                     targetTransform = surfaceIdentity.transform;
@@ -509,17 +446,20 @@ public class ArrowProjectile : NetworkBehaviour
 
         if (targetTransform != null)
         {
-            CreateStuckVisual(targetTransform, hitPoint, stuckRotation);
+            CreateStuckVisual(targetTransform, hitPoint, impactRotation, stuckLifetime);
         }
         else
         {
-            // Fallback: create visual without parenting
             Debug.LogWarning("[Arrow] Could not find parent transform, creating unparented visual");
             if (arrowStuckVisualPrefab != null)
             {
-                GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, stuckRotation);
-                float stuckTime = projectileData != null ? projectileData.stuckLifetime : DEFAULT_STUCK_LIFETIME;
-                Destroy(stuckVisual, stuckTime);
+                GameObject stuckVisual = Instantiate(arrowStuckVisualPrefab, hitPoint, impactRotation);
+
+                ArrowStuckVisual visualScript = stuckVisual.GetComponent<ArrowStuckVisual>();
+                if (visualScript != null)
+                {
+                    visualScript.SetLifetime(stuckLifetime);
+                }
             }
         }
     }
@@ -527,6 +467,22 @@ public class ArrowProjectile : NetworkBehaviour
     #endregion
 
     #region Audio & Effects
+
+    private void HideFlyingArrow()
+    {
+        // Disable all renderers on the flying arrow
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        foreach (Renderer renderer in renderers)
+        {
+            renderer.enabled = false;
+        }
+
+        // Disable trail renderer
+        if (trailRenderer != null)
+        {
+            trailRenderer.enabled = false;
+        }
+    }
 
     private AudioClip GetImpactSoundForTag(string surfaceTag)
     {

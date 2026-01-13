@@ -550,6 +550,7 @@ GameObject:
   - component: {fileID: -2355922171832582011}
   - component: {fileID: 5333108407439122710}
   - component: {fileID: 3751944996021663635}
+  - component: {fileID: -7127008223152598757}
   m_Layer: 3
   m_Name: Cooking Camp Fire
   m_TagString: Untagged
@@ -605,9 +606,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ea55778b4b568d04baf51624c6220e37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  syncDirection: 0
-  syncMode: 0
-  syncInterval: 0
   recipes:
   - {fileID: 11400000, guid: e5f0009e14aac0a4a9e41e76afb484e5, type: 2}
   requiresFuel: 1
@@ -616,6 +614,8 @@ MonoBehaviour:
     fuelAmount: 1
   maxFuel: 10
   fuelBurnRate: 0.1
+  fireSound: {fileID: -7127008223152598757}
+  audioFadeSpeed: 1.5
   cookingSlots:
   - slotPosition: {fileID: 3202511600747386210}
   - slotPosition: {fileID: 2721147952951378874}
@@ -646,6 +646,103 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 3, y: 2.6, z: 2}
   m_Center: {x: 0, y: 1.31, z: 0}
+--- !u!82 &-7127008223152598757
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9089545780280387378}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 8300000, guid: 16d4a36654cc7754cb39596772935e2c, type: 3}
+  m_Resource: {fileID: 8300000, guid: 16d4a36654cc7754cb39596772935e2c, type: 3}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 3
+  MaxDistance: 20
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!1001 &1855587097361444636
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -749,6 +846,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 4120578622161307133}
     m_Modifications:
+    - target: {fileID: -9221097625227654538, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: -3846018093981099296, guid: 7bae7ab4e9949fd4492287f301b9f623, type: 3}
     - target: {fileID: -8679921383154817045, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -793,10 +894,22 @@ PrefabInstance:
       propertyPath: m_Name
       value: CookingCampFire
       objectReference: {fileID: 0}
+    - target: {fileID: 1963278975003606221, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: -3846018093981099296, guid: 4853c12b00bd73f43a7b33fa7cbef892, type: 3}
+    - target: {fileID: 3497690580670866740, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: -876546973899608171, guid: 61e75042a29db344cb1270a353f63e19, type: 3}
     - target: {fileID: 4360035490431233041, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0.01
       objectReference: {fileID: 0}
+    - target: {fileID: 7248735178667972456, guid: f1c1fc7856e12ed408a1512a735c1563, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: -6478536213147159724, guid: 7bae7ab4e9949fd4492287f301b9f623, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:

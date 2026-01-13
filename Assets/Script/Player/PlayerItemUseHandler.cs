@@ -15,8 +15,9 @@ public class PlayerItemUseHandler : NetworkBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private PlayerIKController ikController;
     [SerializeField] private PlayableAnimationBlender playableAnimationBlender;
-
-
+    [SerializeField] private PlayerPlaySound playSound;
+    [SerializeField] private PlayerCameraManager playerCameraManager;
+    [SerializeField] private CrosshairManager crosshairManager; // ✨ Crosshair manager
 
     // Properties public
     public PlayerHoldingItem PlayerHoldingItem => playerHoldingItem;
@@ -30,12 +31,12 @@ public class PlayerItemUseHandler : NetworkBehaviour
     private bool isAiming = false;
     private Transform currentArrowSpawnPoint;
 
-    public bool isCharging { get; private set; } = false;
+    public bool isCharging = false;
 
-    // Lưu CẢ target tĩnh VÀ override động
-    private Transform currentBowIKTarget;          // Target tĩnh (tay trái - cầm cung)
-    private Transform currentBowStringOverride;    // Override động (tay phải - kéo dây)
-    private Transform currentBowRightHintOverride; // ✅ Hint động cho tay phải (hướng khuỷu tay)
+    // Lưu target IK cho cung
+    private Transform currentBowIKTarget;
+    private Transform currentBowStringOverride;
+    private Transform currentBowRightHintOverride;
 
     // ===========================================================
     // Khởi tạo cho local player
@@ -43,6 +44,8 @@ public class PlayerItemUseHandler : NetworkBehaviour
     public override void OnStartLocalPlayer()
     {
         base.OnStartLocalPlayer();
+
+        gameInput = FindObjectOfType<GameInput>();
 
         if (playerStats == null)
             playerStats = GetComponent<PlayerStatManager>();
@@ -53,25 +56,36 @@ public class PlayerItemUseHandler : NetworkBehaviour
         if (ikController == null)
         {
             ikController = GetComponent<PlayerIKController>();
-            if (ikController == null)
+        }
+
+        if (playerCameraManager == null)
+        {
+            playerCameraManager = GetComponent<PlayerCameraManager>();
+            if (playerCameraManager == null)
             {
-                ikController.SetLeftHandIKEnabled(false);
+                Debug.LogError("[PlayerItemUseHandler] Không tìm thấy PlayerCameraManager!");
             }
         }
 
-        gameInput = GetComponentInChildren<GameInput>(true);
+        // ✨ Tìm CrosshairManager trong scene
+        if (crosshairManager == null)
+        {
+            crosshairManager = FindObjectOfType<CrosshairManager>();
+            if (crosshairManager == null)
+            {
+                Debug.LogWarning("[PlayerItemUseHandler] Không tìm thấy CrosshairManager trong scene!");
+            }
+        }
+
         if (gameInput != null)
         {
             gameInput.gameObject.SetActive(true);
 
-            // Subscribe các event từ input
             gameInput.OnAttackStarted += HandleUseStarted;
             gameInput.OnAttackCanceled += HandleUseCanceled;
             gameInput.OnAimStarted += HandleAimStarted;
             gameInput.OnAimCanceled += HandleAimCanceled;
         }
-
-
     }
 
     public override void OnStopLocalPlayer()
@@ -97,6 +111,37 @@ public class PlayerItemUseHandler : NetworkBehaviour
         {
             float heldTime = Time.time - useStartTime;
             currentStrategy.OnUseHeld(playerHoldingItem.ItemData, this, heldTime);
+
+            // ✨ Update crosshair dựa trên charge time
+            UpdateCrosshairBasedOnCharge(heldTime);
+        }
+    }
+
+    // ✨ Hàm update crosshair dựa trên thời gian charge
+    private void UpdateCrosshairBasedOnCharge(float chargeTime)
+    {
+        // ✨ Thêm kiểm tra: phải đang aim VÀ đang charge
+        if (crosshairManager == null || !isCharging || !isAiming) return;
+
+        var itemData = playerHoldingItem.ItemData;
+        if (itemData == null || itemData.weapon == null) return;
+
+        // Chỉ update cho cung
+        if (itemData.weapon.weaponType != WeaponType.Bow) return;
+
+        // Lấy bow string controller để tính charge percent
+        BowStringController bowString = playerHoldingItem.GetComponentInChildren<BowStringController>();
+        if (bowString != null)
+        {
+            ProjectileData projectileData = bowString.GetProjectileData();
+            if (projectileData != null)
+            {
+                // ✨ Sử dụng phương thức mới từ ProjectileData
+                float chargePercent = projectileData.CalculateChargePercent(chargeTime);
+
+                // Update crosshair
+                crosshairManager.UpdateCharge(chargePercent);
+            }
         }
     }
 
@@ -104,9 +149,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
     // EVENT HANDLERS - Xử lý các event từ input
     // ===========================================================
 
-    /// <summary>
-    /// Xử lý khi bắt đầu sử dụng item (nhấn attack)
-    /// </summary>
     private void HandleUseStarted(object sender, System.EventArgs e)
     {
         if (!isLocalPlayer) return;
@@ -118,7 +160,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
             return;
         }
 
-        // Lấy strategy phù hợp với item type
         currentStrategy = ItemUseStrategyFactory.GetStrategy(itemData);
         if (currentStrategy == null)
         {
@@ -129,13 +170,22 @@ public class PlayerItemUseHandler : NetworkBehaviour
         isUsing = true;
         isCharging = true;
         useStartTime = Time.time;
+
+        // ✨ Chỉ hiển thị crosshair khi: Đang cầm cung + Đang aim + Bắt đầu charge
+        if (crosshairManager != null &&
+            itemData.weapon != null &&
+            itemData.weapon.weaponType == WeaponType.Bow &&
+            isAiming) // ✨ Thêm điều kiện phải đang aim
+        {
+            crosshairManager.ShowCrosshair();
+            playSound.PlayArrowCharge();
+            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair hiển thị - Đang aim + charge");
+        }
+
         currentStrategy.OnUseStarted(itemData, this);
         Debug.Log($"[PlayerItemUseHandler] Bắt đầu sử dụng {itemData.itemName}");
     }
 
-    /// <summary>
-    /// Xử lý khi thả attack (release)
-    /// </summary>
     private void HandleUseCanceled(object sender, System.EventArgs e)
     {
         if (!isLocalPlayer || !isUsing) return;
@@ -147,16 +197,18 @@ public class PlayerItemUseHandler : NetworkBehaviour
         float heldTime = Time.time - useStartTime;
         currentStrategy.OnUseReleased(itemData, this, heldTime);
         isUsing = false;
+
+        // ✨ Ẩn crosshair khi thả (bắn hoặc cancel)
+        if (crosshairManager != null&& itemData.weapon.weaponType == WeaponType.Bow )
+        {
+            crosshairManager.HideCrosshair();
+            playSound.PlayArrowRelease();
+            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair ẩn - Đã thả");
+        }
+
         Debug.Log($"[PlayerItemUseHandler] Đã thả sử dụng");
     }
 
-    /// <summary>
-    /// Xử lý khi bắt đầu aim (chuột phải)
-    /// </summary>
-
-
-    /// Xử lý khi bắt đầu aim (chuột phải)
-    /// </summary>
     private void HandleAimStarted(object sender, System.EventArgs e)
     {
         if (!isLocalPlayer) return;
@@ -164,7 +216,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         var itemData = playerHoldingItem.ItemData;
         if (itemData == null || itemData.weapon == null) return;
 
-        // ✅ Only allow aiming for Bow weapons
+        // Chỉ cho phép aim với vũ khí Bow
         if (itemData.weapon.weaponType != WeaponType.Bow) return;
 
         currentStrategy = ItemUseStrategyFactory.GetStrategy(itemData);
@@ -172,31 +224,25 @@ public class PlayerItemUseHandler : NetworkBehaviour
 
         isAiming = true;
 
-        // Sử dụng override ĐỘNG từ dây cung cho bow, không phải target tĩnh
+        // ✨ KHÔNG hiển thị crosshair khi chỉ aim - chỉ hiển thị khi BẮT ĐẦU CHARGE
+        // Crosshair sẽ được hiển thị trong HandleUseStarted (khi nhấn attack)
+
+        // Chuyển sang camera aim
+        if (playerCameraManager != null)
+        {
+            playerCameraManager.SetAimingMode(true, itemData);
+        }
+
+        // Setup IK cho cung
         if (itemData.weapon.weaponType == WeaponType.Bow && currentBowStringOverride != null)
         {
-            // Enable left hand IK (cầm cung)
-            ikController.SetLeftHandIKEnabled(true);
-            ikController.SetLeftHandIKWeight(1f);
-
-            // Enable right hand IK với override động (kéo dây)
-            ikController.SetRightHandIKTarget(currentBowStringOverride);
-            ikController.SetRightHandIKWeight(1f);
-            ikController.SetRightHandIKEnabled(true);
-
-            // ✅ Setup right hand pole hint override (hướng khuỷu tay)
-            ikController.SetRightHandPoleHintOverride(currentBowRightHintOverride);
-
             Debug.Log($"[PlayerItemUseHandler] ✅ Aiming với override: {currentBowStringOverride.name}");
         }
 
         currentStrategy.OnAimStarted(itemData, this);
-
+        Debug.Log("[PlayerItemUseHandler] Bắt đầu aim (crosshair vẫn ẩn cho đến khi charge)");
     }
 
-    /// <summary>
-    /// Xử lý khi ngừng aim
-    /// </summary>
     private void HandleAimCanceled(object sender, System.EventArgs e)
     {
         if (!isLocalPlayer || !isAiming) return;
@@ -204,25 +250,30 @@ public class PlayerItemUseHandler : NetworkBehaviour
         var itemData = playerHoldingItem.ItemData;
         if (itemData == null || currentStrategy == null) return;
 
-        // ✅ Only process aim cancel for Bow weapons
+        // Chỉ xử lý aim cancel cho vũ khí Bow
         if (itemData.weapon == null || itemData.weapon.weaponType != WeaponType.Bow) return;
 
-        // Tắt left hand IK
-        ikController.SetLeftHandIKEnabled(false);
-        ikController.SetLeftHandIKWeight(0f);
-
         isAiming = false;
-        currentStrategy.OnAimReleased(itemData, this);
 
-        // Tắt right hand IK
-        if (ikController != null)
+        // ✨ Ẩn crosshair nếu đang hiển thị
+        if (crosshairManager != null && crosshairManager.IsVisible())
         {
-            ikController.SetRightHandIKEnabled(false);
-            ikController.SetRightHandIKWeight(0f);
-            ikController.SetRightHandPoleHintOverride(null); // ✅ Clear hint override
+            crosshairManager.HideCrosshair();
+            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair ẩn - Ngừng aim");
         }
 
+        // Chuyển về camera thường
+        if (playerCameraManager != null)
+        {
+            playerCameraManager.SetAimingMode(false, itemData);
+        }
 
+        currentStrategy.OnAimReleased(itemData, this);
+
+        if (ikController != null)
+        {
+            // Tắt IK
+        }
     }
 
     // ===========================================================
@@ -238,9 +289,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Set override động cho dây cung (tay phải kéo dây)
-    /// </summary>
     public void SetBowStringOverride(Transform stringBone)
     {
         if (stringBone != null)
@@ -250,9 +298,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// ✅ Set hint override động cho tay phải (hướng khuỷu tay)
-    /// </summary>
     public void SetBowRightHintOverride(Transform hintOverride)
     {
         if (hintOverride != null)
@@ -262,14 +307,22 @@ public class PlayerItemUseHandler : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Được gọi khi đổi item - reset tất cả state
-    /// </summary>
     public void OnItemSwitched()
     {
         if (isUsing || isAiming)
         {
             CancelCurrentAction();
+
+            if (playerCameraManager != null)
+            {
+                playerCameraManager.SetAimingMode(false, null);
+            }
+        }
+
+        // ✨ Ẩn crosshair khi đổi item
+        if (crosshairManager != null && crosshairManager.IsVisible())
+        {
+            crosshairManager.HideCrosshair();
         }
 
         currentStrategy = null;
@@ -278,14 +331,9 @@ public class PlayerItemUseHandler : NetworkBehaviour
         isCharging = false;
         currentBowIKTarget = null;
         currentBowStringOverride = null;
-        currentBowRightHintOverride = null; // ✅ Clear hint override
-
-
+        currentBowRightHintOverride = null;
     }
 
-    /// <summary>
-    /// Hủy action hiện tại
-    /// </summary>
     public void CancelCurrentAction()
     {
         if (currentStrategy != null)
@@ -297,18 +345,26 @@ public class PlayerItemUseHandler : NetworkBehaviour
             }
         }
 
+        // ✨ Ẩn crosshair khi cancel
+        if (crosshairManager != null && crosshairManager.IsVisible())
+        {
+            crosshairManager.HideCrosshair();
+        }
+
+        if (playerCameraManager != null)
+        {
+            playerCameraManager.SetAimingMode(false, null);
+        }
+
         isUsing = false;
         isAiming = false;
         isCharging = false;
     }
 
     // ===========================================================
-    // NETWORK COMMANDS - Gửi lên server
+    // NETWORK COMMANDS
     // ===========================================================
 
-    /// <summary>
-    /// Command để tiêu thụ thức ăn
-    /// </summary>
     [Command]
     public void CmdConsumeFood(int itemId)
     {
@@ -328,20 +384,12 @@ public class PlayerItemUseHandler : NetworkBehaviour
         RpcPlayEatAnimation();
     }
 
-    /// <summary>
-    /// Command để bắn mũi tên
-    /// </summary>
     [Command]
     public void CmdFireArrow(int itemId, float chargePercent, Vector3 clientAimDirection, Vector3 clientSpawnPos)
     {
-        // Tắt IK tay phải tạm thời khi bắn
-        if (isLocalPlayer)
-            StartCoroutine(DisableRightHandIKTemporarily(1f));
-
         ItemData itemData = ItemDatabase.Get(itemId);
         if (itemData == null || itemData.weapon == null) return;
 
-        // Lấy bow string controller để truy cập projectile data
         BowStringController bowString = playerHoldingItem.GetComponentInChildren<BowStringController>();
         ProjectileData projectileData = bowString != null ? bowString.GetProjectileData() : null;
 
@@ -350,23 +398,19 @@ public class PlayerItemUseHandler : NetworkBehaviour
             return;
         }
 
-        // Tính stats dựa trên charge percent từ ProjectileData
         var stats = projectileData.GetProjectileStats(chargePercent);
         float damage = stats.damage;
         float speed = stats.speed;
 
-        // Sử dụng dữ liệu aim từ client (đã được tính toán sẵn ở client)
         Vector3 spawnPos = clientSpawnPos;
         Vector3 shootDir = clientAimDirection.normalized;
         Quaternion spawnRot = Quaternion.LookRotation(shootDir) * Quaternion.Euler(0, 180f, 0);
 
-        // Spawn projectile prefab từ ProjectileData
         GameObject arrowObj = Instantiate(projectileData.projectilePrefab, spawnPos, spawnRot);
         NetworkServer.Spawn(arrowObj);
 
         Vector3 velocity = shootDir * speed;
 
-        // Khởi tạo arrow với charge percent và projectile data
         ArrowProjectile arrow = arrowObj.GetComponent<ArrowProjectile>();
         if (arrow != null)
         {
@@ -380,36 +424,20 @@ public class PlayerItemUseHandler : NetworkBehaviour
         RpcPlayBowRelease();
     }
 
-    /// <summary>
-    /// Coroutine để tắt right hand IK tạm thời (khi bắn)
-    /// </summary>
-    private IEnumerator DisableRightHandIKTemporarily(float duration)
+    public void SetUpGameInput(GameInput gameinput)
     {
-        // Tắt Aim Pose blend
-        if (playableAnimationBlender != null)
-        {
-            playableAnimationBlender.BlendOverlay("Aim Pose", 0f);
-        }
+        gameInput = gameinput;
+    }
 
-        // Tắt right hand IK
-        if (ikController != null)
-        {
-            ikController.SetRightHandIKWeight(0f);
-            ikController.SetRightHandIKEnabled(false);
-        }
-
-        yield return new WaitForSeconds(duration);
-
-        // Bật lại nếu vẫn đang aim
-        if (ikController != null && isAiming)
-        {
-            ikController.SetRightHandIKWeight(1f);
-            ikController.SetRightHandIKEnabled(true);
-        }
+    // ✨ NEW: Setter for CrosshairManager
+    public void SetCrosshairManager(CrosshairManager manager)
+    {
+        crosshairManager = manager;
+        Debug.Log($"[PlayerItemUseHandler] CrosshairManager assigned: {manager.gameObject.name}");
     }
 
     // ===========================================================
-    // CLIENT RPCs - Server gọi tới tất cả client
+    // CLIENT RPCs
     // ===========================================================
 
     [ClientRpc]
@@ -426,6 +454,8 @@ public class PlayerItemUseHandler : NetworkBehaviour
     // ===========================================================
 
     public bool IsAiming() => isAiming;
+
+    public bool IsCharging() => isCharging;
 
     public void SetArrowSpawnPoint(Transform t)
     {

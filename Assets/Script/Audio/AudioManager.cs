@@ -14,6 +14,7 @@ public enum SoundType
     EnemyHit,
     EnemySlashed,
     ArrowRelease,
+    BowCharge,
     Hit,
     Open,
     Close,
@@ -237,6 +238,7 @@ public class AudioManager : MonoBehaviour
     public void StopMusic(float fadeTime = 1f)
     {
         StartCoroutine(FadeOutCoroutine(usingPrimaryMusicSource ? musicSource : musicSource2, fadeTime));
+        Debug.Log("Music Stoped");
     }
 
     public void StopAmbient(float fadeTime = 2f)

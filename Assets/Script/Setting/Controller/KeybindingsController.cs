@@ -33,9 +33,43 @@ public class KeybindingsController
     {
         data.keybinds.Clear();
 
-        // Danh sách các action cần rebind
-        string[] actionNames = { "Move", "Jump", "Sprint", "Interact", "Attack", "Aim", "ShowInventory", "DropItem" };
-        string[] displayNames = { "Move", "Jump", "Sprint", "Interact", "Attack", "Aim", "Inventory", "Drop Item" };
+        // Handle composite bindings separately for Move
+        InputAction moveAction = inputActions.FindAction("Move");
+        if (moveAction != null)
+        {
+            // Find the composite binding and its parts
+            for (int i = 0; i < moveAction.bindings.Count; i++)
+            {
+                var binding = moveAction.bindings[i];
+
+                // Check if this is a composite binding
+                if (binding.isComposite)
+                {
+                    // This is the parent composite (2D Vector)
+                    continue;
+                }
+
+                // Check if this is part of a composite
+                if (binding.isPartOfComposite)
+                {
+                    string partName = binding.name; // "up", "down", "left", "right"
+                    string displayName = $"Move {char.ToUpper(partName[0])}{partName.Substring(1)}";
+
+                    data.keybinds.Add(new KeybindData
+                    {
+                        actionName = "Move",
+                        displayName = displayName,
+                        bindingPath = binding.effectivePath,
+                        bindingIndex = i,
+                        compositePart = partName
+                    });
+                }
+            }
+        }
+
+        // Handle other simple bindings
+        string[] actionNames = { "Jump", "Sprint", "Interact", "Attack", "Aim", "ShowInventory", "DropItem" };
+        string[] displayNames = { "Jump", "Sprint", "Interact", "Attack", "Aim", "Inventory", "Drop Item" };
 
         for (int i = 0; i < actionNames.Length; i++)
         {
@@ -97,11 +131,10 @@ public class KeybindingsController
     // Cập nhật keybind trong data
     private void UpdateKeybind(string actionName, int bindingIndex, string newPath)
     {
-        KeybindData keybind = data.keybinds.Find(k => k.actionName == actionName);
+        KeybindData keybind = data.keybinds.Find(k => k.actionName == actionName && k.bindingIndex == bindingIndex);
         if (keybind != null)
         {
             keybind.bindingPath = newPath;
-            keybind.bindingIndex = bindingIndex;
         }
     }
 

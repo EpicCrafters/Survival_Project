@@ -6,6 +6,8 @@ using System;
 
 public class PauseMenuUI : MonoBehaviour
 {
+
+    public static PauseMenuUI instance;
     [Header("Main Menu Panel")]
     public GameObject mainMenuPanel;
 
@@ -35,6 +37,7 @@ public class PauseMenuUI : MonoBehaviour
 
     void Awake()
     {
+        instance = this;
         Debug.Log($"[PauseMenuUI] Awake START - GameObject: {gameObject.name}");
         Debug.Log($"[PauseMenuUI] MainMenuPanel null? {mainMenuPanel == null}");
         Debug.Log($"[PauseMenuUI] SettingsMenuPanel null? {settingsMenuPanel == null}");
@@ -70,24 +73,7 @@ public class PauseMenuUI : MonoBehaviour
         Debug.Log($"[PauseMenuUI] Start - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
     }
 
-    private void Update()
-    {
-        // Debug key to manually test
-        if (Input.GetKeyDown(KeyCode.F1))
-        {
-            Debug.Log($"[DEBUG F1] MainMenuPanel active: {mainMenuPanel.activeSelf}");
-            Debug.Log($"[DEBUG F1] SettingsMenuPanel active: {settingsMenuPanel.activeSelf}");
-            Debug.Log($"[DEBUG F1] isPaused: {isPaused}");
-            Debug.Log($"[DEBUG F1] gameInput null: {gameInput == null}");
-        }
-
-        // Manual test open
-        if (Input.GetKeyDown(KeyCode.F2))
-        {
-            Debug.Log("[DEBUG F2] Forcing OpenPauseMenu");
-            OpenPauseMenu();
-        }
-    }
+   
 
     private void SubscribeToGameInput()
     {
@@ -140,19 +126,16 @@ public class PauseMenuUI : MonoBehaviour
         mainMenuPanel.SetActive(true);
         settingsMenuPanel.SetActive(false);
 
-        Debug.Log($"[PauseMenuUI] After SetActive - MainMenuPanel: {mainMenuPanel.activeSelf}");
-        Debug.Log($"[PauseMenuUI] After SetActive - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
-
-        Time.timeScale = 0f;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        // Sử dụng CursorManager thay vì điều khiển con trỏ trực tiếp
+        if (CursorManager.Instance != null)
+        {
+            CursorManager.Instance.ShowCursor(CursorManager.CursorPriority.PauseMenu);
+        }
 
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
         }
-
-        Debug.Log("[PauseMenuUI] OpenPauseMenu END");
     }
 
     private void OnResume()
@@ -163,9 +146,11 @@ public class PauseMenuUI : MonoBehaviour
         mainMenuPanel.SetActive(false);
         settingsMenuPanel.SetActive(false);
 
-        Time.timeScale = 1f;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Sử dụng CursorManager - nó sẽ tự động kiểm tra death screen
+        if (CursorManager.Instance != null)
+        {
+            CursorManager.Instance.HideCursor(CursorManager.CursorPriority.PauseMenu);
+        }
 
         if (AudioManager.Instance != null)
         {
@@ -217,11 +202,11 @@ public class PauseMenuUI : MonoBehaviour
             AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
         }
 
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#else
+
+       
+
             Application.Quit();
-#endif
+
     }
 
     public void SetGameInput(GameInput input)
@@ -230,5 +215,11 @@ public class PauseMenuUI : MonoBehaviour
         UnsubscribeFromGameInput();
         gameInput = input;
         SubscribeToGameInput();
+    }
+
+
+    public bool IsPaused()
+    {
+        return isPaused;
     }
 }

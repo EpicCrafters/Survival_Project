@@ -99,12 +99,12 @@ MonoBehaviour:
   endOffset: {x: 0, y: 0, z: 1.5}
   damageableLayers:
     serializedVersion: 2
-    m_Bits: 4608
+    m_Bits: 196608
   effectOnlyLayers:
     serializedVersion: 2
     m_Bits: 256
   maxHitsPerCheck: 15
-  singleHitPerActivation: 0
+  singleHitPerActivation: 1
   enableHitEffects: 1
   enableDebugLogs: 0
   showDebugGizmos: 1

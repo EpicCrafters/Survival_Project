@@ -1,6 +1,5 @@
+﻿using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using System;
 
 public class GraphicsController
 {
@@ -23,14 +22,27 @@ public class GraphicsController
     {
         data.resolutionIndex = index;
         Resolution res = Screen.resolutions[index];
-        Screen.SetResolution(res.width, res.height, data.fullscreen);
+        Screen.SetResolution(res.width, res.height, data.screenMode);
         OnSettingsChanged?.Invoke();
     }
 
-    public void SetFullscreen(bool fullscreen)
+    public void SetScreenMode(int modeIndex)
     {
-        data.fullscreen = fullscreen;
-        Screen.fullScreen = fullscreen;
+        // 0 = Fullscreen, 1 = Windowed, 2 = Borderless
+        FullScreenMode mode = modeIndex switch
+        {
+            0 => FullScreenMode.ExclusiveFullScreen,
+            1 => FullScreenMode.Windowed,
+            2 => FullScreenMode.FullScreenWindow,  // Borderless
+            _ => FullScreenMode.ExclusiveFullScreen
+        };
+
+        data.screenMode = mode;
+
+        // Áp dụng screen mode với resolution hiện tại
+        Resolution currentRes = Screen.resolutions[data.resolutionIndex];
+        Screen.SetResolution(currentRes.width, currentRes.height, mode);
+
         OnSettingsChanged?.Invoke();
     }
 
@@ -41,8 +53,18 @@ public class GraphicsController
         OnSettingsChanged?.Invoke();
     }
 
-    public void SetTargetFrameRate(int fps)
+    public void SetTargetFrameRate(int framerateIndex)
     {
+        // 0 = 60, 1 = 90, 2 = 144, 3 = Unlimited
+        int fps = framerateIndex switch
+        {
+            0 => 60,
+            1 => 90,
+            2 => 144,
+            3 => -1,  // Unlimited
+            _ => 60
+        };
+
         data.targetFrameRate = fps;
         Application.targetFrameRate = fps;
         OnSettingsChanged?.Invoke();
@@ -59,10 +81,56 @@ public class GraphicsController
     {
         SetQualityLevel(data.qualityLevel);
         SetResolution(data.resolutionIndex);
-        SetFullscreen(data.fullscreen);
+
+        // Áp dụng screen mode
+        int modeIndex = data.screenMode switch
+        {
+            FullScreenMode.ExclusiveFullScreen => 0,
+            FullScreenMode.Windowed => 1,
+            FullScreenMode.FullScreenWindow => 2,
+            _ => 0
+        };
+        SetScreenMode(modeIndex);
+
         SetVSync(data.vsync);
-        SetTargetFrameRate(data.targetFrameRate);
+
+        // Áp dụng framerate
+        int framerateIndex = data.targetFrameRate switch
+        {
+            60 => 0,
+            90 => 1,
+            144 => 2,
+            -1 => 3,
+            _ => 0
+        };
+        SetTargetFrameRate(framerateIndex);
+
         SetBrightness(data.brightness);
+    }
+
+    // Helper để UI lấy screen mode index hiện tại
+    public int GetScreenModeIndex()
+    {
+        return data.screenMode switch
+        {
+            FullScreenMode.ExclusiveFullScreen => 0,
+            FullScreenMode.Windowed => 1,
+            FullScreenMode.FullScreenWindow => 2,
+            _ => 0
+        };
+    }
+
+    // Helper để UI lấy framerate index hiện tại
+    public int GetFrameRateIndex()
+    {
+        return data.targetFrameRate switch
+        {
+            60 => 0,
+            90 => 1,
+            144 => 2,
+            -1 => 3,
+            _ => 0
+        };
     }
 
     public GraphicsSettingsData GetData() => data;

@@ -1186,7 +1186,119 @@ public class PlayableAnimationBlender : NetworkBehaviour
     }
 
     #endregion
+    public void ResetSystem()
+    {
+        Debug.Log("[PlayableAnimationBlender] Resetting system...");
 
+        // Reset all look offsets
+        lookVerticalOffset = 0f;
+        lookHorizontalOffset = 0f;
+        smoothedLookVertical = 0f;
+        smoothedLookHorizontal = 0f;
+        predictedLookVertical = 0f;
+        predictedLookHorizontal = 0f;
+        lookVerticalVelocity = 0f;
+        lookHorizontalVelocity = 0f;
+        currentLookBlend = 0f;
+
+        // Reset look bones
+        foreach (var bone in lookBones)
+        {
+            var b = bone;
+            b.currentRootSpaceRotation = Vector3.zero;
+        }
+
+        // Stop all overlay blends
+        foreach (var coroutine in activeBlendCoroutines.Values)
+        {
+            if (coroutine != null)
+                StopCoroutine(coroutine);
+        }
+        activeBlendCoroutines.Clear();
+
+        // Reset all overlays
+        foreach (var overlay in overlayPoses)
+        {
+            overlay.blendWeight = 0f;
+            overlay.isPlaying = false;
+            overlay.playbackTime = 0f;
+            overlay.normalizedTime = 0f;
+            overlay.needsUpdate = true;
+            overlay.cachedPoseAtTime = null;
+        }
+
+        // Clear network states
+        overlayNetworkStates.Clear();
+
+        // Reset network sync variables
+        if (isServer)
+        {
+            networkLookVertical = 0f;
+            networkLookHorizontal = 0f;
+            networkLookOffsetEnabled = true;
+            networkLookAtEnabled = false;
+        }
+
+        // Restore initial bone rotations
+        RestoreInitialBoneRotations();
+
+        Debug.Log("[PlayableAnimationBlender] System reset complete");
+    }
+
+    /// <summary>
+    /// Restore all bones to their initial rotations
+    /// </summary>
+    private void RestoreInitialBoneRotations()
+    {
+        foreach (var kvp in initialBoneRotations)
+        {
+            if (kvp.Key != null)
+            {
+                kvp.Key.rotation = kvp.Value;
+            }
+        }
+
+        // Also reset the tracking dictionaries
+        baseAnimationRotations.Clear();
+        accumulatedOverlayRotations.Clear();
+
+        foreach (var kvp in initialBoneRotations)
+        {
+            if (kvp.Key != null)
+            {
+                baseAnimationRotations[kvp.Key] = kvp.Value;
+                accumulatedOverlayRotations[kvp.Key] = kvp.Value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Re-initialize the system (useful after animator rebuild)
+    /// </summary>
+    public void Reinitialize()
+    {
+        Debug.Log("[PlayableAnimationBlender] Reinitializing...");
+
+        // Re-cache bone paths in case hierarchy changed
+        CacheBonePaths();
+
+        // Re-initialize overlays
+        InitializeOverlays();
+
+        // Re-store initial rotations
+        StoreInitialBoneRotations();
+
+        // Re-cache IK protected bones
+        CacheIKProtectedBones();
+
+        // Reset smoothing values
+        smoothedLookVertical = lookVerticalOffset;
+        smoothedLookHorizontal = lookHorizontalOffset;
+        predictedLookVertical = lookVerticalOffset;
+        predictedLookHorizontal = lookHorizontalOffset;
+
+        Debug.Log("[PlayableAnimationBlender] Reinitialize complete");
+    }
     #region Look Bone Initialization
 
     [ContextMenu("Initialize Look Bone Ranges")]

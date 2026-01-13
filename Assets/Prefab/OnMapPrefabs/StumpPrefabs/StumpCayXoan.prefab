@@ -54,7 +54,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       propertyPath: m_Layer
-      value: 3
+      value: 8
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -65,50 +65,16 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3518344202656321181}
+      addedObject: {fileID: 5394407619354593339}
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 5394407619354593339}
+      addedObject: {fileID: -4718167556923083089}
   m_SourcePrefab: {fileID: 100100000, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
 --- !u!1 &6907868166043829906 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3236695765921899963, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}
   m_PrefabInstance: {fileID: 8301999817468191529}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &3518344202656321181
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6907868166043829906}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  baseHealth: 30
-  resourceType: 0
-  minDropCount: 1
-  maxDropCount: 3
-  dropRadius: 0.2
-  dropHeight: 0.1
-  isDestroyed: 0
-  isBeingDestroyed: 0
-  uniqueId: 
-  treeType: 3
-  treeSize: 0
-  treeLogPrefab: {fileID: 0}
-  treeLogHalfPrefab: {fileID: 0}
-  treeStumpPrefab: {fileID: 0}
-  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  halfLogSpacing: 1.2
-  useColliderBoundsForLogLength: 1
-  manualLogLength: 5
-  overrideMinDropCount: -1
-  overrideMaxDropCount: -1
-  debugMode: 1
-  verboseDebug: 1
 --- !u!136 &5394407619354593339
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -132,6 +98,33 @@ CapsuleCollider:
   m_Height: 5.6801987
   m_Direction: 1
   m_Center: {x: 0.0000015497208, y: 0.31162083, z: -0.000004351139}
+--- !u!114 &-4718167556923083089
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6907868166043829906}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf9115d6dd59fcb41a37a5f511a36cc0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseHealth: 30
+  resourceType: 0
+  minDropCount: 1
+  maxDropCount: 3
+  dropRadius: 0.2
+  dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
+  maxInteractDistance: 3
+  debugMode: 1
+  stickPrefab: {fileID: 11400000, guid: 6ea3ff16cdacd6c4188f6d68e98b049a, type: 2}
+  minSticks: 3
+  maxSticks: 5
+  dropRadius: 0.5
 --- !u!4 &9190801894893699412 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: 17286f22ea819984a9dac973dfac7f9b, type: 3}

@@ -22,6 +22,7 @@ public class PlayerAnimator : NetworkBehaviour
     private const string IS_RANGEDWEAPON = "isRangedWeapon";
     private const string AIM_BLEND_X = "AimBlendX"; // For strafe left/right
     private const string AIM_BLEND_Y = "AimBlendY"; // For forward/backward
+    private const string IS_CHARGING = "IsCharging";
 
     private const string IS_TREE = "isTree";
     private const string IS_ROCK = "isRock";
@@ -82,8 +83,6 @@ public class PlayerAnimator : NetworkBehaviour
 
         if (!isLocalPlayer) return;
 
-        playableAnimationBlender.SetOverlayWeight("Charging Pose", 1f);
-        playableAnimationBlender.SetOverlayPlaybackTime("Charging Pose", charge);
         if (animator == null || player == null) return;
 
         bool isAiming = playerItemUseHandler != null && playerItemUseHandler.IsAiming();
@@ -136,43 +135,66 @@ public class PlayerAnimator : NetworkBehaviour
         if (playerItemUseHandler != null)
         {
             bool Aiming = playerItemUseHandler.IsAiming();
-            bool isCharging = playerItemUseHandler.isCharging; // ✅ Check if charging
+            bool isCharging = playerItemUseHandler.IsCharging(); // ✅ Check if charging
 
             animator.SetBool(IS_AIMING, Aiming);
+            animator.SetBool(IS_CHARGING, isCharging);
 
             // Smooth blend for aim weight
             float target = Aiming ? 1f : 0f;
             currentAimWeight = Mathf.MoveTowards(currentAimWeight, target, AimBlendSpeed * Time.deltaTime);
             animator.SetFloat(AIM_WEIGHT, currentAimWeight);
 
-            if (playableAnimationBlender != null)
-            {
-                if (Aiming)
-                {
-                    playableAnimationBlender.BlendOverlay("Aim Pose", 1f, 0.2f);
-                }
-                else
-                {
-                    playableAnimationBlender.BlendOverlay("Aim Pose", 0f, 0.2f);
-                }
-
-                // ✅ Blend charge overlay if charging
-                if (isCharging&&isAiming)
-                {
-                    playableAnimationBlender.BlendOverlay("Charge Pose", 1f, 1f);
-                }
-                else
-                {
-                    playableAnimationBlender.BlendOverlay("Charge Pose", 0f);
-                    
-
-                   
-                }
-            }
+         
         }
 
     }
+    public void ResetAnimatorState()
+    {
+        if (animator == null || !animator.enabled) return;
 
+        // Reset all blend values
+        playerSpeed = 0f;
+        currentAimWeight = 0f;
+        currentAimBlendX = 0f;
+        currentAimBlendY = 0f;
+        charge = 0f;
+
+        // Reset SyncVars
+        if (isServer)
+        {
+            isMining = false;
+        }
+
+        // Reset all boolean parameters
+        animator.SetBool(IS_WALKING, false);
+        animator.SetBool(IS_SPRINTING, false);
+        animator.SetBool(IS_GROUNDED, true);
+        animator.SetBool(IS_FALLING, false);
+        animator.SetBool(IS_MINING, false);
+        animator.SetBool(IS_HOLDING, false);
+        animator.SetBool(IS_WEAPON, false);
+        animator.SetBool(IS_AIMING, false);
+        animator.SetBool(IS_RANGEDWEAPON, false);
+        animator.SetBool(IS_TREE, false);
+        animator.SetBool(IS_ROCK, false);
+
+        // Reset all float parameters
+        animator.SetFloat(BLEND_SPEED, 0f);
+        animator.SetFloat(AIM_WEIGHT, 0f);
+        animator.SetFloat(AIM_BLEND_X, 0f);
+        animator.SetFloat(AIM_BLEND_Y, 0f);
+        animator.SetInteger(COMBO_STEP, 0);
+
+        // Reset all triggers
+        animator.ResetTrigger(IS_JUMPING);
+        animator.ResetTrigger(IS_ATTACKING);
+        animator.ResetTrigger(IS_RELEASED);
+
+      
+
+       
+    }
     // Handle aiming movement blend (W = forward +1, S = backward -1, A/D = strafe)
     private void HandleAimingBlend()
     {

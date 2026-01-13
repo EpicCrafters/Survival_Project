@@ -23,6 +23,10 @@ public class PlayerCombat : NetworkBehaviour
     // private int comboStep = 0;
     // private bool canCombo = false;
     // private bool queuedAttack = false;
+    public void SetUpGameInput(GameInput gameinput)
+    {
+        gameInput = gameinput;
+    }
 
     public override void OnStartClient()
     {

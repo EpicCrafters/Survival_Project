@@ -131,56 +131,22 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 2135196994323377414}
-    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 5465484046549707277}
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8896958791419747681}
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1969361532472912676}
+      addedObject: {fileID: 3651506609766681533}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -3188969320704644551}
   m_SourcePrefab: {fileID: 100100000, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
 --- !u!1 &4848200774995662680 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
   m_PrefabInstance: {fileID: 8044353956566725347}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &2135196994323377414
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4848200774995662680}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 317436034318bd04a938cf257e50b773, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  baseHealth: 30
-  resourceType: 0
-  minDropCount: 1
-  maxDropCount: 3
-  dropRadius: 0.2
-  dropHeight: 0.1
-  isDestroyed: 0
-  isBeingDestroyed: 0
-  uniqueId: 
-  treeType: 1
-  treeSize: 0
-  treeLogPrefab: {fileID: 0}
-  treeLogHalfPrefab: {fileID: 0}
-  treeStumpPrefab: {fileID: 0}
-  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  halfLogSpacing: 1.2
-  useColliderBoundsForLogLength: 1
-  manualLogLength: 5
-  overrideMinDropCount: -1
-  overrideMaxDropCount: -1
-  debugMode: 1
-  verboseDebug: 1
 --- !u!136 &5465484046549707277
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -231,7 +197,35 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &1969361532472912676
+--- !u!114 &3651506609766681533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4848200774995662680}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0d9d8b9c1619c04780c2a1c6ef20a33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  debugMode: 1
+  uniqueId: 
+  halfLogPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
+  logSize: 0
+  halfLogSpacing: 12
+  lengthOffset: 13.6
+  lateralOffsetX: 0
+  lateralOffsetZ: 0
+  worldUpOffset: 0.2
+  lateralSpread: 0.3
+  randomLengthOffset: 0
+  applyPhysicsForce: 1
+  physicsForceStrength: 1.5
+--- !u!114 &-3188969320704644551
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}

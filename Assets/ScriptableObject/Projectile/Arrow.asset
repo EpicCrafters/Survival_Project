@@ -17,9 +17,10 @@ MonoBehaviour:
   visualPrefab: {fileID: 7503461660971306093, guid: f7cc3ea6c003fb640a98e410a8e9ffa4, type: 3}
   minDamage: 5
   maxDamage: 25
-  minSpeed: 15
-  maxSpeed: 70
+  minSpeed: 20
+  maxSpeed: 2500
+  maxChargeTime: 2
   gravityMultiplier: 0
   lifetime: 10
   minVelocityToStick: 2
-  stuckLifetime: 100
+  stuckLifetime: 10

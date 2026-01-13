@@ -58,7 +58,17 @@ public class MainMenuUI : MonoBehaviour
 
         if (MenuUI == null) MenuUI = gameObject;
         if (GameplayUI != null) GameplayUI.SetActive(false);
-
+        if (CursorManager.Instance != null)
+        {
+            CursorManager.Instance.ShowCursor(CursorManager.CursorPriority.MainMenu);
+            Debug.Log("[MainMenuUI] Showing cursor via CursorManager");
+        }
+        else
+        {
+            // Fallback nếu không có CursorManager
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
         //Play Music
         AudioManager.Instance.PlayMenuMusicWithFade();
 
@@ -105,6 +115,22 @@ public class MainMenuUI : MonoBehaviour
     {
         // Update network status display if you have one
         UpdateNetworkStatus();
+
+        if (MenuUI != null && MenuUI.activeSelf)
+        {
+            if (CursorManager.Instance != null)
+            {
+                // Force refresh để đảm bảo MainMenu có priority cao nhất
+                // Force refresh to ensure MainMenu has highest priority
+                CursorManager.Instance.ShowCursor(CursorManager.CursorPriority.MainMenu);
+            }
+            else if (!Cursor.visible || Cursor.lockState != CursorLockMode.None)
+            {
+                Debug.LogWarning("[MainMenuUI] Cursor was hidden! Restoring...");
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+        }
     }
 
     private void UpdateNetworkStatus()
@@ -137,7 +163,7 @@ public class MainMenuUI : MonoBehaviour
     private void OnHostClicked()
     {
         if (manager == null) return;
-
+        
         // Fade out music when entering game scene
         AudioManager.Instance.StopMusic(1.5f);
         // Play ambient sound when game scene loads
@@ -375,6 +401,7 @@ public class MainMenuUI : MonoBehaviour
             clientConnectCoroutine = null;
             yield break;
         }
+
         bool exceptionOccurred = false;
         try
         {
@@ -384,7 +411,6 @@ public class MainMenuUI : MonoBehaviour
         {
             Debug.LogError($"[Menu] StartClient threw exception: {ex}");
             UpdateLoadingStatus($"Error: {ex.Message}");
-            // Store the exception or use a flag
             exceptionOccurred = true;
         }
 
@@ -411,23 +437,107 @@ public class MainMenuUI : MonoBehaviour
         if (NetworkClient.isConnected)
         {
             Debug.Log("[Menu] Client successfully connected to server.");
-            UpdateLoadingStatus("Connected! Loading environment...");
 
-            if (clientLoadEnvironmentOnConnect)
+            // ⭐ CRITICAL FIX: Mark client as ready immediately after connection
+            bool readySuccess = false;
+            if (!NetworkClient.ready)
             {
-                yield return StartCoroutine(LoadMultipleScenesAdditiveWithProgress(environmentSceneNames));
-
-                HideLoadingScreen(); // Hide loading screen
-                EnterGameplayUI();
-                var p = FindObjectOfType<PlayerFreezeUntilReady>();
-                if (p != null) p.ForceActivate();
+                try
+                {
+                    NetworkClient.Ready();
+                    Debug.Log("[Menu] ✓ Client marked as READY");
+                    UpdateLoadingStatus("Connected! Marking as ready...");
+                    readySuccess = true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[Menu] Failed to mark client as ready: {ex}");
+                    UpdateLoadingStatus("Error: Failed to mark ready!");
+                    readySuccess = false;
+                }
             }
             else
             {
-                HideLoadingScreen(); // Hide loading screen
+                readySuccess = true;
+            }
+
+            // Check if marking ready failed
+            if (!readySuccess)
+            {
+                yield return new WaitForSeconds(2f);
+                HideLoadingScreen();
+
+                if (NetworkManager.singleton != null)
+                {
+                    NetworkManager.singleton.StopClient();
+                }
+                clientConnectCoroutine = null;
+                yield break;
+            }
+
+            // Small delay to ensure Ready message is processed
+            yield return new WaitForSeconds(0.2f);
+
+            UpdateLoadingStatus("Ready! Loading environment...");
+
+            if (clientLoadEnvironmentOnConnect)
+            {
+                // Load environment scenes
+                yield return StartCoroutine(LoadMultipleScenesAdditiveWithProgress(environmentSceneNames));
+
+                // ⭐ Send EnvLoadedMessage AFTER scenes are loaded AND we're ready
+                if (NetworkClient.isConnected && NetworkClient.ready)
+                {
+                    bool sendSuccess = false;
+                    try
+                    {
+                        var envMsg = new EnvLoadedMessage();
+                        NetworkClient.Send(envMsg);
+                        Debug.Log("[Menu] ✓ Sent EnvLoadedMessage to server");
+                        UpdateLoadingStatus("Environment loaded! Notifying server...");
+                        sendSuccess = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"[Menu] Failed to send EnvLoadedMessage: {ex}");
+                        sendSuccess = false;
+                    }
+
+                    if (sendSuccess)
+                    {
+                        // Brief delay to let message send
+                        yield return new WaitForSeconds(0.1f);
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[Menu] Cannot send EnvLoadedMessage - Connected: {NetworkClient.isConnected}, Ready: {NetworkClient.ready}");
+                }
+
+                HideLoadingScreen();
                 EnterGameplayUI();
+
                 var p = FindObjectOfType<PlayerFreezeUntilReady>();
-                if (p != null) p.ForceActivate();
+                if (p != null)
+                {
+                    p.ForceActivate();
+                    Debug.Log("[Menu] PlayerFreezeUntilReady activated");
+                }
+            }
+            else
+            {
+                // Client doesn't load environment - just wait for server
+                UpdateLoadingStatus("Waiting for server data...");
+
+                HideLoadingScreen();
+                EnterGameplayUI();
+
+                var p = FindObjectOfType<PlayerFreezeUntilReady>();
+                if (p != null)
+                {
+                    p.ForceActivate();
+                    Debug.Log("[Menu] PlayerFreezeUntilReady activated");
+                }
             }
         }
         else
@@ -600,9 +710,13 @@ public class MainMenuUI : MonoBehaviour
     {
         if (MenuUI != null) MenuUI.SetActive(false);
         if (GameplayUI != null) GameplayUI.SetActive(true);
-        // Khoá và ẩn trỏ chuột
-        //Cursor.lockState = CursorLockMode.Locked;
-        //Cursor.visible = false;
+
+        // SỬ DỤNG CursorManager thay vì điều khiển cursor trực tiếp
+        // Use CursorManager instead of direct cursor control
+        if (CursorManager.Instance != null)
+        {
+            CursorManager.Instance.HideCursor(CursorManager.CursorPriority.MainMenu);
+        }
     }
 
     // ----------------- Resource Manager Handling -----------------

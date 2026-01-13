@@ -85,7 +85,7 @@ public class PlayerRagdoll : NetworkBehaviour
         int playerDamageableLayer = LayerMask.NameToLayer("PlayerDamageable");
 
         // CharacterController đặt vào Default để tránh bị bắn trúng
-        int ignoreRaycastLayer = LayerMask.NameToLayer("Default");
+        int ignoreRaycastLayer = LayerMask.NameToLayer("PlayerMain");
 
         Collider ccCollider = null;
         if (characterController != null)

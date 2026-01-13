@@ -444,21 +444,19 @@ public class ItemHitBox : MonoBehaviour
         }
     }
 
-    
+
     private void ProcessToolDamage(Collider other, Vector3 hitPoint, Vector3 hitNormal)
     {
         int instanceId = other.GetInstanceID();
 
-        // ===== OPTIMIZATION: TRY CACHE FIRST =====
-        // Tìm IMinenable component (cache trước để tránh GetComponent nhiều lần)
+        // Try cache first
         if (!minableCache.TryGetValue(instanceId, out IMinenable minable))
         {
-            // Chưa có trong cache, tìm và lưu vào cache
             minable = other.GetComponent<IMinenable>();
             if (minable == null)
                 minable = other.GetComponentInParent<IMinenable>();
 
-            minableCache[instanceId] = minable; // Lưu vào cache (kể cả null)
+            minableCache[instanceId] = minable;
         }
 
         if (minable == null)
@@ -466,81 +464,84 @@ public class ItemHitBox : MonoBehaviour
             return;
         }
 
-        // Kiểm tra công cụ có phù hợp với resource không (rìu cho cây, cuốc cho đá)
+        // Check if tool is valid for this resource
         if (!IsToolValidForResource(itemData.tool.toolType, minable.GetResourceType()))
         {
             return;
         }
 
-        // Lấy damage từ tool
         int dmg = itemData.tool.damage;
 
-        // ===== OPTIMIZATION: TRY CACHE FIRST =====
-        // Tìm BaseResource component (cache trước)
-        if (!resourceCache.TryGetValue(instanceId, out BaseResource baseResource))
-        {
-            // Chưa có trong cache, tìm và lưu vào cache
-            baseResource = other.GetComponent<BaseResource>();
-            if (baseResource == null)
-                baseResource = other.GetComponentInParent<BaseResource>();
+        // Check for networked choppable first
+        NetworkedChoppable networkedChoppable = other.GetComponent<NetworkedChoppable>();
+        if (networkedChoppable == null)
+            networkedChoppable = other.GetComponentInParent<NetworkedChoppable>();
 
-            resourceCache[instanceId] = baseResource; // Lưu vào cache
-        }
-
-        if (baseResource == null)
+        if (networkedChoppable != null)
         {
-            return;
-        }
-
-        // Kiểm tra đã đánh resource này chưa (dùng UniqueId hash)
-        uint uniqueIdHash = (uint)baseResource.UniqueId.GetHashCode();
-        if (alreadyHitNetIds.Contains(uniqueIdHash))
-        {
-            return;
-        }
-        alreadyHitNetIds.Add(uniqueIdHash);
-        hasHitSomething = true; // CHỈ set sau khi xác nhận damage thành công
-
-        // Kiểm tra xem có phải Log không (cần xử lý khác với cây đứng)
-        bool isLog = false;
-        MyTree myTree = baseResource as MyTree;
-        if (myTree != null)
-        {
-            isLog = (myTree.GetTreeType() == MyTree.TreeType.Log ||
-                    myTree.GetTreeType() == MyTree.TreeType.LogHalf);
-        }
-
-        // Xử lý damage cho Log (non-persistent)
-        if (isLog)
-        {
-            // ===== OPTIMIZATION: TRY CACHE FIRST =====
-            if (!netIdentityCache.TryGetValue(instanceId, out NetworkIdentity targetNetId))
+            NetworkIdentity netId = networkedChoppable.GetComponent<NetworkIdentity>();
+            if (netId != null && playerCombat != null)
             {
-                targetNetId = other.GetComponent<NetworkIdentity>();
-                if (targetNetId == null)
-                    targetNetId = other.GetComponentInParent<NetworkIdentity>();
+                if (alreadyHitNetIds.Contains(netId.netId))
+                {
+                    if (enableDebugLogs)
+                        Debug.Log($"[ProcessToolDamage] Already hit this networked object, skipping");
+                    return;
+                }
+                alreadyHitNetIds.Add(netId.netId);
+                hasHitSomething = true;
 
-                netIdentityCache[instanceId] = targetNetId;
-            }
-
-            if (targetNetId != null && playerCombat != null)
-            {
-                // Gửi command damage cho non-persistent object
                 playerCombat.CmdDamageNonPersistent(
-                    targetNetId.netId,
+                    netId.netId,
                     dmg,
                     hitPoint,
                     hitNormal,
                     itemData.id
                 );
+
+                if (enableDebugLogs)
+                    Debug.Log($"[ProcessToolDamage] ✅ Sent CmdDamageNonPersistent for {networkedChoppable.GetType().Name}");
+
+                return;
             }
         }
-        // Xử lý damage cho resource thường (persistent)
-        else if (!string.IsNullOrEmpty(baseResource.UniqueId))
+
+        // Handle BaseResource (both networked and local)
+        BaseResource baseResource = null;
+
+        if (!resourceCache.TryGetValue(instanceId, out baseResource))
         {
-            if (playerCombat != null)
+            baseResource = other.GetComponent<BaseResource>();
+            if (baseResource == null)
+                baseResource = other.GetComponentInParent<BaseResource>();
+
+            resourceCache[instanceId] = baseResource;
+        }
+
+        if (baseResource == null)
+        {
+            if (enableDebugLogs)
+                Debug.Log($"[ProcessToolDamage] No BaseResource or NetworkedChoppable found on {other.name}");
+            return;
+        }
+
+        // Check if already hit this resource
+        if (!string.IsNullOrEmpty(baseResource.UniqueId))
+        {
+            uint uniqueIdHash = (uint)baseResource.UniqueId.GetHashCode();
+            if (alreadyHitNetIds.Contains(uniqueIdHash))
             {
-                // Gửi command damage cho persistent resource
+                return;
+            }
+            alreadyHitNetIds.Add(uniqueIdHash);
+            hasHitSomething = true;
+
+            // ===== NEW: Check if resource has NetworkIdentity =====
+            NetworkIdentity resourceNetId = baseResource.GetComponent<NetworkIdentity>();
+
+            if (resourceNetId != null && playerCombat != null)
+            {
+                // Networked persistent resource - use network command
                 playerCombat.CmdDamageResource(
                     baseResource.UniqueId,
                     dmg,
@@ -549,13 +550,25 @@ public class ItemHitBox : MonoBehaviour
                 );
 
                 if (enableDebugLogs)
-                    Debug.Log($"[ProcessToolDamage] ✅ Gửi CmdDamageResource");
+                    Debug.Log($"[ProcessToolDamage] ✅ Sent CmdDamageResource for networked persistent resource");
+            }
+            else
+            {
+                // ===== LOCAL-ONLY RESOURCE - Damage directly =====
+                if (enableDebugLogs)
+                    Debug.Log($"[ProcessToolDamage] ✅ Damaging LOCAL resource directly (no network)");
+
+                baseResource.Damage(dmg, new HitInfo
+                {
+                    point = hitPoint,
+                    normal = hitNormal
+                });
             }
         }
     }
 
 
-   
+
     private void ProcessWeaponDamage(Collider other, Vector3 hitPoint, Vector3 hitNormal)
     {
         // Lấy damage từ weapon

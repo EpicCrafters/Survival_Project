@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using UnityEngine.AI;
 using Mirror;
 
 public class AIEntity : NetworkBehaviour
@@ -7,14 +6,15 @@ public class AIEntity : NetworkBehaviour
     // BIẾN ĐỒNG BỘ HÓA (SyncVar)
     [SyncVar] private Vector3 syncedPosition;
     [SyncVar] private Quaternion syncedRotation;
+    [SyncVar] private Vector3 syncedVelocity;
 
     // 🔹 THAM CHIẾU VÀ TRẠNG THÁI
     public HFSMController controller;
     public HFSMAnimator animator;
-    private NavMeshAgent navAgent;
+    private CharacterController characterController;
     public bool IsSleeping { get; private set; }
 
-    // 🔹 TỐI ƯU: Chạy AI logic mỗi frame thay vì chờ tick
+    // 🔹 TỐI ƯU: Chạy AI logic mỗi frame
     [Header("Performance Settings")]
     [Tooltip("Nếu false, chỉ chạy AI trên server (tiết kiệm hiệu năng)")]
     public bool runAIOnClient = false;
@@ -29,8 +29,17 @@ public class AIEntity : NetworkBehaviour
         if (animator == null)
             animator = GetComponent<HFSMAnimator>();
 
-        if (navAgent == null)
-            navAgent = GetComponent<NavMeshAgent>();
+        if (characterController == null)
+            characterController = GetComponent<CharacterController>();
+
+        if (controller == null)
+            controller = GetComponent<HFSMController>();
+
+        // ✅ ĐẢM BẢO CHARACTER CONTROLLER HOẠT ĐỘNG
+        if (characterController != null && !controller.syncedIsDead)
+        {
+            characterController.enabled = true;
+        }
 
         if (AISyncManager.Instance != null)
             AISyncManager.Instance.RegisterAI(this);
@@ -48,6 +57,12 @@ public class AIEntity : NetworkBehaviour
     {
         syncedPosition = transform.position;
         syncedRotation = transform.rotation;
+
+        // ✅ LẤY VELOCITY TỪ CONTROLLER
+        if (controller != null)
+        {
+            syncedVelocity = controller.GetVelocity();
+        }
     }
 
     // 🔹 CLIENT SIDE: NỘI SUY MƯỢT DỮ LIỆU
@@ -56,9 +71,14 @@ public class AIEntity : NetworkBehaviour
     {
         if (isServer) return;
 
+        // ✅ CLIENT KHÔNG CÓ CHARACTER CONTROLLER HOẠT ĐỘNG
+        // Chỉ nội suy vị trí và rotation để mượt mà
         float smoothFactor = 1 - Mathf.Exp(-clientLerpRate * Time.deltaTime);
+
         transform.position = Vector3.Lerp(transform.position, syncedPosition, smoothFactor);
         transform.rotation = Quaternion.Slerp(transform.rotation, syncedRotation, smoothFactor);
+
+        // Animator sẽ tự động cập nhật trong TickAI()
     }
 
     // 🔹 LOGIC AI - Được gọi từ AISyncManager
@@ -71,98 +91,55 @@ public class AIEntity : NetworkBehaviour
         controller.ScanForTargets();
         controller.CurrentState?.Update();
 
-        // 🎬 CẬP NHẬT ANIMATOR (nếu có và không đang ngủ)
+        // 🎬 CẬP NHẬT ANIMATOR
         if (animator != null && !IsSleeping)
         {
             animator.UpdateAnimation();
         }
     }
 
-    // 🔹 SLEEP/WAKE MANAGEMENT - SIMPLIFIED (Animator stays enabled)
+    // 🔹 SLEEP/WAKE MANAGEMENT
     public void Sleep()
     {
-        if (IsSleeping) return; // Tránh gọi nhiều lần
+        if (IsSleeping) return;
 
         IsSleeping = true;
         if (controller != null)
             controller.isSleeping = true;
 
-        // 🚫 TẮT NAVMESHAGENT (tiết kiệm hiệu năng)
-        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+        // 🚫 TẮT CHARACTER CONTROLLER
+        if (characterController != null)
         {
-            navAgent.isStopped = true;
-            navAgent.velocity = Vector3.zero;
-            navAgent.ResetPath();
-            navAgent.enabled = false;
-        }
-        else if (navAgent != null && navAgent.enabled)
-        {
-            // Agent not on NavMesh, just disable
-            navAgent.enabled = false;
+            characterController.enabled = false;
         }
 
-        // 💤 ĐẶT ANIMATOR VỀ TRẠNG THÁI NGỦ (nhưng không disable)
+        // 💤 ĐẶT ANIMATOR VỀ TRẠNG THÁI NGỦ
         if (animator != null)
         {
-            animator.DisableAnimator(); // This now just sets idle state
+            animator.DisableAnimator();
         }
 
-        Debug.Log($"[AIEntity] 💤 {gameObject.name} Sleep - NavAgent: OFF | Animator: Idle");
+        Debug.Log($"[AIEntity] 💤 {gameObject.name} Sleep - CharacterController: Disabled");
     }
 
     public void WakeUp()
     {
-        if (!IsSleeping) return; // Tránh gọi nhiều lần
+        if (!IsSleeping) return;
 
         IsSleeping = false;
         if (controller != null)
             controller.isSleeping = false;
 
-        // ✅ BẬT LẠI NAVMESHAGENT
-        if (navAgent != null)
+        // ✅ BẬT LẠI CHARACTER CONTROLLER
+        if (characterController != null)
         {
-            // Try to place on NavMesh first
-            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 10f, NavMesh.AllAreas))
-            {
-                transform.position = hit.position;
-            }
-
-            navAgent.enabled = true;
-
-            // Wait one frame before using NavMeshAgent methods
-            StartCoroutine(WakeUpDelayed());
-        }
-        else
-        {
-            // No NavMeshAgent, just wake animator
-            if (animator != null)
-            {
-                animator.EnableAnimator();
-            }
-
-            if (isServer && controller?.CurrentState != null)
-            {
-                controller.CurrentState.Update();
-            }
+            characterController.enabled = true;
         }
 
-        Debug.Log($"[AIEntity] ⏰ {gameObject.name} Wake - NavAgent: ON | Animator: Active");
-    }
-
-    private System.Collections.IEnumerator WakeUpDelayed()
-    {
-        yield return null; // Wait one frame
-
-        if (navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
-        {
-            navAgent.isStopped = false;
-            navAgent.velocity = Vector3.zero;
-        }
-
-        // ✅ ĐÁNH THỨC ANIMATOR (resync state)
+        // ✅ ĐÁNH THỨC ANIMATOR
         if (animator != null)
         {
-            animator.EnableAnimator(); // This resyncs animation state
+            animator.EnableAnimator();
         }
 
         // 🔥 Force FSM update
@@ -170,5 +147,7 @@ public class AIEntity : NetworkBehaviour
         {
             controller.CurrentState.Update();
         }
+
+        Debug.Log($"[AIEntity] ⏰ {gameObject.name} Wake - CharacterController: Enabled");
     }
 }

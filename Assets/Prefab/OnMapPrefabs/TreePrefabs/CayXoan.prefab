@@ -305,21 +305,23 @@ MonoBehaviour:
   maxDropCount: 3
   dropRadius: 0.2
   dropHeight: 0.1
+  isDestroyed: 0
+  isBeingDestroyed: 0
+  uniqueId: 
+  maxInteractDistance: 3
   treeType: 0
   treeSize: 1
   treeLogPrefab: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
   treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
   treeStumpPrefab: {fileID: 9190801894893699412, guid: 8042dffe65e713944a0931b5e0ffae8b, type: 3}
   stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  destructionFxPrefab: {fileID: 0}
-  particleSpawnPosition: {fileID: 7243041134542501232}
-  treeData:
-    position: {x: 0, y: 0, z: 0}
-    rotation: {x: 0, y: 0, z: 0, w: 0}
-    scale: {x: 0, y: 0, z: 0}
-    prefabIndex: 0
-    isCut: 0
-  spawner: {fileID: 0}
+  halfLogSpacing: 1.2
+  useColliderBoundsForLogLength: 1
+  manualLogLength: 5
+  overrideMinDropCount: -1
+  overrideMaxDropCount: -1
+  debugMode: 1
+  verboseDebug: 1
 --- !u!136 &4083688803817104397
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -333,7 +335,7 @@ CapsuleCollider:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 512
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0

@@ -2,6 +2,7 @@
 using Mirror;
 using System;
 using Mirror.Examples.Benchmark;
+using System.Collections;
 
 public class PlayerStatManager : NetworkBehaviour, IDamageable
 {
@@ -39,7 +40,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [Header("Hunger Effects")]
     [SerializeField] private float starvationDamageInterval = 2f;
     [SerializeField] private int starvationDamage = 1;
-    [SerializeField] private int minimumHealthFromStarvation = 20; // NEW: Health won't go below this from starvation
+    [SerializeField] private int minimumHealthFromStarvation = 20;
     [SerializeField] private float regenInterval = 1.5f;
     [SerializeField] private int regenAmount = 1;
 
@@ -51,6 +52,16 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [SerializeField] private Animator animator;
     [SerializeField] private CharacterController characterController;
     [SerializeField] private PlayableAnimationBlender playableAnimationBlender;
+
+    [Header("Screen Damage Effect")]
+    [SerializeField] private Material screenDamageMaterial;
+    [SerializeField] private float damagedVignetteRadius = 0.3f;
+    [SerializeField] private float vignetteRecoveryDelay = 1f; // Seconds before recovery starts
+    [SerializeField] private float vignetteRecoverySpeed = 1f; // Speed of recovery
+
+    private float currentVignetteRadius = 1f;
+    private float vignetteRecoveryTimer = 0f;
+    private bool isRecoveringVignette = false;
 
     private bool isDead = false;
 
@@ -93,12 +104,77 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     {
         if (UIManager.Instance != null && isLocalPlayer)
             UIManager.Instance.HookPlayer(this);
+
+        // Initialize screen effect
+        if (isLocalPlayer && screenDamageMaterial != null)
+        {
+            currentVignetteRadius = 1f;
+            
+            screenDamageMaterial.SetFloat("_Vignette_Radius", 1f);
+        }
     }
 
     private void Update()
     {
         if (!isLocalPlayer) return;
+
         HandleStaminaClient();
+        HandleScreenDamageEffect();
+    }
+
+    // ==========================================================
+    // SCREEN DAMAGE EFFECT
+    // ==========================================================
+    private void HandleScreenDamageEffect()
+    {
+        if (screenDamageMaterial == null) return;
+
+        // Count down the recovery timer
+        if (vignetteRecoveryTimer > 0f)
+        {
+            vignetteRecoveryTimer -= Time.deltaTime;
+
+            // Start recovery when timer reaches zero
+            if (vignetteRecoveryTimer <= 0f)
+            {
+                isRecoveringVignette = true;
+            }
+        }
+
+        // Recover vignette back to 1
+        if (isRecoveringVignette)
+        {
+            currentVignetteRadius = Mathf.MoveTowards(
+                currentVignetteRadius,
+                1f,
+                vignetteRecoverySpeed * Time.deltaTime
+            );
+
+            screenDamageMaterial.SetFloat("_Vignette_Radius", currentVignetteRadius);
+
+            // Stop recovering when fully recovered
+            if (currentVignetteRadius >= 1f)
+            {
+                isRecoveringVignette = false;
+            }
+        }
+    }
+
+    private void TriggerScreenDamage()
+    {
+        Debug.Log($"TriggerScreenDamage called! Material null? {screenDamageMaterial == null}");
+
+        if (screenDamageMaterial == null) return;
+
+        // Drop vignette to damaged value immediately
+        currentVignetteRadius = damagedVignetteRadius;
+        screenDamageMaterial.SetFloat("_Vignette_Radius", currentVignetteRadius);
+
+        Debug.Log($"Set Vignette_Radius to {currentVignetteRadius}");
+
+        // Reset recovery timer and state
+        vignetteRecoveryTimer = vignetteRecoveryDelay;
+        isRecoveringVignette = false;
     }
 
     private void FixedUpdate()
@@ -109,10 +185,6 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             HandleRegenAndStarvationServer();
         }
     }
-
-    // ==========================================================
-    // STAMINA
-    // ==========================================================
     private void HandleStaminaClient()
     {
         if (Time.time - lastStaminaUseTime >= staminaRegenDelay)
@@ -181,7 +253,6 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             regenTimer = 0f;
 
         // Starvation damage when hunger is completely depleted
-        // BUT health won't go below the minimum threshold
         if (currentHunger <= 0f && currentHealth > minimumHealthFromStarvation)
         {
             starvationTimer += Time.fixedDeltaTime;
@@ -189,7 +260,6 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             {
                 starvationTimer = 0f;
 
-                // Apply damage but ensure we don't go below minimum
                 int damageToApply = starvationDamage;
                 if (currentHealth - damageToApply < minimumHealthFromStarvation)
                 {
@@ -220,12 +290,13 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     // DAMAGE & HEAL - WITH BODY PART SUPPORT
     // ==========================================================
 
-    // NEW: Separate method for starvation damage that doesn't trigger death
     [Server]
     private void DamageFromStarvation(int amount)
     {
         currentHealth = Mathf.Max(minimumHealthFromStarvation, currentHealth - amount);
         OnHealthSync(currentHealth, currentHealth);
+
+        TargetTriggerScreenDamage(amount);
 
         Debug.Log($"Starvation damage: {amount}. Health: {currentHealth}/{maxHealth}");
     }
@@ -258,12 +329,20 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
         currentHealth = Mathf.Max(0, currentHealth - amount);
         OnHealthSync(currentHealth, currentHealth);
 
+        TargetTriggerScreenDamage(amount);
         RpcPlayHitReaction();
 
         if (currentHealth <= 0)
         {
             DieServer(hit);
         }
+    }
+
+    [TargetRpc]
+    private void TargetTriggerScreenDamage(int damageAmount)
+    {
+        Debug.Log($"TargetRpc received! Damage: {damageAmount}, Material: {screenDamageMaterial != null}");
+        TriggerScreenDamage();
     }
 
     [ClientRpc]
@@ -287,7 +366,7 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     [Server]
     private void DieServer()
     {
-       // DieServer(new HitInfo(Vector3.zero, Vector3.zero, Vector3.zero, null, null));
+        DieServer(new HitInfo(Vector3.zero, Vector3.zero, Vector3.zero, null, null));
     }
 
     [Server]
@@ -370,6 +449,14 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
             var movement = GetComponent<PlayerMovement>();
             if (movement != null)
                 movement.enabled = false;
+
+            // Hide main HUD
+            if (UIManager.Instance != null)
+                UIManager.Instance.SetHUDActive(false);
+
+            // Show death screen with countdown
+            if (DeathUIManager.Instance != null)
+                DeathUIManager.Instance.ShowDeathScreen(this);
         }
 
         // Disable animator
@@ -384,7 +471,9 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     }
 
     private void OnHealthSync(int oldValue, int newValue)
-        => OnHealthChanged?.Invoke(newValue, maxHealth);
+    {
+        OnHealthChanged?.Invoke(newValue, maxHealth);
+    }
 
     // ==========================================================
     // IDamageable IMPLEMENTATION
@@ -393,8 +482,27 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     public bool IsDead() => isDead;
 
     // ==========================================================
-    // RESPAWN
+    // RESPAWN SYSTEM
     // ==========================================================
+
+    /// <summary>
+    /// Client requests respawn from server
+    /// </summary>
+    [Command]
+    public void RequestRespawn()
+    {
+        if (!isDead) return;
+
+        // Get spawn position from DeathUIManager
+        Vector3 spawnPosition = Vector3.zero;
+        if (DeathUIManager.Instance != null)
+        {
+            spawnPosition = DeathUIManager.Instance.GetSpawnPoint();
+        }
+
+        Respawn(spawnPosition);
+    }
+
     [Server]
     public void Respawn(Vector3 spawnPosition)
     {
@@ -422,23 +530,91 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     {
         isDead = false;
 
-        // Re-enable movement
+        // Reset screen damage effect
+        if (isLocalPlayer && screenDamageMaterial != null)
+        {
+            currentVignetteRadius = 1f;
+          
+            screenDamageMaterial.SetFloat("Vignette_Radius", 1f);
+        }
+
+        // STEP 1: Disable ragdoll FIRST (re-enables CharacterController)
+        if (playerRagdoll != null)
+            playerRagdoll.SetRagdoll(false);
+
+        // STEP 2: Completely reset the animation system
+        StartCoroutine(RespawnAnimationSystemReset());
+    }
+
+    private IEnumerator RespawnAnimationSystemReset()
+    {
+        // Disable all animation systems
+        if (playableAnimationBlender != null)
+        {
+            playableAnimationBlender.enabled = false;
+        }
+
+        if (animator != null)
+        {
+            animator.enabled = false;
+        }
+
+        // Wait 2 frames for complete cleanup
+        yield return null;
+        yield return null;
+
+        // Re-enable animator FIRST
+        if (animator != null)
+        {
+            animator.enabled = true;
+            animator.Rebind(); // Force rebind all parameters
+
+        }
+
+        // Wait 1 frame for animator to stabilize
+        yield return null;
+
+        // Reset PlayerAnimator state
+        var playerAnimator = GetComponent<PlayerAnimator>();
+        if (playerAnimator != null)
+        {
+            playerAnimator.ResetAnimatorState();
+        }
+
+        // Wait 1 more frame
+        yield return null;
+
+        // Now reset and re-enable PlayableAnimationBlender
+        if (playableAnimationBlender != null)
+        {
+            // Reset the system BEFORE enabling
+            playableAnimationBlender.ResetSystem();
+
+            // Re-enable it
+            playableAnimationBlender.enabled = true;
+
+            // Reinitialize to capture fresh bone states
+            playableAnimationBlender.Reinitialize();
+        }
+
+        // Final frame wait
+        yield return null;
+
+        // Re-enable movement and UI for local player
         if (isLocalPlayer)
         {
             var movement = GetComponent<PlayerMovement>();
             if (movement != null)
                 movement.enabled = true;
+
+            if (UIManager.Instance != null)
+                UIManager.Instance.SetHUDActive(true);
+
+            if (DeathUIManager.Instance != null)
+                DeathUIManager.Instance.HideDeathScreen();
         }
 
-        // Re-enable animator
-        if (animator != null)
-            animator.enabled = true;
-
-        // Disable ragdoll (this also re-enables CharacterController)
-        if (playerRagdoll != null)
-            playerRagdoll.SetRagdoll(false);
-
-        Debug.Log($"{gameObject.name} respawned");
+        Debug.Log($"{gameObject.name} respawned - animation system fully reset");
     }
 
     // ==========================================================
@@ -449,6 +625,8 @@ public class PlayerStatManager : NetworkBehaviour, IDamageable
     {
         if (isServer)
             Damage(damageTest);
+        else
+            TriggerScreenDamage(); // Test screen effect in editor without server
     }
 
     [ContextMenu("Heal Test")]

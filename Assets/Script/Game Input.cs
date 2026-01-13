@@ -4,6 +4,8 @@ using System;
 
 public class GameInput : MonoBehaviour
 {
+    // ✅ NO SINGLETON - Each player GameObject has its own GameInput component
+
     // Existing events
     public event EventHandler OnJump;
     public event EventHandler OnInteract;
@@ -12,13 +14,13 @@ public class GameInput : MonoBehaviour
     public event EventHandler<float> OnScroll;
     public event EventHandler<int> OnNumberKeyPressed;
     public event EventHandler OnDropItem;
-    public event EventHandler OnAttack; // (kept for backward compatibility)
+    public event EventHandler OnAttack;
     public event EventHandler OnSprintStarted;
     public event EventHandler OnSprintCanceled;
     public event EventHandler OnInteractStarted;
     public event EventHandler OnInteractFinished;
 
-    // ✅ New events for continuous attack support
+    // New events for continuous attack support
     public event EventHandler OnAttackStarted;
     public event EventHandler OnAttackCanceled;
 
@@ -39,12 +41,28 @@ public class GameInput : MonoBehaviour
     private InputAction dropAction;
 
     private int lastSelectedSlot = -1;
+    private bool isLocalPlayer = false; // ✅ Track if this is the local player
 
     public bool IsAttackHeld { get; private set; } = false;
 
     private void Awake()
     {
+        // Don't enable yet - wait for initialization
+    }
 
+    // ✅ Call this from your player spawn/setup script
+    public void Initialize(bool isLocal)
+    {
+        isLocalPlayer = isLocal;
+
+        if (!isLocalPlayer)
+        {
+            // Disable this component for non-local players
+            enabled = false;
+            return;
+        }
+
+        // Only enable input for local player
         pauseAction = inputActions.FindAction("pauseMenu");
         pauseAction.Enable();
         pauseAction.performed += PauseAction_performed;
@@ -81,26 +99,25 @@ public class GameInput : MonoBehaviour
 
         attackAction = inputActions.FindAction("Attack");
         attackAction.Enable();
-        attackAction.started += AttackAction_started;   // 🟢 Press down
-        attackAction.canceled += AttackAction_canceled; // 🔴 Release
-        attackAction.performed += AttackAction_performed; // 🟡 One-shot click
-
+        attackAction.started += AttackAction_started;
+        attackAction.canceled += AttackAction_canceled;
+        attackAction.performed += AttackAction_performed;
 
         aimAction = inputActions.FindAction("Aim");
         aimAction.Enable();
         aimAction.started += AimAction_started;
         aimAction.canceled += AimAction_canceled;
-        
 
         dropAction = inputActions.FindAction("DropItem");
         dropAction.Enable();
         dropAction.performed += DropAction_performed;
-    }
 
-   
+        Debug.Log("[GameInput] Input actions enabled for local player");
+    }
 
     private void Update()
     {
+        if (!isLocalPlayer) return;
         if (Keyboard.current == null) return;
 
         // Handle number keys
@@ -134,10 +151,12 @@ public class GameInput : MonoBehaviour
             _ => Key.None
         };
     }
+
     private void PauseAction_performed(InputAction.CallbackContext obj)
     {
-        OnShowPauseMenu?.Invoke(this,EventArgs.Empty);
+        OnShowPauseMenu?.Invoke(this, EventArgs.Empty);
     }
+
     private void DropAction_performed(InputAction.CallbackContext obj)
     {
         OnDropItem?.Invoke(this, EventArgs.Empty);
@@ -169,6 +188,7 @@ public class GameInput : MonoBehaviour
         IsAttackHeld = false;
         OnAttackCanceled?.Invoke(this, EventArgs.Empty);
     }
+
     private void AimAction_canceled(InputAction.CallbackContext obj)
     {
         OnAimCanceled?.Invoke(this, EventArgs.Empty);
@@ -178,6 +198,7 @@ public class GameInput : MonoBehaviour
     {
         OnAimStarted?.Invoke(this, EventArgs.Empty);
     }
+
     private void NumberKeyAction_performed(InputAction.CallbackContext obj)
     {
         int slot = Mathf.Clamp(Mathf.RoundToInt(obj.ReadValue<float>()), 1, 9);
@@ -218,6 +239,25 @@ public class GameInput : MonoBehaviour
 
     public Vector2 GetMovementVector()
     {
-        return moveAction.ReadValue<Vector2>();
+        if (!isLocalPlayer) return Vector2.zero;
+        return moveAction?.ReadValue<Vector2>() ?? Vector2.zero;
+    }
+
+    private void OnDestroy()
+    {
+        if (!isLocalPlayer) return;
+
+        // Clean up input actions
+        pauseAction?.Disable();
+        moveAction?.Disable();
+        Jump?.Disable();
+        Sprint?.Disable();
+        interactAction?.Disable();
+        showInventory?.Disable();
+        scrollAction?.Disable();
+        numberKeyAction?.Disable();
+        attackAction?.Disable();
+        aimAction?.Disable();
+        dropAction?.Disable();
     }
 }
