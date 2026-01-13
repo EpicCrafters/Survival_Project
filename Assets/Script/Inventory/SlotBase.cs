@@ -5,7 +5,6 @@ public class SlotBase : MonoBehaviour, IDropHandler
 {
     public virtual void OnDrop(PointerEventData eventData)
     {
-
         var obj = eventData.pointerDrag;
         if (obj == null) return;
 
@@ -17,8 +16,8 @@ public class SlotBase : MonoBehaviour, IDropHandler
 
         if (from == null || to == null) return;
 
-        item.droppedOnSlot = true;
-        InventoryManager.instance.OnItemDropped(from, to);
+        var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+        input.RequestMove(from.index, to.index);
     }
 
 }

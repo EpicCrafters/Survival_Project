@@ -51,17 +51,17 @@ public class InventoryItem : MonoBehaviour,
     // -------------------------------------------------
     public void OnBeginDrag(PointerEventData eventData)
     {
+        //  CHẶN CHUỘT PHẢI
         if (eventData.button != PointerEventData.InputButton.Left)
         {
             validDrag = false;
             return;
         }
 
+        dragButton = eventData.button;
         validDrag = true;
 
         originSlot = GetComponentInParent<InventorySlot>();
-        parentAfterDrag = transform.parent;
-        droppedOnSlot = false;
 
         Canvas canvas = GetComponentInParent<Canvas>();
         transform.SetParent(canvas.transform, true);
@@ -69,8 +69,6 @@ public class InventoryItem : MonoBehaviour,
 
         canvasGroup.blocksRaycasts = false;
         image.raycastTarget = false;
-
-        InventoryManager.instance.isDraggingItem = true;
     }
     public void OnDrag(PointerEventData eventData)
     {
@@ -79,14 +77,28 @@ public class InventoryItem : MonoBehaviour,
     }
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (!validDrag) return;
+        if (!validDrag)
+            return;
 
         validDrag = false;
-
         canvasGroup.blocksRaycasts = true;
         image.raycastTarget = true;
 
-        InventoryManager.instance.EndDrag(this);
+        // Nếu thả ra ngoài inventory drop
+        var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
+        if (view != null && !view.IsPointerInsideInventory())
+        {
+            var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+            if (input != null && originSlot != null)
+            {
+                int fromIndex = originSlot.index;
+                int count = GetCount(); // hoặc 1 nếu muốn drop từng cái
+                input.RequestDrop(fromIndex, count);
+            }
+        }
+
+        //  Luôn hủy UI drag cũ
+        Destroy(gameObject);
     }
 
     public void SetAlpha(float a)
@@ -113,19 +125,32 @@ public class InventoryItem : MonoBehaviour,
     }
 
     public void OnPointerClick(PointerEventData eventData)
-    {
-        if (eventData.button != PointerEventData.InputButton.Right)
-            return;
-
+    {      
         InventorySlot slot = GetComponentInParent<InventorySlot>();
-        if (slot == null) return;
+        if (slot == null)
+        {
+            Debug.Log("slot Item NULL");
+            return;
+        }
+        Debug.Log("slot item NO NULL");
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            Debug.Log("RIGHT CLICK DETECTED");
 
-        var inv = InventoryManager.instance;
+            var sm = SystemManager.Instance;
+            Debug.Log($"SystemManager = {sm}");
 
-        if (!inv.splitState.active)
-            inv.StartSplit(slot.index);
-        else if (inv.splitState.sourceSlot == slot.index)
-            inv.IncreaseSplit(slot.index);
+            var input = sm != null ? sm.GetComponentInChildren<InventoryInput>() : null;
+            Debug.Log($"InventoryInput = {input}");
+
+            if (input == null)
+            {
+                Debug.LogError("InventoryInput NOT FOUND or INACTIVE");
+                return;
+            }
+
+            input.RequestSplitHalf(slot.index);
+        }
     }
 
     public int GetSlotIndex()

@@ -51,6 +51,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   mode: 2
+  useLocalPlayerCamera: 1
 --- !u!1 &3590186371616733909
 GameObject:
   m_ObjectHideFlags: 0
@@ -137,6 +138,7 @@ GameObject:
   - component: {fileID: 2073235840559455511}
   - component: {fileID: 5130183673664764821}
   - component: {fileID: 2777582383410944779}
+  - component: {fileID: 3235002433140131181}
   m_Layer: 3
   m_Name: CampFire
   m_TagString: Untagged
@@ -175,14 +177,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f5df254ec1b10b249b772caf32fbb06a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   maxFuel: 10
-  currentFuel: 0
+  burnTimePerFuel: 5
+  maxLightIntensity: 3
+  fireFx: {fileID: 0}
+  flameLight: {fileID: 5116112701067137036}
   campfireCanvas: {fileID: 7744375159023521741}
   fuelText: {fileID: 2690753551411240984}
-  Fire: {fileID: 1532637300732451593}
-  flameLight: {fileID: 5116112701067137036}
-  burnTimerMax: 60
-  currentLightIntensityMax: 4
 --- !u!135 &2777582383410944779
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -204,6 +208,23 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 1.51
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &3235002433140131181
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3693545010943558659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b91ecbcc199f4492b9a91e820070131, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sceneId: 0
+  _assetId: 45809174
+  serverOnly: 0
+  visibility: 0
+  hasSpawned: 0
 --- !u!1 &6047050640057668419
 GameObject:
   m_ObjectHideFlags: 0

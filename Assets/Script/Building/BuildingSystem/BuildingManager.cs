@@ -100,6 +100,7 @@ public class BuildManager : NetworkBehaviour
             placementSystem.ServerPlaceObject(pos, rotY, obj, playerHolding, previewAnchor, this);
         else
             CmdRequestPlace(pos, rotY, obj.id, previewAnchor ? previewAnchor.GetComponent<NetworkIdentity>()?.netId ?? 0 : 0);
+        playerHolding.OnPlaced();
     }
 
     [Command]

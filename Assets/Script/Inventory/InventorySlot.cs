@@ -35,12 +35,12 @@ public class InventorySlot : SlotBase, IPointerClickHandler
         if (eventData.button != PointerEventData.InputButton.Left)
             return;
 
-        var inv = InventoryManager.instance;
+        var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
+        if (view == null || !view.HasActiveSplit())
+            return;
 
-        if (inv != null && inv.splitState.active)
-        {
-            inv.PlaceSplit(index);
-        }
+        var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+        input?.RequestPlaceSplit(index);
     }
 
     // ---------------------------------------------------------

@@ -10,6 +10,12 @@ public class UIManager : MonoBehaviour
     [Header("Inventory UI")]
     [SerializeField] private GameObject mainInventory;
 
+    [Header("World Item Info")]
+    [SerializeField] private GameObject worldItemPanel;
+    [SerializeField] private TMP_Text itemNameText;
+    [SerializeField] private TMP_Text itemCountText;
+    [SerializeField] private Image itemIcon;
+
     [Header("Player HUD")]
     [SerializeField] private Image healthFill;          // Thanh máu chính 
     [SerializeField] private Image healthDamageFill;    // Thanh máu phụ 
@@ -117,20 +123,75 @@ public class UIManager : MonoBehaviour
     {
         if (eWord != null)
             eWord.gameObject.SetActive(false);
+        if(worldItemPanel != null)
+        {
+            worldItemPanel.gameObject.SetActive(false);
+        }
     }
 
     // Đổi nội dung chữ "E" → ví dụ "Nhấn E để nhặt"
-    public void ChangeInteractText(string newText)
+    public void ChangeInteractText(
+      string actionText,
+      string itemName = null,
+      Sprite icon = null,
+      int count = 0
+  )
     {
+        // Chữ E / hành động
         if (eWord != null)
-            eWord.text = newText;
-    }
+            eWord.text = actionText;
 
-    public void ToggleInventory(bool show)
-    {
-        if (mainInventory != null)
-            mainInventory.SetActive(show);
+        // Nếu có item info  hiển thị panel
+        if (itemName != null)
+        {
+            //Debug.Log("DEBUG: itemNameNot NULL");
+            if (worldItemPanel != null)
+            {
+                //Debug.Log("DEBUG: panel Not NULL");
+                worldItemPanel.SetActive(true);
+            }
+
+            if (itemNameText != null)
+                itemNameText.text = itemName;
+
+            if (itemCountText != null)
+                itemCountText.text = $"x{count}";
+
+            if (itemIcon != null)
+                itemIcon.sprite = icon;
+        }
+        else
+        {
+            if (worldItemPanel != null)
+                worldItemPanel.SetActive(false);
+        }
     }
+    public bool IsInventoryOpen()
+    {
+       
+        return mainInventory != null && mainInventory.activeSelf;
+    }
+    public void ToggleInventory(bool show)
+{
+    if (mainInventory == null)
+        return;
+
+    mainInventory.SetActive(show);
+
+    //if (show)
+    //{
+    //    // MỞ inventory
+    //    Unlock();
+    //}
+    //else
+    //{
+    //    var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+    //    input?.RequestCancelSplit();
+    //    CraftingManager.Instance?.ReturnCraftingItems();
+    //    // ĐÓNG inventory
+    //    Lock();
+    //}
+}
 
     /// <summary>
     /// Show/hide the main player HUD

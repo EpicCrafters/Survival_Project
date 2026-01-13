@@ -146,10 +146,12 @@ public class PauseMenuUI : MonoBehaviour
         mainMenuPanel.SetActive(false);
         settingsMenuPanel.SetActive(false);
 
-        // Sử dụng CursorManager - nó sẽ tự động kiểm tra death screen
+        // Sử dụng CursorManager - nó sẽ tự động kiểm tra các UI khác (death screen, inventory, etc.)
         if (CursorManager.Instance != null)
         {
             CursorManager.Instance.HideCursor(CursorManager.CursorPriority.PauseMenu);
+            // Refresh to check if inventory is still open
+            CursorManager.Instance.RefreshCursorState();
         }
 
         if (AudioManager.Instance != null)

@@ -4,16 +4,15 @@ using UnityEngine;
 public class PlayerHoldingItem : NetworkBehaviour
 {
     [Header("Hand References - Tham chiếu tay")]
-    [SerializeField] public Transform holdingPoint;
-    [SerializeField] public Transform leftHandHoldingPoint;
+    [SerializeField] public Transform holdingPoint; // Tay phải
+    [SerializeField] public Transform leftHandHoldingPoint; // Tay trái
 
     [Header("References - Tham chiếu")]
     [SerializeField] public ItemPlacer itemPlacer;
     [SerializeField] private WeaponAnimatorHandler weaponHandler;
     [SerializeField] private BuildManager buildManager;
-
+    private BowStringController cachedBowController;
     // Biến private
-    private PlayerCombat playerCombat; // ✅ Combat reference for item switching checks
     private GameObject currentHoldingItem;
     private bool isHolding;
     private bool isWeapon;
@@ -21,73 +20,69 @@ public class PlayerHoldingItem : NetworkBehaviour
     public ItemData ItemData { get; private set; }
     public bool buildingType = false;
 
-    private BowStringController cachedBowController;
-
     [SyncVar(hook = nameof(OnItemChanged))]
     private int currentItemId = 0;
 
-    private void Awake()
-    {
-        // ✅ Find PlayerCombat component on same GameObject
-        playerCombat = GetComponent<PlayerCombat>();
-
-        if (playerCombat == null)
-        {
-            Debug.LogWarning("[PlayerHoldingItem] PlayerCombat component not found - item switching lock will not work!");
-        }
-    }
-
-    public BowStringController GetBowController() => cachedBowController;
-
-    /// <summary>
-    /// ✅ IMPROVED: Check if player can switch items before changing
-    /// </summary>
+    // ===========================================================
+    // Được gọi khi người chơi muốn cầm một item
+    // ===========================================================
     public void HoldingItem(ItemData itemData)
     {
         if (!isLocalPlayer) return;
 
-        // ✅ Check if combat is blocking item switching
-        if (playerCombat != null && !playerCombat.CanSwitchItems())
-        {
-            Debug.Log("[PlayerHoldingItem] Cannot switch items during attack!");
-            return;
-        }
-
         int newItemId = (itemData == null) ? 0 : itemData.id;
 
+        // Nếu đang cầm item giống nhau rồi thì skip
         if (currentItemId == newItemId && currentHoldingItem != null)
             return;
 
+        // Update local trước để responsive
         UpdateHeldItem(newItemId);
+
+        // Gửi lên server để sync với client khác
         CmdSetHeldItem(newItemId);
     }
 
+    // ===========================================================
     [Command]
     private void CmdSetHeldItem(int itemId)
     {
         currentItemId = itemId;
     }
 
+    // ===========================================================
+    // Hook được gọi khi SyncVar thay đổi (chạy trên TẤT CẢ client)
+    // ===========================================================
     private void OnItemChanged(int oldId, int newId)
     {
+        // Local player đã update trong HoldingItem() rồi, skip để tránh xử lý 2 lần
         if (isLocalPlayer)
         {
             return;
         }
 
+        // Update cho remote client
         UpdateHeldItem(newId);
     }
 
+    // ===========================================================
+    // Phương thức core để update held item (dùng bởi cả local và remote)
+    // ===========================================================
     private void UpdateHeldItem(int itemId)
     {
+        // Xóa item hiện tại
         ClearHeldItem();
 
+        // Tạo item mới nếu không rỗng
         if (itemId != 0)
         {
             CreateHeldItem(itemId);
         }
     }
-
+    public BowStringController GetBowController() => cachedBowController;
+    // ===========================================================
+    // Tạo visual của held item
+    // ===========================================================
     private void CreateHeldItem(int itemId)
     {
         ItemData data = ItemDatabase.Get(itemId);
@@ -104,13 +99,16 @@ public class PlayerHoldingItem : NetworkBehaviour
             return;
         }
 
-        Transform targetHand = holdingPoint;
+        // ✅ CHỌN TAY DỰA TRÊN LOẠI VŨ KHÍ
+        Transform targetHand = holdingPoint; // Mặc định: tay phải
 
+        // Chỉ kiểm tra loại vũ khí nếu nó thực sự là weapon với weapon stats hợp lệ
         if (data.type == ItemType.Weapon && data.weapon != null)
         {
             if (data.weapon.weaponType == WeaponType.Bow)
             {
                 isRangedWeapon = true;
+                // Cung đi vào tay TRÁI
                 if (leftHandHoldingPoint != null)
                 {
                     targetHand = leftHandHoldingPoint;
@@ -123,10 +121,12 @@ public class PlayerHoldingItem : NetworkBehaviour
             }
             else
             {
+                // Tất cả vũ khí khác (sword, axe, spear) đi vào tay PHẢI
                 Debug.Log($"[PlayerHoldingItem] Trang bị {data.itemName} ({data.weapon.weaponType}) vào tay PHẢI");
             }
         }
 
+        // Instantiate item trên tay đã chọn
         GameObject newItem = Instantiate(prefab, targetHand);
         newItem.transform.localPosition = Vector3.zero;
         newItem.transform.localRotation = Quaternion.identity;
@@ -136,6 +136,7 @@ public class PlayerHoldingItem : NetworkBehaviour
         ItemData = data;
         isHolding = true;
 
+        // LOGIC ĐẶT ITEM 
         if (data.itemPlace)
         {
             if (data.type == ItemType.BuildingPart)
@@ -155,9 +156,11 @@ public class PlayerHoldingItem : NetworkBehaviour
             buildManager.SetCurrentItem(data, this);
         }
 
+        // Gắn ItemHeld component
         var heldComp = newItem.GetComponent<ItemHeld>() ?? newItem.AddComponent<ItemHeld>();
         heldComp.Init(data, this);
 
+        // Tắt physics
         if (newItem.TryGetComponent<Collider>(out var col))
             col.enabled = false;
 
@@ -167,11 +170,13 @@ public class PlayerHoldingItem : NetworkBehaviour
             rb.useGravity = false;
         }
 
+        // Set weapon animation CHỈ cho local player
         if (data.type == ItemType.Weapon && isLocalPlayer)
         {
             isWeapon = true;
             weaponHandler?.EquipWeapon(data);
 
+            // ✅ SETUP BOW IK NẾU LÀ CUNG
             if (data.weapon != null && data.weapon.weaponType == WeaponType.Bow)
             {
                 SetupBowIK(newItem);
@@ -181,95 +186,37 @@ public class PlayerHoldingItem : NetworkBehaviour
         Debug.Log($"[PlayerHoldingItem] Đã tạo held item: {data.itemName} trên {targetHand.name}");
     }
 
+    // ===========================================================
+    // ✅ UPDATED: Setup IK target khi cung được trang bị
+    // ===========================================================
     private void SetupBowIK(GameObject bowObject)
     {
-        cachedBowController = bowObject.GetComponentInChildren<BowStringController>();
+        BowStringController bowController = bowObject.GetComponentInChildren<BowStringController>();
+        if (bowController == null)
+        {
+            Debug.LogWarning("[PlayerHoldingItem] Không tìm thấy BowStringController trên cung!");
+            return;
+        }
 
-        //if (cachedBowController == null)
-        //{
-        //    Debug.LogWarning("[PlayerHoldingItem] ⚠️ Không tìm thấy BowStringController!");
-        //    return;
-        //}
+        // ✅ CACHE THE BOW CONTROLLER
+        cachedBowController = bowController;
+        Debug.Log("[PlayerHoldingItem] ✅ Cached BowStringController");
 
-        //Debug.Log($"[PlayerHoldingItem] ✅ Cached BowStringController: {cachedBowController.gameObject.name}");
-
-        //Transform rightHandHoldPoint = null;
-        //Transform rightHintPosition = null;
-
-        //if (cachedBowController.stringMiddleBone != null)
-        //{
-        //    Transform offsetRightHand = cachedBowController.stringMiddleBone.Find("offsetRightHand");
-        //    if (offsetRightHand != null)
-        //    {
-        //        rightHandHoldPoint = offsetRightHand.Find("rightHandHoldPoint");
-        //    }
-
-        //    Transform hintOffset = FindChildRecursive(cachedBowController.stringMiddleBone, "Offset Right Hint");
-        //    if (hintOffset != null)
-        //    {
-        //        rightHintPosition = FindChildRecursive(hintOffset, "rightHintPosition", "RightHintPosition");
-        //    }
-        //}
-
-        //PlayerIKController ikController = GetComponent<PlayerIKController>();
-        //if (ikController != null)
-        //{
-        //    if (cachedBowController.rightHandIKTarget != null)
-        //    {
-        //        ikController.SetLeftHandIKTarget(cachedBowController.rightHandIKTarget);
-        //        ikController.SetLeftHandIKEnabled(true);
-        //        ikController.SetLeftHandIKWeight(1f);
-        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup left hand IK target: {cachedBowController.rightHandIKTarget.name}");
-        //    }
-
-        //    if (rightHandHoldPoint != null)
-        //    {
-        //        ikController.SetRightHandIKTarget(rightHandHoldPoint);
-        //        ikController.SetRightHandIKWeight(1f);
-        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup right hand IK target: {rightHandHoldPoint.name}");
-        //    }
-
-        //    if (rightHintPosition != null)
-        //    {
-        //        ikController.SetRightHandPoleHintOverride(rightHintPosition);
-        //        Debug.Log($"[PlayerHoldingItem] ✅ Setup right hint override: {rightHintPosition.name}");
-        //    }
-        //}
-
+        // Rest of your code...
         PlayerItemUseHandler useHandler = GetComponent<PlayerItemUseHandler>();
         if (useHandler != null)
         {
-            if (cachedBowController.arrowSpawnPoint != null)
+            useHandler.SetArrowSpawnPoint(bowController.arrowSpawnPoint);
+            if (bowController.rightHandIKTarget != null)
             {
-                useHandler.SetArrowSpawnPoint(cachedBowController.arrowSpawnPoint);
-                Debug.Log($"[PlayerHoldingItem] ✅ Arrow spawn point assigned: {cachedBowController.arrowSpawnPoint.name}");
+                useHandler.SetBowIKTarget(bowController.rightHandIKTarget);
             }
-            else
-            {
-                Debug.LogWarning("[PlayerHoldingItem] ⚠️ Arrow spawn point is NULL on bow controller!");
-            }
-
-            //if (cachedBowController.rightHandIKTarget != null)
-            //{
-            //    useHandler.SetBowIKTarget(cachedBowController.rightHandIKTarget);
-            //}
-
-            //if (rightHandHoldPoint != null)
-            //{
-            //    useHandler.SetBowStringOverride(rightHandHoldPoint);
-            //}
-
-            //if (rightHintPosition != null)
-            //{
-            //    useHandler.SetBowRightHintOverride(rightHintPosition);
-            //}
-        }
-        else
-        {
-            Debug.LogWarning("[PlayerHoldingItem] ⚠️ PlayerItemUseHandler not found!");
         }
     }
 
+    // ===========================================================
+    // ✅ Helper để tìm child theo nhiều tên có thể có
+    // ===========================================================
     private Transform FindChildRecursive(Transform parent, params string[] names)
     {
         foreach (string name in names)
@@ -278,6 +225,7 @@ public class PlayerHoldingItem : NetworkBehaviour
             if (found != null) return found;
         }
 
+        // Tìm trong children đệ quy
         foreach (Transform child in parent)
         {
             Transform found = FindChildRecursive(child, names);
@@ -287,7 +235,10 @@ public class PlayerHoldingItem : NetworkBehaviour
         return null;
     }
 
-    private void ClearHeldItem()
+    // ===========================================================
+    // Xóa held item
+    // ===========================================================
+    public void ClearHeldItem()
     {
         if (currentHoldingItem != null)
         {
@@ -295,20 +246,28 @@ public class PlayerHoldingItem : NetworkBehaviour
             currentHoldingItem = null;
         }
 
+       
+
+        // ✅ ADD THIS
         cachedBowController = null;
+
+        isRangedWeapon = false;
         isRangedWeapon = false;
         isHolding = false;
         isWeapon = false;
         ItemData = null;
 
+        // ✅ Xóa bow IK khi đổi item
         if (isLocalPlayer)
         {
+            // Xóa IK controller
             PlayerIKController ikController = GetComponent<PlayerIKController>();
             if (ikController != null)
             {
                 ikController.ClearBowIK();
             }
 
+            // Thông báo cho PlayerItemUseHandler rằng item đã được đổi
             PlayerItemUseHandler useHandler = GetComponent<PlayerItemUseHandler>();
             if (useHandler != null)
             {
@@ -316,6 +275,7 @@ public class PlayerHoldingItem : NetworkBehaviour
             }
         }
 
+        // Hủy placement/building mode
         if (itemPlacer != null)
         {
             if (!buildingType)
@@ -330,27 +290,30 @@ public class PlayerHoldingItem : NetworkBehaviour
         buildingType = false;
     }
 
+    // ===========================================================
+    // Public Clear method (để tương thích ngược)
+    // ===========================================================
     public void Clear()
     {
         if (!isLocalPlayer) return;
         HoldingItem(null);
     }
 
+    // ===========================================================
+    // Được gọi khi người chơi đặt một item
+    // ===========================================================
     public void OnPlaced()
     {
         if (ItemData == null) return;
 
-        bool removed = InventoryManager.instance.RemoveItem(ItemData, 1);
-        if (!removed)
-        {
-            Clear();
-            return;
-        }
+        var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+        input?.RequestConsumeHeldItem(1);
 
-        if (InventoryManager.instance.GetItemCount(ItemData) == 0)
-            Clear();
     }
 
+    // ===========================================================
+    // Refresh held item khi inventory thay đổi
+    // ===========================================================
     public void RefreshHoldingItem(ItemData itemData, int currentCount)
     {
         if (!isLocalPlayer) return;
@@ -376,10 +339,17 @@ public class PlayerHoldingItem : NetworkBehaviour
         }
     }
 
+    // ===========================================================
     // Getters
+    // ===========================================================
     public bool IsHolding() => isHolding;
     public bool IsAWeapon() => isWeapon;
     public GameObject GetCurrentHeldObject() => currentHoldingItem;
-    public ItemData GetCurrentItemData() => ItemData;
+
+    public ItemData GetCurrentItemData()
+    {
+        return ItemData;
+    }
+   
     public bool IsRangedWeapon() => isRangedWeapon;
 }

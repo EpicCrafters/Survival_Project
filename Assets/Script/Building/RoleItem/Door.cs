@@ -55,4 +55,9 @@ public class Door : NetworkBehaviour, Iinteractable, IHasCustomText
     {
         return isOpen ? "Close Door" : "Open Door";
     }
+
+    public void Interact(PlayerHoldingItem playerHoldingItem)
+    {
+        throw new System.NotImplementedException();
+    }
 }

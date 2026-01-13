@@ -723,6 +723,11 @@ public class CookingCampFire : MonoBehaviour, Iinteractable, IHasCustomText
             burnedVisuals[slotIndex] = null;
         }
     }
+
+    public void Interact(PlayerHoldingItem playerHoldingItem)
+    {
+        throw new System.NotImplementedException();
+    }
 }
 
 // ========================================== 

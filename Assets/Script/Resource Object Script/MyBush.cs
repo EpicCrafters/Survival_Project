@@ -194,4 +194,9 @@ public class MyBush : BaseResource, Iinteractable
     public bool HasHarvestableItems() => hasHarvestableItems;
     public int GetRemainingHarvests() => currentHarvestCount;
     public BushType GetBushType() => bushType;
+
+    public void Interact(PlayerHoldingItem playerHoldingItem)
+    {
+        throw new System.NotImplementedException();
+    }
 }

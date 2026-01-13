@@ -7,9 +7,10 @@ public class CursorManager : MonoBehaviour
     public enum CursorPriority
     {
         Gameplay = 0,      // Lowest priority - normal gameplay / Ưu tiên thấp nhất - gameplay bình thường
-        PauseMenu = 1,     // Medium priority - pause menu / Ưu tiên trung bình - menu tạm dừng
-        DeathScreen = 2,   // High priority - death screen / Ưu tiên cao - màn hình chết
-        MainMenu = 3       // Highest priority - main menu / Ưu tiên cao nhất - menu chính
+        Inventory = 1,     // Low-medium priority - inventory / Ưu tiên thấp-trung bình - inventory
+        PauseMenu = 2,     // Medium priority - pause menu / Ưu tiên trung bình - menu tạm dừng
+        DeathScreen = 3,   // High priority - death screen / Ưu tiên cao - màn hình chết
+        MainMenu = 4       // Highest priority - main menu / Ưu tiên cao nhất - menu chính
     }
 
     private CursorPriority currentPriority = CursorPriority.Gameplay;
@@ -75,6 +76,12 @@ public class CursorManager : MonoBehaviour
             return CursorPriority.PauseMenu;
         }
 
+        // Check inventory (low-medium priority) / Kiểm tra inventory (ưu tiên thấp-trung bình)
+        if (IsInventoryActive())
+        {
+            return CursorPriority.Inventory;
+        }
+
         // Default to gameplay / Mặc định về gameplay
         return CursorPriority.Gameplay;
     }
@@ -91,6 +98,16 @@ public class CursorManager : MonoBehaviour
         return false;
     }
 
+    private bool IsInventoryActive()
+    {
+        // Check if UIManager exists and inventory is shown
+        if (UIManager.Instance != null)
+        {
+            return UIManager.Instance.IsInventoryOpen();
+        }
+        return false;
+    }
+
     private void SetCursorState(CursorPriority priority)
     {
         switch (priority)
@@ -100,6 +117,7 @@ public class CursorManager : MonoBehaviour
                 Cursor.visible = false; // Ẩn con trỏ
                 break;
 
+            case CursorPriority.Inventory:
             case CursorPriority.PauseMenu:
             case CursorPriority.DeathScreen:
             case CursorPriority.MainMenu:
@@ -114,6 +132,7 @@ public class CursorManager : MonoBehaviour
         CursorPriority newPriority = GetActiveHighestPriority();
         currentPriority = newPriority;
         SetCursorState(newPriority);
+        Debug.Log($"[CursorManager] Cursor state refreshed - Priority: {newPriority}");
     }
 
     // ✨ Helper methods

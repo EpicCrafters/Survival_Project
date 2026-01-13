@@ -15,37 +15,31 @@ public class PlayerSetup : NetworkBehaviour
     public PlayerInteract playerInteract;
     public PlayerIKController playerIKController;
     public PlayerCameraManager playerCameraManager;
-
     private Transform aimTarget;
+
 
     public override void OnStartLocalPlayer()
     {
         base.OnStartLocalPlayer();
-        name = $"Player[{netId}] (Local)";
 
-        // ============ Cache Components ============
+
+        gameInput = FindFirstObjectByType<GameInput>();
+        gameInput.Initialize(true);
+        // Cache components
         player = GetComponent<Player>();
         holdingItem = GetComponent<PlayerHoldingItem>();
-        playerCameraManager = GetComponent<PlayerCameraManager>();
-        playerItemUseHandler = GetComponent<PlayerItemUseHandler>();
-        gameInput = FindObjectOfType<GameInput>();
+        //Bind Inventory
+        name = $"Player[{netId}] (Local)";
+        var invData = GetComponentInChildren<InventoryData>();
+        var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
 
-        // ============ Setup Camera ============
-        cameraManager = FindFirstObjectByType<CameraManager>();
-        if (cameraManager != null && playerCameraManager != null)
-        {
-            cameraManager.AssignCameraToPlayer(playerCameraManager, transform);
-        }
-        else
-        {
-            if (cameraManager == null)
-                Debug.LogError("[PlayerSetup] CameraManager is null! Make sure it exists in the scene.");
-            if (playerCameraManager == null)
-                Debug.LogError("[PlayerSetup] PlayerCameraManager is null! Make sure it's attached to the player.");
-        }
+        view.Bind(invData);
+        CraftingManager.Instance.Bind(invData,view.CraftingSlots,view.InventorySlots);
+        var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
 
-        // ============ ✨ Setup Crosshair ============
-         crosshairManager = FindFirstObjectByType<CrosshairManager>();
+        input.SetGameInput(gameInput);
+        input.Bind(invData, holdingItem);
+        crosshairManager = FindFirstObjectByType<CrosshairManager>();
         if (crosshairManager != null && playerItemUseHandler != null)
         {
             playerItemUseHandler.SetCrosshairManager(crosshairManager);
@@ -58,64 +52,30 @@ public class PlayerSetup : NetworkBehaviour
             if (playerItemUseHandler == null)
                 Debug.LogWarning("[PlayerSetup] PlayerItemUseHandler is null!");
         }
-
-        // ============ UI Hooks ============
+        // UI hooks
         UIManager.Instance.HookPlayer(GetComponent<PlayerStatManager>());
+        //
+        //InventoryManager.instance?.SetPlayerHolding(holdingItem);
+        //InventoryManager.instance.SetGameInput(gameInput);
 
-        // ============ Setup Game Input for Components ============
-        player.SetUpGameInput(gameInput);
-        playerInteract.SetUpGameInput(gameInput);
-        playerCombat.SetUpGameInput(gameInput);
-
-        if (playerItemUseHandler != null && gameInput != null)
-        {
-            playerItemUseHandler.SetUpGameInput(gameInput);
-        }
-
-        // ============ Setup Inventory Manager ============
-        if (InventoryManager.instance != null)
-        {
-            InventoryManager.instance.Initialize(true);
-            InventoryManager.instance.SetPlayerHolding(holdingItem);
-            InventoryManager.instance.SetGameInput(gameInput);
-            Debug.Log("[PlayerSetup] InventoryManager initialized successfully");
-        }
-        else
-        {
-            Debug.LogError("[PlayerSetup] InventoryManager.instance is NULL! Make sure InventoryManager exists in the scene.");
-            StartCoroutine(TryFindInventoryManager());
-        }
-
-        // ============ Create Aim Target ============
+        // ============ 1. Assign Camera to Player ============
+        cameraManager = FindObjectOfType<CameraManager>();
+        if (cameraManager != null)
+            cameraManager.AssignCameraToPlayer(playerCameraManager,transform);
         GameObject aimObj = new GameObject($"AimTarget_{netId}");
         aimTarget = aimObj.transform;
+
         player.SetAimTarget(aimTarget);
         playerIKController.SetAimTargetIK(aimTarget);
         if (playableAnimationBlender != null)
             playableAnimationBlender.SetLookAtTarget(aimTarget);
+
+        //pLayer set up
+
+      playerCombat.SetUpGameInput(gameInput);
+
+
     }
 
-    private IEnumerator TryFindInventoryManager()
-    {
-        int attempts = 0;
-        int maxAttempts = 10;
-
-        while (InventoryManager.instance == null && attempts < maxAttempts)
-        {
-            Debug.LogWarning($"[PlayerSetup] Waiting for InventoryManager... (Attempt {attempts + 1}/{maxAttempts})");
-            yield return new WaitForSeconds(0.1f);
-            attempts++;
-        }
-
-        if (InventoryManager.instance != null)
-        {
-            InventoryManager.instance.Initialize(true);
-            InventoryManager.instance.SetPlayerHolding(holdingItem);
-            Debug.Log("[PlayerSetup] InventoryManager found and initialized via fallback");
-        }
-        else
-        {
-            Debug.LogError("[PlayerSetup] Failed to find InventoryManager after multiple attempts! Please add InventoryManager to your scene.");
-        }
-    }
+   
 }

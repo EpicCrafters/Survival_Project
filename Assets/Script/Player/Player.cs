@@ -80,7 +80,7 @@ public class Player : NetworkBehaviour
         if (controller == null)
             Debug.LogError("Thiếu CharacterController trên Player!");
 
-        gameInput = FindObjectOfType<GameInput>();
+        gameInput = FindFirstObjectByType<GameInput>();
 
         if (playerInteract == null)
             playerInteract = GetComponent<PlayerInteract>();
@@ -483,8 +483,30 @@ public class Player : NetworkBehaviour
 
     private void GameInput_OnShowInventory(object sender, System.EventArgs e)
     {
+        if (UIManager.Instance == null)
+        {
+            Debug.LogWarning("UIManager.Instance is NULL");
+            return;
+        }
+
         showInventory = !showInventory;
         UIManager.Instance.ToggleInventory(showInventory);
+
+        // Update cursor state through CursorManager
+        if (CursorManager.Instance != null)
+        {
+            if (showInventory)
+            {
+                CursorManager.Instance.ShowCursor(CursorManager.CursorPriority.Inventory);
+            }
+            else
+            {
+                var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+                input?.RequestCancelSplit();
+                CraftingManager.Instance?.ReturnCraftingItems();
+                CursorManager.Instance.HideCursor(CursorManager.CursorPriority.Inventory);
+            }
+        }
     }
 
     public void SetUpGameInput(GameInput gameinput)

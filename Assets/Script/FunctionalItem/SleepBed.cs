@@ -9,6 +9,10 @@ public class SleepBed : MonoBehaviour,Iinteractable
         StartCoroutine(SleepRoutine());
     }
 
+    public void Interact(PlayerHoldingItem playerHoldingItem)
+    {
+        throw new System.NotImplementedException();
+    }
 
     private System.Collections.IEnumerator SleepRoutine()
     {

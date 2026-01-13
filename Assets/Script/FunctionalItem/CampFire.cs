@@ -1,96 +1,190 @@
 ﻿using System.Collections;
+using Mirror;
 using TMPro;
 using UnityEngine;
 
-public class CampFire : MonoBehaviour, Iinteractable
+/// <summary>
+/// CampFire ONLINE – Server authoritative
+/// - Server giữ fuel + burning state
+/// - Client gửi request
+/// - Client tự render hiệu ứng
+/// </summary>
+public class CampFire : NetworkBehaviour, Iinteractable
 {
-    [Header("Thiết lập nhiên liệu")]
+    // ================= CONFIG =================
+
+    [Header("Fuel Config")]
     [SerializeField] private int maxFuel = 10;
-    [SerializeField] private int currentFuel = 0;
+
+    [Header("Burn Config")]
+    [SerializeField] private float burnTimePerFuel = 5f;
+    [SerializeField] private float maxLightIntensity = 3f;
+
+    [Header("Visual")]
+    [SerializeField] private ParticleSystem fireFx;
+    [SerializeField] private Light flameLight;
 
     [Header("UI")]
     [SerializeField] private Canvas campfireCanvas;
     [SerializeField] private TextMeshProUGUI fuelText;
 
-    [Header("Hiệu ứng")]
-    [SerializeField] private ParticleSystem Fire;
-    [SerializeField] private Light flameLight;
+    // ================= NETWORK STATE =================
 
-    [Header("Cài đặt lửa cháy")]
-    [SerializeField] private int burnTimerMax = 5; // thời gian để đốt 1 đơn vị nhiên liệu
-    [SerializeField] private int currentLightIntensityMax = 3;
+    [SyncVar(hook = nameof(OnFuelChanged))]
+    private int currentFuel = 0;
 
-    private float currentLightIntensity = 0f;
-    private Coroutine burnCoroutine;
-    private PlayerHoldingItem playerHoldingItem;
+    [SyncVar(hook = nameof(OnBurningChanged))]
+    private bool isBurning = false;
 
-    private void Awake()
+    // ================= LOCAL =================
+
+    private Coroutine burnRoutine;
+    private float currentLightIntensity;
+
+    // ================= INTERACT =================
+
+    /// <summary>
+    /// Được gọi từ PlayerInteract (client)
+    /// </summary>
+    public void Interact(PlayerHoldingItem interactor)
     {
-        playerHoldingItem = FindFirstObjectByType<PlayerHoldingItem>();
-        Fire.Stop();
-        flameLight.intensity = 0f;
-        HideUI();
+        if (!interactor.isLocalPlayer)
+            return;
+
+        if (!interactor.IsHolding())
+            return;
+
+        ItemData item = interactor.ItemData;
+        if (!IsValidFuel(item))
+            return;
+
+        InventoryInput input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+        if (input == null)
+            return;
+
+        int slotIndex = input.SelectedHotbarIndex;
+
+        CmdRequestAddFuel(slotIndex);
     }
 
-    // Gọi hàm này khi thêm nhiên liệu
-    private void OnFuelChanged()
+
+    // ================= SERVER =================
+    [Command(requiresAuthority = false)]
+    private void CmdRequestAddFuel(int slotIndex, NetworkConnectionToClient sender = null)
+    {
+        if (currentFuel >= maxFuel)
+            return;
+
+        if (sender == null || sender.identity == null)
+            return;
+
+        InventoryData inv = sender.identity.GetComponentInChildren<InventoryData>();
+        if (inv == null)
+            return;
+
+        if (!ConsumeFromSlot(inv, slotIndex))
+            return;
+
+        currentFuel++;
+        if (!isBurning)
+            isBurning = true;
+    }
+
+
+    /// <summary>
+    /// SERVER: trừ item từ hotbar
+    /// (tạm thời client-authoritative, sau có thể siết chặt)
+    /// </summary>
+    private bool ConsumeFromSlot(InventoryData inv, int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= inv.slots.Count)
+            return false;
+
+        var slot = inv.GetSlot(slotIndex);
+        if (slot.itemId < 0 || slot.count <= 0)
+            return false;
+
+        slot.count--;
+        inv.slots[slotIndex] = slot.count > 0
+            ? slot
+            : new InventoryData.SlotState { itemId = -1, count = 0 };
+
+        return true;
+    }
+
+
+    // ================= SYNC HOOKS =================
+
+    private void OnFuelChanged(int oldVal, int newVal)
     {
         UpdateFuelUI();
-
-        // Nếu đang không cháy và có nhiên liệu, bắt đầu cháy
-        if (burnCoroutine == null && currentFuel > 0)
-        {
-            burnCoroutine = StartCoroutine(BurnFuelCoroutine());
-        }
     }
 
-    // Coroutine xử lý lửa cháy và tiêu hao nhiên liệu
-    private IEnumerator BurnFuelCoroutine()
+    private void OnBurningChanged(bool oldVal, bool newVal)
     {
-        Fire.Play();
+        if (newVal)
+            StartBurnFX();
+        else
+            StopBurnFX();
+    }
 
-        while (currentFuel > 0)
+    // ================= CLIENT FX =================
+
+    private void StartBurnFX()
+    {
+        if (burnRoutine != null)
+            StopCoroutine(burnRoutine);
+
+        burnRoutine = StartCoroutine(BurnRoutine());
+    }
+
+    private void StopBurnFX()
+    {
+        if (burnRoutine != null)
+            StopCoroutine(burnRoutine);
+
+        burnRoutine = null;
+        fireFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        flameLight.intensity = 0f;
+    }
+
+    private IEnumerator BurnRoutine()
+    {
+        fireFx.Play();
+
+        while (isBurning)
         {
-            float t = 0f;
+            currentLightIntensity = Mathf.Lerp(
+                currentLightIntensity,
+                maxLightIntensity,
+                Time.deltaTime * 2f
+            );
 
-            // Dần tăng ánh sáng tới mức tối đa trong thời gian cháy
-            while (t < burnTimerMax)
-            {
-                t += Time.deltaTime;
-                currentLightIntensity = Mathf.Lerp(0f, currentLightIntensityMax, t / burnTimerMax);
-                flameLight.intensity = currentLightIntensity;
-
-                yield return null;
-            }
-
-            currentFuel--;
-            UpdateFuelUI();
-        }
-
-        // Khi hết nhiên liệu
-        Fire.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-
-        // Giảm dần ánh sáng xuống 0
-        while (currentLightIntensity > 0f)
-        {
-            currentLightIntensity = Mathf.Max(currentLightIntensity - Time.deltaTime * 2f, 0f);
             flameLight.intensity = currentLightIntensity;
             yield return null;
         }
+    }
 
-        burnCoroutine = null;
+    // ================= UTIL =================
+
+    private bool IsValidFuel(ItemData item)
+    {
+        return item != null &&
+               item.type == ItemType.Resource &&
+               item.itemName == "Stick";
     }
 
     private void UpdateFuelUI()
     {
         if (fuelText != null)
-            fuelText.text = $"Fuel: {currentFuel} / {maxFuel}";
+            fuelText.text = $"Fuel: {currentFuel}/{maxFuel}";
     }
 
     public void ShowUI()
     {
         if (campfireCanvas != null)
             campfireCanvas.enabled = true;
+
         UpdateFuelUI();
     }
 
@@ -100,46 +194,8 @@ public class CampFire : MonoBehaviour, Iinteractable
             campfireCanvas.enabled = false;
     }
 
-    // Xử lý khi player tương tác
     public void Interact()
     {
-        if (playerHoldingItem == null) return;
-
-        GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
-        if (heldObject == null) return;
-
-        Item itemComponent = heldObject.GetComponent<Item>();
-        if (itemComponent == null) return;
-
-        ItemData data = itemComponent.itemData;
-
-        if (data.type == ItemType.Resource && data.itemName == "Stick")
-        {
-            if (currentFuel >= maxFuel)
-            {
-                Debug.Log("Campfire đã đầy nhiên liệu");
-                return;
-            }
-
-            bool removed = InventoryManager.instance.RemoveItem(data, 1);
-            if (!removed)
-            {
-                Debug.LogWarning("Không còn Stick để thêm vào lửa");
-                return;
-            }
-
-            currentFuel++;
-
-            // Cập nhật UI & hiệu ứng cháy
-            OnFuelChanged();
-
-            // Làm mới vật phẩm cầm
-            int newCount = InventoryManager.instance.GetItemCount(data);
-            playerHoldingItem.RefreshHoldingItem(data, newCount);
-        }
-        else
-        {
-            Debug.Log("Phải cầm Stick mới có thể đốt lửa");
-        }
+        throw new System.NotImplementedException();
     }
 }

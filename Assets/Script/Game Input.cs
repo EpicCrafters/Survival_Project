@@ -62,6 +62,9 @@ public class GameInput : MonoBehaviour
             return;
         }
 
+
+
+        Debug.Log("Game Input Created");
         // Only enable input for local player
         pauseAction = inputActions.FindAction("pauseMenu");
         pauseAction.Enable();
