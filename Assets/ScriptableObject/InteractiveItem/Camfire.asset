@@ -17,7 +17,7 @@ MonoBehaviour:
   image: {fileID: 21300000, guid: b73371ccd1f6e754e835dbc76c68a5c4, type: 3}
   type: 3
   worldPrefab: {fileID: 3693545010943558659, guid: 4d7621a60ac2f114cb2b84b1b9fe5c0f, type: 3}
-  heldPrefab: {fileID: 919132149155446097, guid: f7bdd6a20b5ad5e42b0f555df451f011, type: 3}
+  heldPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
   itemPlace: 1
   snapToGrid: 1
   gridSize: 2

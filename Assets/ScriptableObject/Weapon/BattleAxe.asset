@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 2
   itemName: BattleAxe
-  image: {fileID: 0}
+  image: {fileID: 21300000, guid: d8e426875288aec40a871e777031881f, type: 3}
   type: 0
   worldPrefab: {fileID: 592170502877815645, guid: fdf04e674cb43f84bbf14e48f99de760, type: 3}
   heldPrefab: {fileID: 592170502877815645, guid: a5bf1c9763002044885a1215f9354b63, type: 3}
@@ -27,6 +27,10 @@ MonoBehaviour:
     range: 0
     combos:
     - animation: {fileID: 7400000, guid: f1cc82a41a5f0334e97588e2b05811b5, type: 2}
+    projectileData: {fileID: 0}
+    maxChargeTime: 1.5
+    arrowProjectilePrefab: {fileID: 0}
+    arrowVisualPrefab: {fileID: 0}
     knockback:
       horizontalForce: 30
       upwardForce: 5
@@ -43,6 +47,9 @@ MonoBehaviour:
   consumable:
     healAmount: 0
     fillAmount: 0
+    hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10
@@ -55,3 +62,8 @@ MonoBehaviour:
     groundMask:
       serializedVersion: 2
       m_Bits: 0
+    verticalOffset: 0
+    placementAnchorOffset: {x: 0, y: 0, z: 0}
+    maxCornerDrop: 0.4
+    raiseToHighest: 1
+    placementRole: {fileID: 0}

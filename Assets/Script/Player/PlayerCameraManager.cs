@@ -4,142 +4,142 @@ using Mirror;
 
 public class PlayerCameraManager : NetworkBehaviour
 {
-    [Header("Camera References")]
-    [SerializeField] private CinemachineCamera normalFreeLookCamera;
-    [SerializeField] private CinemachineCamera aimFreeLookCamera;
+    [Header("Camera Reference")]
+    [SerializeField] private CinemachineCamera freeLookCamera;
+
+    [Header("Normal Mode Settings (Center/Back)")]
+    [SerializeField] private Vector3 normalCameraOffset = new Vector3(0, 0.5f, 0);
+    [SerializeField] private float normalOrbitRadius = 5f;
+    [SerializeField] private Vector2 normalOrbitAngles = new Vector2(0f, 0f);
+
+    [Header("Aim Mode Settings (Over-Shoulder)")]
+    [SerializeField] private Vector3 aimCameraOffset = new Vector3(0.8f, 0.3f, 0);
+    [SerializeField] private float aimOrbitRadius = 2.5f;
+    [SerializeField] private Vector2 aimOrbitAngles = new Vector2(0f, 0f);
+
+    [Header("Transition Settings")]
+    [SerializeField] private float transitionSpeed = 5f;
+
+    [Header("Camera Shake Settings")]
+    [SerializeField] private float shakeAmplitude = 1f;
+    [SerializeField] private float shakeFrequency = 2f;
+    [SerializeField] private float shakeDuration = 0.3f;
 
     private Camera mainCamera;
     private bool isAiming = false;
+    private bool isTransitioning = false;
 
-    // Cache Cinemachine Orbital Follow components
-    private CinemachineOrbitalFollow normalOrbitalFollow;
-    private CinemachineOrbitalFollow aimOrbitalFollow;
+    // Cache Cinemachine components
+    private CinemachineOrbitalFollow orbitalFollow;
+    private GameObject followOffsetObject;
+    private CinemachineBasicMultiChannelPerlin noiseComponent;
 
-    // Khởi tạo cameras từ CameraManager (gọi bởi PlayerSetup)
-    public void InitializeCameras(CinemachineCamera normalCam, CinemachineCamera aimCam, Transform playerTransform)
+    // Target values for smooth transition
+    private Vector3 targetCameraOffset;
+    private float targetOrbitRadius;
+    private Vector2 targetOrbitAngles;
+
+    // Current values (for smooth lerp)
+    private Vector3 currentCameraOffset;
+    private float currentOrbitRadius;
+    private Vector2 currentOrbitAngles;
+
+    // Shake variables
+    private float shakeTimer = 0f;
+    private bool isShaking = false;
+
+    public void InitializeCameras(CinemachineCamera freeLook, CinemachineCamera aimCam, Transform playerTransform)
     {
         if (!isLocalPlayer) return;
 
-        // Gán cameras từ CameraManager
-        normalFreeLookCamera = normalCam;
-        aimFreeLookCamera = aimCam;
+        freeLookCamera = freeLook;
 
-        // Tự động gán Follow và LookAt targets cho cả 2 cameras
-        if (normalFreeLookCamera != null)
+        if (freeLookCamera != null)
         {
-            normalFreeLookCamera.Follow = playerTransform;
-            normalFreeLookCamera.LookAt = playerTransform;
-            normalOrbitalFollow = normalFreeLookCamera.GetComponent<CinemachineOrbitalFollow>();
-            Debug.Log($"[PlayerCameraManager] Normal camera đã gán target: {playerTransform.name}");
+            // Create a dynamic follow offset object as child of player
+            followOffsetObject = new GameObject("CameraFollowOffset");
+            followOffsetObject.transform.SetParent(playerTransform);
+            followOffsetObject.transform.localPosition = normalCameraOffset;
+            followOffsetObject.transform.localRotation = Quaternion.identity;
+
+            // Set the offset object as follow/lookat target
+            freeLookCamera.Follow = followOffsetObject.transform;
+            freeLookCamera.LookAt = followOffsetObject.transform;
+            freeLookCamera.Priority.Value = 10;
+            freeLookCamera.gameObject.SetActive(true);
+
+            orbitalFollow = freeLookCamera.GetComponent<CinemachineOrbitalFollow>();
+
+            // Add or get the noise component for camera shake
+            noiseComponent = freeLookCamera.GetComponent<CinemachineBasicMultiChannelPerlin>();
+            if (noiseComponent == null)
+            {
+                noiseComponent = freeLookCamera.GetComponent<CinemachineBasicMultiChannelPerlin>();
+            }
+            noiseComponent.AmplitudeGain = 0f;
+            noiseComponent.FrequencyGain = 0f;
         }
 
-        if (aimFreeLookCamera != null)
+        // Disable aim camera if exists
+        if (aimCam != null)
         {
-            aimFreeLookCamera.Follow = playerTransform;
-            aimFreeLookCamera.LookAt = playerTransform;
-            aimOrbitalFollow = aimFreeLookCamera.GetComponent<CinemachineOrbitalFollow>();
-            Debug.Log($"[PlayerCameraManager] Aim camera đã gán target: {playerTransform.name}");
+            aimCam.gameObject.SetActive(false);
         }
 
-        // Lấy main camera
         mainCamera = Camera.main;
-
-        // Set priorities và active states
-        if (normalFreeLookCamera != null)
-        {
-            normalFreeLookCamera.Priority.Value = 15;
-            normalFreeLookCamera.gameObject.SetActive(true);
-            Debug.Log($"[PlayerCameraManager] Normal camera kích hoạt với priority {normalFreeLookCamera.Priority.Value}");
-        }
-
-        if (aimFreeLookCamera != null)
-        {
-            aimFreeLookCamera.Priority.Value = 10;
-            aimFreeLookCamera.gameObject.SetActive(false);
-            Debug.Log($"[PlayerCameraManager] Aim camera tắt");
-        }
-
-        Debug.Log("[PlayerCameraManager] Cameras khởi tạo thành công!");
+        Debug.Log("[PlayerCameraManager] Camera setup complete with camera shake support!");
     }
 
-    // Đồng bộ góc xoay giữa 2 camera
-    private void SyncCameraRotations(CinemachineOrbitalFollow fromCamera, CinemachineOrbitalFollow toCamera)
-    {
-        if (fromCamera == null || toCamera == null) return;
-
-        // Copy giá trị xoay từ camera cũ sang camera mới
-        toCamera.HorizontalAxis.Value = fromCamera.HorizontalAxis.Value;
-        toCamera.VerticalAxis.Value = fromCamera.VerticalAxis.Value;
-
-        Debug.Log($"[PlayerCameraManager] Đồng bộ góc xoay: H={toCamera.HorizontalAxis.Value:F2}, V={toCamera.VerticalAxis.Value:F2}");
-    }
-
-    // Set camera về chế độ aim - chỉ chuyển nếu đang cầm cung
-    public void SetAimingMode(bool aiming, ItemData itemData = null)
+    private void Update()
     {
         if (!isLocalPlayer) return;
 
-        // Chỉ cho phép chuyển camera aim nếu đang cầm CUNG
-        bool shouldSwitchCamera = aiming;
-
-        if (aiming && itemData != null)
-        {
-            // Kiểm tra nếu item là cung
-            if (itemData.weapon == null || itemData.weapon.weaponType != WeaponType.Bow)
-            {
-                Debug.Log("[PlayerCameraManager] Không chuyển sang aim camera - không phải cung");
-                shouldSwitchCamera = false;
-            }
-        }
-        else if (aiming && itemData == null)
-        {
-            // Nếu không có item data khi đang aim, không chuyển
-            Debug.Log("[PlayerCameraManager] Không chuyển sang aim camera - không có item data");
-            shouldSwitchCamera = false;
-        }
-
-        // Chuyển đổi giữa cameras
-        if (aimFreeLookCamera != null && normalFreeLookCamera != null)
-        {
-            if (shouldSwitchCamera)
-            {
-                // Đồng bộ góc xoay từ normal sang aim
-                SyncCameraRotations(normalOrbitalFollow, aimOrbitalFollow);
-
-                // Kích hoạt aim camera với priority cao hơn
-                aimFreeLookCamera.Priority.Value = 15;
-                aimFreeLookCamera.gameObject.SetActive(true);
-
-                // Tắt normal camera
-                normalFreeLookCamera.Priority.Value = 10;
-                normalFreeLookCamera.gameObject.SetActive(false);
-
-                Debug.Log("[PlayerCameraManager] Chuyển sang AIM camera (Cung được trang bị)");
-            }
-            else
-            {
-                // Đồng bộ góc xoay từ aim về normal (nếu đang aim)
-                if (isAiming && aimOrbitalFollow != null)
-                {
-                    SyncCameraRotations(aimOrbitalFollow, normalOrbitalFollow);
-                }
-
-                // Kích hoạt normal camera với priority cao hơn
-                normalFreeLookCamera.Priority.Value = 15;
-                normalFreeLookCamera.gameObject.SetActive(true);
-
-                // Tắt aim camera
-                aimFreeLookCamera.Priority.Value = 10;
-                aimFreeLookCamera.gameObject.SetActive(false);
-
-                Debug.Log("[PlayerCameraManager] Chuyển về NORMAL camera");
-            }
-        }
-
-        isAiming = shouldSwitchCamera;
+        // Update camera shake
+        //UpdateCameraShake();
     }
 
-    // Lấy hướng forward của camera (hữu ích cho di chuyển)
+    private void UpdateCameraShake()
+    {
+        if (!isShaking || noiseComponent == null) return;
+
+        shakeTimer += Time.deltaTime;
+
+        if (shakeTimer < shakeDuration)
+        {
+            // Calculate shake progress (0 to 1)
+            float progress = shakeTimer / shakeDuration;
+
+            // Reduce amplitude and frequency over time for smooth fade-out
+            float currentAmplitude = shakeAmplitude * (1f - progress);
+            float currentFrequency = shakeFrequency * (1f - progress);
+
+            // Apply shake to noise component
+            noiseComponent.AmplitudeGain = currentAmplitude;
+            noiseComponent.FrequencyGain = currentFrequency;
+        }
+        else
+        {
+            // Stop shaking
+            noiseComponent.AmplitudeGain = 0f;
+            noiseComponent.FrequencyGain = 0f;
+            isShaking = false;
+        }
+    }
+
+    // Call this function when player takes damage
+    public void ShakeCamera(float amplitude = 0f, float frequency = 0f, float duration = 0f)
+    {
+        if (!isLocalPlayer || noiseComponent == null) return;
+
+        // Use custom values or defaults
+        shakeAmplitude = amplitude > 0 ? amplitude : this.shakeAmplitude;
+        shakeFrequency = frequency > 0 ? frequency : this.shakeFrequency;
+        shakeDuration = duration > 0 ? duration : this.shakeDuration;
+
+        shakeTimer = 0f;
+        isShaking = true;
+    }
+
     public Vector3 GetCameraForward()
     {
         if (mainCamera != null)
@@ -151,7 +151,6 @@ public class PlayerCameraManager : NetworkBehaviour
         return transform.forward;
     }
 
-    // Lấy hướng right của camera (hữu ích cho di chuyển ngang)
     public Vector3 GetCameraRight()
     {
         if (mainCamera != null)
@@ -163,24 +162,35 @@ public class PlayerCameraManager : NetworkBehaviour
         return transform.right;
     }
 
-    // Lấy camera transform (hữu ích cho raycast)
     public Transform GetCameraTransform()
     {
         return mainCamera != null ? mainCamera.transform : transform;
     }
 
-    // Kiểm tra đang aim hay không
     public bool IsAiming() => isAiming;
 
     private void OnDisable()
     {
-        // Dọn dẹp cameras khi player disconnect
-        if (isLocalPlayer)
+        if (isLocalPlayer && freeLookCamera != null)
         {
-            if (normalFreeLookCamera != null)
-                normalFreeLookCamera.gameObject.SetActive(false);
-            if (aimFreeLookCamera != null)
-                aimFreeLookCamera.gameObject.SetActive(false);
+            freeLookCamera.Priority.Value = 0;
+            freeLookCamera.gameObject.SetActive(false);
+        }
+
+        // Clean up offset object
+        if (followOffsetObject != null)
+        {
+            Destroy(followOffsetObject);
         }
     }
 }
+
+// How to use:
+// When player takes damage, call:
+// playerCameraManager.ShakeCamera(); // Uses default amplitude, frequency and duration
+// 
+// Or with custom values:
+// playerCameraManager.ShakeCamera(1.5f, 3f, 0.5f); // amplitude: 1.5, frequency: 3, duration: 0.5s
+// 
+// Amplitude controls the intensity/strength of the shake (how far the camera moves)
+// Frequency controls the speed of the shake (how fast it vibrates)

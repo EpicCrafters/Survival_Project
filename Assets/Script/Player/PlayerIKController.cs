@@ -187,7 +187,7 @@ public class PlayerIKController : NetworkBehaviour
         eyeRotationsInitialized = true;
     }
 
-    void Update()
+    public void UpdatePlayerIk(float deltaTime)
     {
         // Network eye sync logic
         if (isLocalPlayer)
@@ -308,7 +308,7 @@ public class PlayerIKController : NetworkBehaviour
         playerHead.weight = Mathf.Lerp(playerHead.weight, angle <= maxLookAngle ? 1f : 0f, Time.deltaTime * 10f);
     }
 
-    void LateUpdate()
+     public void LateUpdatePlayerIK(float deltaTime)
     {
         if (animator == null) return;
 

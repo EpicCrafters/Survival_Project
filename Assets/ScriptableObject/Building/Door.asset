@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1006
   itemName: Door
-  image: {fileID: 21300000, guid: 4608ad2b4d1a008478057b8f58220d8e, type: 3}
+  image: {fileID: 21300000, guid: 869670baed2f6f546b29c114dc0e2000, type: 3}
   type: 4
   worldPrefab: {fileID: 9065893481218357321, guid: b8677b9c7d190a24a81886ba4eb6f093, type: 3}
   heldPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
@@ -47,6 +47,8 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
     hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10

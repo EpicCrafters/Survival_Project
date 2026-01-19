@@ -1,5 +1,5 @@
 ﻿// BuildManager.cs (Mirror-compatible)
-// NOTE: Requires Mirror package. Attach this component on the Player object (the object that has authority).
+// NOTE: Requires Mirror package. Attach this component on the PlayerMovement object (the object that has authority).
 // If you put it on a non-player object, Commands won't be accepted by server by default.
 using System;
 using System.Collections.Generic;

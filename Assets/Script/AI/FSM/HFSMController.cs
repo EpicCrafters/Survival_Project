@@ -43,7 +43,7 @@ public class HFSMController : NetworkBehaviour, IDamageable
     [SerializeField] private int numberOfRays = 5;
     [SerializeField] private float raySpreadAngle = 45f;
     [SerializeField] private float avoidanceForce = 2f;
-    [SerializeField] private LayerMask obstacleLayer;
+    [SerializeField] public LayerMask obstacleLayer;
     [SerializeField] private bool debugObstacleAvoidance = true;
 
     // ==========================================================

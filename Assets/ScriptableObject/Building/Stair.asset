@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1004
   itemName: Stair
-  image: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
+  image: {fileID: 21300000, guid: af9689f033d05bf4f92a595df13f181a, type: 3}
   type: 4
   worldPrefab: {fileID: 6730120286574331868, guid: d52bf1d0ba178784685098823920b87e, type: 3}
   heldPrefab: {fileID: 0}
@@ -47,6 +47,8 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
     hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10
@@ -65,3 +67,4 @@ MonoBehaviour:
     placementAnchorOffset: {x: 0, y: 0, z: 0}
     maxCornerDrop: 0.4
     raiseToHighest: 1
+    placementRole: {fileID: 0}

@@ -114,17 +114,36 @@ public class WanderState : State
 
             Vector3 targetPoint = controller.transform.position + randomDirection;
 
-            // Bắn ray xuống từ phía trên để kiểm tra có mặt đất không
+            // ✅ BƯỚC 1: Kiểm tra có vật cản (rock, tree) tại vị trí này không
+            // Sử dụng SphereCast để kiểm tra xung quanh vị trí đó
+            Vector3 checkPosition = targetPoint + Vector3.up * 2f; // Kiểm tra từ phía trên
+
+            // Kiểm tra có vật cản trong bán kính 1.5m (đủ rộng cho AI đi qua)
+            if (Physics.CheckSphere(checkPosition, 1.5f, controller.obstacleLayer))
+            {
+                // Có vật cản → Bỏ qua điểm này
+                continue;
+            }
+
+            // ✅ BƯỚC 2: Bắn ray xuống từ phía trên để kiểm tra có mặt đất không
             Vector3 rayStart = targetPoint + Vector3.up * 10f;
 
             if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 20f, LayerMask.GetMask("Ground", "Terrain")))
             {
-                // Kiểm tra độ dốc có hợp lý không
+                // ✅ BƯỚC 3: Kiểm tra độ dốc có hợp lý không
                 float slope = Vector3.Angle(hit.normal, Vector3.up);
 
                 if (slope <= 45f) // Độ dốc tối đa 45 độ
                 {
-                    return hit.point;
+                    // ✅ BƯỚC 4: Kiểm tra lại xem tại điểm đích có vật cản không
+                    // (double-check vì có thể có vật nhỏ sát mặt đất)
+                    Vector3 finalCheckPos = hit.point + Vector3.up * 0.5f;
+
+                    if (!Physics.CheckSphere(finalCheckPos, 1.0f, controller.obstacleLayer))
+                    {
+                        // ✅ TẤT CẢ ĐIỀU KIỆN ĐỀU ĐẠT → Điểm này hợp lệ!
+                        return hit.point;
+                    }
                 }
             }
         }
@@ -133,7 +152,6 @@ public class WanderState : State
         Debug.LogWarning($"{controller.name}: Không tìm được điểm wander hợp lệ!");
         return Vector3.zero;
     }
-
     public override void Update()
     {
         // Cập nhật animation dựa trên tốc độ di chuyển

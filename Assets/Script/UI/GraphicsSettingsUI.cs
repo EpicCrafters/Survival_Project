@@ -47,7 +47,7 @@ public class GraphicsSettingsUI : MonoBehaviour
         var resOptions = new List<string>();
         foreach (var res in Screen.resolutions)
         {
-            resOptions.Add($"{res.width} x {res.height} @ {res.refreshRate}Hz");
+            resOptions.Add($"{res.width} x {res.height}");
         }
         resolutionDropdown.AddOptions(resOptions);
 

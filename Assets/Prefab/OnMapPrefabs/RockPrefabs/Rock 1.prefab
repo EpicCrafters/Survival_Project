@@ -106,18 +106,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   baseHealth: 30
-  resourceType: 0
-  minDropCount: 1
-  maxDropCount: 3
+  resourceType: 2
+  minDropCount: 3
+  maxDropCount: 7
   dropRadius: 0.2
   dropHeight: 0.1
   isDestroyed: 0
   isBeingDestroyed: 0
   uniqueId: 
   maxInteractDistance: 3
-  rockType: 0
+  debugMode: 1
+  rockType: 2
   stonePrefab: {fileID: 6040415725971329579, guid: 7261133964df4dc4ba4761105d593507, type: 3}
-  dustEffectPrefab: {fileID: 114944488089835927, guid: b909443b91d4c984e86f97c80a9ef8c7, type: 3}
+  dustEffectPrefab: {fileID: 2046022096828062625, guid: 94ba2a3683e705344b251f30d808dd7d, type: 3}
+  dustEffectDuration: 1
   fragmentUpForceMin: 0.6
   fragmentUpForceMax: 1.8
   fragmentScatterMin: 0.2

@@ -51,7 +51,7 @@ public class BuildNetworkObject : NetworkBehaviour
                 // Nhưng nếu prefab để sai -> xóa luôn
                 if (cref.anchor == null || cref.anchor == transform.root)
                 {
-                    // Không nên để anchor rác = Player hoặc Prefab Root
+                    // Không nên để anchor rác = PlayerMovement hoặc Prefab Root
                     cref.anchor = null;
                 }
             }

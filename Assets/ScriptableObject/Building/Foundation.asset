@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1001
   itemName: Foundation
-  image: {fileID: 10901, guid: 0000000000000000f000000000000000, type: 0}
+  image: {fileID: 21300000, guid: 4fb67a893ec9adc44ba9b9132cc394ca, type: 3}
   type: 4
   worldPrefab: {fileID: 6730120286574331868, guid: 8b7e8c77f174ec246acc281e222cac8c, type: 3}
   heldPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
@@ -47,6 +47,8 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
     hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10

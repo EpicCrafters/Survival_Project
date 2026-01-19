@@ -2,201 +2,172 @@
 using UnityEngine;
 
 /// <summary>
-/// MyBush - simple harvestable bush.
-/// - Players call Interact() to harvest (decrements remaining harvests and spawns a drop).
-/// - On destroy, any remaining harvest items are dropped (one per remaining harvest).
-/// - On destroy we call RequestDestroyAndReplace(null) so BaseResource/ResourceManager can handle authoritative flows;
-///   if no manager exists we will fall back to local destroy (handled by BaseResource).
+/// MyBush - harvestable bush that gives berries directly to player inventory
+/// - Interact harvests berries and adds to inventory (max 3 harvests)
+/// - Automatically stacks with existing items
+/// - Bush remains in world after all berries are harvested
 /// </summary>
-public class MyBush : BaseResource, Iinteractable
+public class MyBush : ChoppableBase, Iinteractable
 {
     public enum BushType { BerryBush, FlowerBush, HerbBush }
 
     [Header("Bush Specific")]
     [SerializeField] private BushType bushType = BushType.BerryBush;
-    [SerializeField] private int maxHarvestCount = 3;
+    [SerializeField] private int maxHarvestCount = 3; // Number of times player can harvest
     [SerializeField] private GameObject berryVisualMesh;
 
-    [Header("Bush Drops")]
-    [SerializeField] private Transform berryDropPrefab;
-    [SerializeField] private Transform stickDropPrefab;
-    [SerializeField] private Transform flowerDropPrefab;
-    [SerializeField] private Transform herbDropPrefab;
+    [Header("Item Reference")]
+    [SerializeField] private ItemData harvestItemData; // Direct reference to the ItemData ScriptableObject
 
-    // runtime
+    [Header("Respawn Settings (Optional)")]
+    [SerializeField] private bool canRespawn = true;
+    [SerializeField] private float respawnTime = 60f; // Time in seconds to refill berries
+
+    // Runtime state (server-side only)
     private int currentHarvestCount;
-    private bool hasHarvestableItems = true;
+    private float respawnTimer = 0f;
 
     protected override void Awake()
     {
         base.Awake();
 
-        // defensive clamp: ensure sensible starting values
-        currentHarvestCount = Mathf.Max(0, maxHarvestCount);
-        hasHarvestableItems = currentHarvestCount > 0;
-
+        // Initialize harvest count
+        currentHarvestCount = maxHarvestCount;
         UpdateVisuals();
     }
 
-    protected override void InitializeHealth()
+    private void Update()
     {
-        int healthAmount = bushType switch
+        // Handle respawn on server
+        if (NetworkServer.active && canRespawn && currentHarvestCount < maxHarvestCount)
         {
-            BushType.BerryBush => 10,
-            BushType.FlowerBush => 8,
-            BushType.HerbBush => 12,
-            _ => 10
-        };
-
-        healthSystem = new HealthSystem(healthAmount);
-        resourceType = ResourceType.Bush;
+            respawnTimer += Time.deltaTime;
+            if (respawnTimer >= respawnTime)
+            {
+                currentHarvestCount = maxHarvestCount;
+                respawnTimer = 0f;
+                UpdateVisuals();
+                DebugLog("Bush berries respawned!");
+            }
+        }
     }
 
-    private void HarvestFromBush()
+    protected override int GetHealthAmount()
     {
-        // decrement and spawn one harvested item
-        currentHarvestCount = Mathf.Max(0, currentHarvestCount - 1);
-        Debug.Log($"Harvested from {bushType}! Remaining: {currentHarvestCount}");
+        // Bush doesn't take damage anymore, but we keep this for base class
+        return 9999;
+    }
 
-        SpawnHarvestedItem();
+    protected override void SpawnChopResults()
+    {
+        // Bush no longer drops items when destroyed
+    }
+
+    protected override GameObject GetReplacementPrefab()
+    {
+        // Bush remains in world
+        return null;
+    }
+
+    public override ResourceType GetResourceType() => ResourceType.Bush;
+
+    // ================= Interact Logic =================
+
+    public void Interact(PlayerHoldingItem playerHoldingItem)
+    {
+        DebugLog("Interact called on bush");
 
         if (currentHarvestCount <= 0)
         {
-            hasHarvestableItems = false;
-        }
-
-        UpdateVisuals();
-    }
-
-    protected override void OnResourceDestroyed()
-    {
-        // --- CRITICAL: Only run visual effects on server ---
-        if (!NetworkServer.active)
-        {
-            Debug.Log($"{name}: OnResourceDestroyed called on client, skipping drops (server will handle)");
+            DebugLog("No berries left to harvest");
             return;
         }
 
-        // Drop remaining harvest items if any (spawn one per remaining harvest)
-        if (hasHarvestableItems && currentHarvestCount > 0)
+        // Validate harvest item data
+        if (harvestItemData == null)
         {
-            int remaining = currentHarvestCount;
-            Debug.Log($"{name}: Dropping {remaining} remaining harvestable item(s) on destroy.");
-            for (int i = 0; i < remaining; i++)
-            {
-                SpawnHarvestedItem();
-            }
-        }
-
-        // Always drop some sticks (1..2)
-        int stickCount = Random.Range(1, 3);
-        if (stickDropPrefab != null)
-        {
-            SpawnDrops(stickDropPrefab, stickCount, transform.position);
-        }
-        else
-        {
-            Debug.LogWarning($"{name}: stickDropPrefab not assigned - cannot spawn sticks on destroy.");
-        }
-
-        // Ask base class to handle authoritative destroy/replace
-        try
-        {
-            RequestDestroyAndReplace(null);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"{name}: Exception while requesting destroy/replace: {ex}. Falling back to local destroy.");
-            DestroyResource();
-        }
-    }
-
-    /// <summary>
-    /// Spawn one harvested item according to bush type.
-    /// </summary>
-    private void SpawnHarvestedItem()
-    {
-        Transform dropPrefab = bushType switch
-        {
-            BushType.BerryBush => berryDropPrefab,
-            BushType.FlowerBush => flowerDropPrefab,
-            BushType.HerbBush => herbDropPrefab,
-            _ => berryDropPrefab
-        };
-
-        if (dropPrefab == null)
-        {
-            Debug.LogWarning($"{name}: No drop prefab assigned for {bushType} (cannot spawn harvested item).");
+            DebugLog("ERROR: harvestItemData is not assigned in Inspector!");
             return;
         }
 
-        Vector3 spawnPos = transform.position + Vector3.up * 1.0f;
-        var drop = Instantiate(dropPrefab, spawnPos, Quaternion.identity);
-
-        // Network spawn the drop
-        NetworkServer.Spawn(drop.gameObject);
-    }
-
-    // Also update the Interact method to be server-authoritative:
-    public virtual void Interact()
-    {
-        // Do not allow interactions while the object is already being destroyed/removed.
-        if (isDestroyed || isBeingDestroyed)
+        // Get player's inventory - try multiple methods
+        if (playerHoldingItem == null)
         {
-            Debug.Log($"{name}: Cannot interact - bush is being removed.");
+            DebugLog("PlayerHoldingItem is null");
             return;
         }
 
-        if (!hasHarvestableItems || currentHarvestCount <= 0)
+        // Try to get InventoryData from the same GameObject
+        InventoryData inventory = playerHoldingItem.GetComponent<InventoryData>();
+
+        // If not found, try to get it from parent or children
+        if (inventory == null)
         {
-            Debug.Log($"No more {bushType} to harvest.");
+            inventory = playerHoldingItem.GetComponentInParent<InventoryData>();
+        }
+
+        if (inventory == null)
+        {
+            inventory = playerHoldingItem.GetComponentInChildren<InventoryData>();
+        }
+
+        if (inventory == null)
+        {
+            DebugLog("Could not find InventoryData component anywhere on player hierarchy");
             return;
         }
 
-        // If we're a client, we should send a command to the server
-        if (!NetworkServer.active)
+        // Verify the item exists in the database
+        int itemId = harvestItemData.id;
+        ItemData itemData = ItemDatabase.Get(itemId);
+        if (itemData == null)
         {
-            // You'll need to add a NetworkBehaviour component or use existing network system
-            Debug.Log($"{name}: Client attempting to harvest bush - needs network command.");
+            DebugLog($"ERROR: Item ID {itemId} not found in ItemDatabase!");
             return;
         }
 
-        HarvestFromBush();
+        DebugLog($"Item found in database: {itemData.itemName} (ID: {itemId})");
+
+        // Add berry to inventory with stacking (this is a Command that runs on server)
+        inventory.CmdAddItemWithStacking(itemId, 1);
+
+        // Only decrease count on server
+        if (NetworkServer.active)
+        {
+            currentHarvestCount--;
+            respawnTimer = 0f; // Reset respawn timer
+            UpdateVisuals();
+            DebugLog($"Harvested 1 {bushType}. Remaining harvests: {currentHarvestCount}");
+        }
     }
 
     private void UpdateVisuals()
     {
         if (berryVisualMesh != null)
         {
-            // only show berry visual when harvestable items exist
-            berryVisualMesh.SetActive(hasHarvestableItems && currentHarvestCount > 0);
+            // Show berries only when harvest count > 0
+            berryVisualMesh.SetActive(currentHarvestCount > 0);
         }
     }
 
     protected override void ValidateComponents()
     {
-        if (bushType == BushType.BerryBush && (berryDropPrefab == null || berryVisualMesh == null))
-            Debug.LogWarning($"{name}: Berry bush missing berryDropPrefab or berryVisualMesh!");
+        if (berryVisualMesh == null)
+            Debug.LogWarning($"{name}: berryVisualMesh not assigned!");
 
-        if (bushType == BushType.FlowerBush && flowerDropPrefab == null)
-            Debug.LogWarning($"{name}: Flower bush missing flowerDropPrefab!");
-
-        if (bushType == BushType.HerbBush && herbDropPrefab == null)
-            Debug.LogWarning($"{name}: Herb bush missing herbDropPrefab!");
-
-        if (stickDropPrefab == null)
-            Debug.LogWarning($"{name}: stickDropPrefab not assigned!");
+        if (harvestItemData == null)
+            Debug.LogWarning($"{name}: harvestItemData not assigned! Please assign the ItemData ScriptableObject.");
     }
 
-    public override ResourceType GetResourceType() => ResourceType.Bush;
+    // ================= Public Getters =================
 
-    // Public getters for bush state
-    public bool HasHarvestableItems() => hasHarvestableItems;
     public int GetRemainingHarvests() => currentHarvestCount;
     public BushType GetBushType() => bushType;
+    public bool HasBerries() => currentHarvestCount > 0;
 
-    public void Interact(PlayerHoldingItem playerHoldingItem)
+    public void Interact()
     {
-        throw new System.NotImplementedException();
+        // This empty method satisfies the interface but won't be called
+        // The version with PlayerHoldingItem parameter will be used instead
     }
 }

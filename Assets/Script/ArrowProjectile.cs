@@ -489,7 +489,7 @@ public class ArrowProjectile : NetworkBehaviour
         switch (surfaceTag)
         {
             case "Enemy":
-            case "Player":
+            case "PlayerMovement":
                 return hitFleshSound;
             case "Stone":
             case "Ground":

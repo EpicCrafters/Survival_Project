@@ -4,7 +4,7 @@ using System.Collections;
 
 public class PlayerSetup : NetworkBehaviour
 {
-    public Player player;
+    public PlayerMovement player;
     public GameInput gameInput;
     public PlayerHoldingItem holdingItem;
     public CameraManager cameraManager;
@@ -26,10 +26,10 @@ public class PlayerSetup : NetworkBehaviour
         gameInput = FindFirstObjectByType<GameInput>();
         gameInput.Initialize(true);
         // Cache components
-        player = GetComponent<Player>();
+        player = GetComponent<PlayerMovement>();
         holdingItem = GetComponent<PlayerHoldingItem>();
         //Bind Inventory
-        name = $"Player[{netId}] (Local)";
+        name = $"PlayerMovement[{netId}] (Local)";
         var invData = GetComponentInChildren<InventoryData>();
         var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
 
@@ -58,8 +58,8 @@ public class PlayerSetup : NetworkBehaviour
         //InventoryManager.instance?.SetPlayerHolding(holdingItem);
         //InventoryManager.instance.SetGameInput(gameInput);
 
-        // ============ 1. Assign Camera to Player ============
-        cameraManager = FindObjectOfType<CameraManager>();
+        // ============ 1. Assign Camera to PlayerMovement ============
+        cameraManager = FindFirstObjectByType<CameraManager>();
         if (cameraManager != null)
             cameraManager.AssignCameraToPlayer(playerCameraManager,transform);
         GameObject aimObj = new GameObject($"AimTarget_{netId}");

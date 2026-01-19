@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Collections.Generic;
 using Mirror;
 using TMPro;
 using UnityEngine;
@@ -9,12 +10,22 @@ using UnityEngine;
 /// - Client gửi request
 /// - Client tự render hiệu ứng
 /// </summary>
-public class CampFire : NetworkBehaviour, Iinteractable
+[System.Serializable]
+public struct FuelConfig
+{
+    public ItemData item;     // loại nhiên liệu
+    public int fuelValue;     // cộng bao nhiêu fuel
+}
+
+public class CampFire : NetworkBehaviour, Iinteractable, IHasUI
 {
     // ================= CONFIG =================
 
     [Header("Fuel Config")]
     [SerializeField] private int maxFuel = 10;
+
+    [Header("Fuel Inputs")]
+    [SerializeField] private List<FuelConfig> acceptedFuels = new();
 
     [Header("Burn Config")]
     [SerializeField] private float burnTimePerFuel = 5f;
@@ -39,6 +50,7 @@ public class CampFire : NetworkBehaviour, Iinteractable
     // ================= LOCAL =================
 
     private Coroutine burnRoutine;
+    private Coroutine fuelConsumptionRoutine;
     private float currentLightIntensity;
 
     // ================= INTERACT =================
@@ -48,14 +60,17 @@ public class CampFire : NetworkBehaviour, Iinteractable
     /// </summary>
     public void Interact(PlayerHoldingItem interactor)
     {
-        if (!interactor.isLocalPlayer)
+        if (!interactor || !interactor.isLocalPlayer)
             return;
 
         if (!interactor.IsHolding())
             return;
 
-        ItemData item = interactor.ItemData;
-        if (!IsValidFuel(item))
+        ItemData heldItem = interactor.ItemData;
+        if (heldItem == null)
+            return;
+
+        if (!TryGetFuelValue(heldItem, out int fuelAdd))
             return;
 
         InventoryInput input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
@@ -63,19 +78,19 @@ public class CampFire : NetworkBehaviour, Iinteractable
             return;
 
         int slotIndex = input.SelectedHotbarIndex;
-
-        CmdRequestAddFuel(slotIndex);
+        CmdRequestAddFuel(slotIndex, fuelAdd);
     }
 
-
     // ================= SERVER =================
+
     [Command(requiresAuthority = false)]
-    private void CmdRequestAddFuel(int slotIndex, NetworkConnectionToClient sender = null)
+    private void CmdRequestAddFuel(int slotIndex, int fuelAdd, NetworkConnectionToClient sender = null)
     {
-        if (currentFuel >= maxFuel)
+        Debug.Log("[CampFire][SERVER] CmdRequestAddFuel CALLED");
+        if (sender == null || sender.identity == null)
             return;
 
-        if (sender == null || sender.identity == null)
+        if (currentFuel >= maxFuel)
             return;
 
         InventoryData inv = sender.identity.GetComponentInChildren<InventoryData>();
@@ -85,15 +100,50 @@ public class CampFire : NetworkBehaviour, Iinteractable
         if (!ConsumeFromSlot(inv, slotIndex))
             return;
 
-        currentFuel++;
+        currentFuel = Mathf.Min(currentFuel + fuelAdd, maxFuel);
+
         if (!isBurning)
+        {
             isBurning = true;
+            StartFuelConsumption();
+        }
     }
 
+    /// <summary>
+    /// SERVER: Bắt đầu tiêu thụ fuel
+    /// </summary>
+    [Server]
+    private void StartFuelConsumption()
+    {
+        if (fuelConsumptionRoutine != null)
+            StopCoroutine(fuelConsumptionRoutine);
+
+        fuelConsumptionRoutine = StartCoroutine(FuelConsumptionRoutine());
+    }
+
+    /// <summary>
+    /// SERVER: Coroutine giảm fuel theo thời gian
+    /// </summary>
+    [Server]
+    private IEnumerator FuelConsumptionRoutine()
+    {
+        while (currentFuel > 0)
+        {
+            yield return new WaitForSeconds(burnTimePerFuel);
+
+            currentFuel--;
+
+            if (currentFuel <= 0)
+            {
+                isBurning = false;
+                fuelConsumptionRoutine = null;
+                yield break;
+            }
+        }
+    }
 
     /// <summary>
     /// SERVER: trừ item từ hotbar
-    /// (tạm thời client-authoritative, sau có thể siết chặt)
     /// </summary>
     private bool ConsumeFromSlot(InventoryData inv, int slotIndex)
     {
@@ -112,6 +162,20 @@ public class CampFire : NetworkBehaviour, Iinteractable
         return true;
     }
 
+    private bool TryGetFuelValue(ItemData item, out int fuelValue)
+    {
+        foreach (var fuel in acceptedFuels)
+        {
+            if (fuel.item == item)
+            {
+                fuelValue = fuel.fuelValue;
+                return true;
+            }
+        }
+
+        fuelValue = 0;
+        return false;
+    }
 
     // ================= SYNC HOOKS =================
 
@@ -146,6 +210,7 @@ public class CampFire : NetworkBehaviour, Iinteractable
         burnRoutine = null;
         fireFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         flameLight.intensity = 0f;
+        currentLightIntensity = 0f;
     }
 
     private IEnumerator BurnRoutine()
@@ -165,13 +230,24 @@ public class CampFire : NetworkBehaviour, Iinteractable
         }
     }
 
+    // ================= CLEANUP =================
+
+    private void OnDestroy()
+    {
+        if (burnRoutine != null)
+            StopCoroutine(burnRoutine);
+
+        if (fuelConsumptionRoutine != null)
+            StopCoroutine(fuelConsumptionRoutine);
+    }
+
     // ================= UTIL =================
 
     private bool IsValidFuel(ItemData item)
     {
         return item != null &&
                item.type == ItemType.Resource &&
-               item.itemName == "Stick";
+               item.id == 7;
     }
 
     private void UpdateFuelUI()

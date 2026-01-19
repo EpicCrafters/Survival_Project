@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class SFXLibrary : MonoBehaviour
 {
-    // Player
+    // PlayerMovement
     public AudioClip[] footsteps; // Different for terrain types
     public AudioClip[] jumpLand;
     public AudioClip[] breathingHeavy;

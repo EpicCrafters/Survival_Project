@@ -92,7 +92,7 @@ public class InventoryView : MonoBehaviour
 
     // ================= UI =================
 
-    private void RedrawAll()
+    public void RedrawAll()
     {
         ClearAll();
 

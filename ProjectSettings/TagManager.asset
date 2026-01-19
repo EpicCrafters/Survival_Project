@@ -8,6 +8,7 @@ TagManager:
   - Target
   - AIBase
   - AIBodyPart
+  - PlayerMovement
   layers:
   - Default
   - TransparentFX

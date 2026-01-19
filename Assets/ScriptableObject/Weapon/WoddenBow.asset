@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 223
   itemName: Wodden Bow
-  image: {fileID: 0}
+  image: {fileID: 21300000, guid: f4adfe6fd0e5e4d46ac6ff8af3de70fa, type: 3}
   type: 0
   worldPrefab: {fileID: 1052564734310203825, guid: 9a9786509325a9142a8615ba9d884f9e, type: 3}
   heldPrefab: {fileID: 1052564734310203825, guid: eab175d4506bda34cab9bbd0d775df6d, type: 3}
@@ -47,6 +47,8 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
     hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10
@@ -63,3 +65,4 @@ MonoBehaviour:
     placementAnchorOffset: {x: 0, y: 0, z: 0}
     maxCornerDrop: 0.4
     raiseToHighest: 1
+    placementRole: {fileID: 0}

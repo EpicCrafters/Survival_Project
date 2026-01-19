@@ -16,8 +16,12 @@ public class SlotBase : MonoBehaviour, IDropHandler
 
         if (from == null || to == null) return;
 
+        // QUAN TRỌNG: báo cho item biết là đã drop vào slot
+        item.droppedOnSlot = true;
+
         var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+        if (input == null) return;
+
         input.RequestMove(from.index, to.index);
     }
-
 }

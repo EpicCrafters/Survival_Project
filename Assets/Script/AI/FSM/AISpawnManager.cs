@@ -87,7 +87,7 @@ public class AISpawnManager : NetworkBehaviour
             {
                 aiPools[spawnData.poolKey] = new Queue<GameObject>();
                 // DON'T pre-instantiate - Mirror doesn't like it
-                Debug.Log($"[AISpawnManager] ✅ Pool '{spawnData.poolKey}' initialized (on-demand creation)");
+               // Debug.Log($"[AISpawnManager] ✅ Pool '{spawnData.poolKey}' initialized (on-demand creation)");
             }
         }
 
@@ -101,7 +101,7 @@ public class AISpawnManager : NetworkBehaviour
             }
         }
 
-        Debug.Log($"[AISpawnManager] ⏱️ Timer: {spawnInterval}s | Max AI: {maxTotalAIsInScene} | Pooling: {usePooling}");
+       // Debug.Log($"[AISpawnManager] ⏱️ Timer: {spawnInterval}s | Max AI: {maxTotalAIsInScene} | Pooling: {usePooling}");
     }
 
     void Update()
@@ -181,7 +181,7 @@ public class AISpawnManager : NetworkBehaviour
         if (aiPools.ContainsKey(key))
         {
             aiPools[key].Enqueue(obj);
-            Debug.Log($"[AISpawnManager] ♻️ {key} returned to pool (Pool: {aiPools[key].Count})");
+            //Debug.Log($"[AISpawnManager] ♻️ {key} returned to pool (Pool: {aiPools[key].Count})");
         }
     }
 
@@ -216,7 +216,7 @@ public class AISpawnManager : NetworkBehaviour
     {
         if (cachedPlayers.Count == 0)
         {
-            Debug.LogWarning("[AISpawnManager] ⚠️ No players - skipping spawn");
+           // Debug.LogWarning("[AISpawnManager] ⚠️ No players - skipping spawn");
             return;
         }
 
@@ -239,7 +239,7 @@ public class AISpawnManager : NetworkBehaviour
         Vector3 spawnPos = FindValidSpawnPosition(selectedSpawn);
         if (spawnPos == Vector3.zero)
         {
-            Debug.LogWarning($"[AISpawnManager] ⚠️ No valid spawn position for {selectedSpawn.poolKey}");
+           // Debug.LogWarning($"[AISpawnManager] ⚠️ No valid spawn position for {selectedSpawn.poolKey}");
             return;
         }
 
@@ -311,7 +311,7 @@ public class AISpawnManager : NetworkBehaviour
             if (obj != null)
             {
                 isFromPool = true;
-                Debug.Log($"[AISpawnManager] ♻️ Reusing {spawnData.poolKey} from pool");
+                //Debug.Log($"[AISpawnManager] ♻️ Reusing {spawnData.poolKey} from pool");
             }
         }
 
@@ -319,7 +319,7 @@ public class AISpawnManager : NetworkBehaviour
         if (obj == null)
         {
             obj = Instantiate(spawnData.prefab);
-            Debug.Log($"[AISpawnManager] 🆕 Creating new {spawnData.poolKey}");
+            //Debug.Log($"[AISpawnManager] 🆕 Creating new {spawnData.poolKey}");
         }
 
         // Đặt vị trí và rotation TRƯỚC KHI ACTIVE
@@ -341,7 +341,7 @@ public class AISpawnManager : NetworkBehaviour
         var netIdentity = obj.GetComponent<NetworkIdentity>();
         if (netIdentity == null)
         {
-            Debug.LogError($"[AISpawnManager] ❌ {spawnData.poolKey} missing NetworkIdentity!");
+            //Debug.LogError($"[AISpawnManager] ❌ {spawnData.poolKey} missing NetworkIdentity!");
             Destroy(obj);
             return;
         }
@@ -350,11 +350,11 @@ public class AISpawnManager : NetworkBehaviour
         try
         {
             NetworkServer.Spawn(obj);
-            Debug.Log($"[AISpawnManager] 📡 Spawned {spawnData.poolKey} on network (from pool: {isFromPool})");
+            //Debug.Log($"[AISpawnManager] 📡 Spawned {spawnData.poolKey} on network (from pool: {isFromPool})");
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"[AISpawnManager] ❌ Failed to spawn {spawnData.poolKey}: {e.Message}");
+            //Debug.LogError($"[AISpawnManager] ❌ Failed to spawn {spawnData.poolKey}: {e.Message}");
             Destroy(obj);
             return;
         }
@@ -419,7 +419,7 @@ public class AISpawnManager : NetworkBehaviour
             }
             else
             {
-                Debug.LogWarning($"[AISpawnManager] ⚠️ {controller.name} NavMeshAgent not on NavMesh after delay!");
+                //Debug.LogWarning($"[AISpawnManager] ⚠️ {controller.name} NavMeshAgent not on NavMesh after delay!");
             }
         }
     }
@@ -473,7 +473,7 @@ public class AISpawnManager : NetworkBehaviour
                 if (!entity.IsSleeping)
                 {
                     entity.Sleep();
-                    Debug.Log($"[AISpawnManager] 💤 {ai.name} sleeping (dist: {minDist:F1}m)");
+                    //Debug.Log($"[AISpawnManager] 💤 {ai.name} sleeping (dist: {minDist:F1}m)");
                 }
             }
             else
@@ -481,14 +481,14 @@ public class AISpawnManager : NetworkBehaviour
                 if (entity.IsSleeping)
                 {
                     entity.WakeUp();
-                    Debug.Log($"[AISpawnManager] ⏰ {ai.name} woke up (dist: {minDist:F1}m)");
+                    //Debug.Log($"[AISpawnManager] ⏰ {ai.name} woke up (dist: {minDist:F1}m)");
                 }
             }
         }
 
         foreach (var ai in toPool)
         {
-            Debug.Log($"[AISpawnManager] ♻️ {ai.name} too far, pooling (dist: {GetMinDistanceToPlayers(ai.transform.position):F1}m)");
+            //Debug.Log($"[AISpawnManager] ♻️ {ai.name} too far, pooling (dist: {GetMinDistanceToPlayers(ai.transform.position):F1}m)");
             PoolAI(ai);
         }
     }
@@ -523,12 +523,12 @@ public class AISpawnManager : NetworkBehaviour
         if (usePooling)
         {
             ReturnToPool(ai); // Sử dụng method mới với UnSpawn
-            Debug.Log($"[AISpawnManager] ♻️ {key} pooled (Active: {GetTotalActiveAIs()})");
+            //Debug.Log($"[AISpawnManager] ♻️ {key} pooled (Active: {GetTotalActiveAIs()})");
         }
         else
         {
             NetworkServer.Destroy(ai.gameObject);
-            Debug.Log($"[AISpawnManager] 🗑️ Destroyed {key}");
+            //Debug.Log($"[AISpawnManager] 🗑️ Destroyed {key}");
         }
     }
 
@@ -538,7 +538,7 @@ public class AISpawnManager : NetworkBehaviour
     {
         if (cachedPlayers.Count == 0)
         {
-            var players = FindObjectsOfType<Player>();
+            var players = FindObjectsOfType<PlayerMovement>();
             if (players.Length == 0) return;
 
             Vector3 playerPos = players[0].transform.position;

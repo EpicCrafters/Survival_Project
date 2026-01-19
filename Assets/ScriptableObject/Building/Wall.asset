@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 1003
   itemName: Wall
-  image: {fileID: 10915, guid: 0000000000000000f000000000000000, type: 0}
+  image: {fileID: 21300000, guid: b0413f6e8ab985b4dbd1a95ff9912eaf, type: 3}
   type: 4
   worldPrefab: {fileID: 9065893481218357321, guid: 81b6c140d1adf9645a4c8dab125615c7, type: 3}
   heldPrefab: {fileID: 5717276217548651798, guid: 084d485d31eca8b4cbf79e1700ce74d5, type: 3}
@@ -47,6 +47,8 @@ MonoBehaviour:
     healAmount: 0
     fillAmount: 0
     hungerRestoreAmount: 20
+    stackable: 1
+    maxStack: 99
   resource:
     stackable: 0
     maxStack: 10
@@ -63,3 +65,4 @@ MonoBehaviour:
     placementAnchorOffset: {x: 0, y: 0, z: 0}
     maxCornerDrop: 0.4
     raiseToHighest: 1
+    placementRole: {fileID: 0}

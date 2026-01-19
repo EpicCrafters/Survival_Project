@@ -21,8 +21,37 @@ public class PlayerAnimationEvents : MonoBehaviour
         if (combat == null)
             Debug.LogError("[PlayerAnimationEvents] PlayerCombat not found!");
     }
+    public void PlayerEffect()
+    {
+      
 
-   
+
+        GameObject heldItem = holding.GetCurrentHeldObject();
+        if (heldItem != null)
+        {
+            ItemHitBox hitbox = heldItem.GetComponentInChildren<ItemHitBox>();
+            if (hitbox != null)
+            {
+                hitbox.PlayerEffect();
+                Debug.Log("[PlayerAnimationEvents] ✅ Hitbox enabled");
+            }
+        }
+    }
+
+    public void StopEEffect()
+    {
+        GameObject heldItem = holding.GetCurrentHeldObject();
+        if (heldItem != null)
+        {
+            ItemHitBox hitbox = heldItem.GetComponentInChildren<ItemHitBox>();
+            if (hitbox != null)
+            {
+                hitbox.StopEffect();
+                Debug.Log("[PlayerAnimationEvents] ✅ Hitbox enabled");
+            }
+        }
+    }
+
     public void EnableHitbox()
     {
         Debug.Log("[PlayerAnimationEvents] EnableHitbox called");

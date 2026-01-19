@@ -51,16 +51,14 @@ public class InventoryItem : MonoBehaviour,
     // -------------------------------------------------
     public void OnBeginDrag(PointerEventData eventData)
     {
-        //  CHẶN CHUỘT PHẢI
         if (eventData.button != PointerEventData.InputButton.Left)
         {
             validDrag = false;
             return;
         }
 
-        dragButton = eventData.button;
         validDrag = true;
-
+        droppedOnSlot = false;   //  reset
         originSlot = GetComponentInParent<InventorySlot>();
 
         Canvas canvas = GetComponentInParent<Canvas>();
@@ -70,6 +68,7 @@ public class InventoryItem : MonoBehaviour,
         canvasGroup.blocksRaycasts = false;
         image.raycastTarget = false;
     }
+
     public void OnDrag(PointerEventData eventData)
     {
         if (!validDrag) return;
@@ -85,15 +84,16 @@ public class InventoryItem : MonoBehaviour,
         image.raycastTarget = true;
 
         // Nếu thả ra ngoài inventory drop
-        var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
-        if (view != null && !view.IsPointerInsideInventory())
+        if (!droppedOnSlot)
         {
-            var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
-            if (input != null && originSlot != null)
+            var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
+            if (view != null && !view.IsPointerInsideInventory())
             {
-                int fromIndex = originSlot.index;
-                int count = GetCount(); // hoặc 1 nếu muốn drop từng cái
-                input.RequestDrop(fromIndex, count);
+                var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
+                if (input != null && originSlot != null)
+                {
+                    input.RequestDrop(originSlot.index, GetCount());
+                }
             }
         }
 
@@ -125,7 +125,7 @@ public class InventoryItem : MonoBehaviour,
     }
 
     public void OnPointerClick(PointerEventData eventData)
-    {      
+    {
         InventorySlot slot = GetComponentInParent<InventorySlot>();
         if (slot == null)
         {

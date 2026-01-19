@@ -133,7 +133,7 @@ public class AISyncManager : NetworkBehaviour
         if (!aiEntities.Contains(ai))
         {
             aiEntities.Add(ai);
-            Debug.Log($"[AISync] ✅ Đăng ký AI: {ai.controller.name} (id={ai.controller.uniqueId})");
+            //Debug.Log($"[AISync] ✅ Đăng ký AI: {ai.controller.name} (id={ai.controller.uniqueId})");
         }
     }
 
@@ -144,7 +144,7 @@ public class AISyncManager : NetworkBehaviour
         if (ai != null && ai.controller != null)
         {
             sleepingAIs.Remove(ai.controller.uniqueId);
-            Debug.Log($"[AISync] ❎ Gỡ đăng ký AI: {ai.controller.name} (id={ai.controller.uniqueId})");
+            //Debug.Log($"[AISync] ❎ Gỡ đăng ký AI: {ai.controller.name} (id={ai.controller.uniqueId})");
         }
     }
 

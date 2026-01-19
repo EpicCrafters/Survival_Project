@@ -13,7 +13,7 @@ public class Item : NetworkBehaviour, IPickupAble
     public void Pickup(NetworkIdentity picker)
     {
         //// Find the player or set target externally if needed
-        //GameObject player = GameObject.FindWithTag("Player");
+        //GameObject player = GameObject.FindWithTag("PlayerMovement");
         //if (player != null)
         //{
         //    target = player.transform;
@@ -21,7 +21,7 @@ public class Item : NetworkBehaviour, IPickupAble
         //}
         //else
         //{
-        //    Debug.LogWarning("Player not found, destroying item immediately.");
+        //    Debug.LogWarning("PlayerMovement not found, destroying item immediately.");
         NetworkServer.Destroy(gameObject);
 
     }

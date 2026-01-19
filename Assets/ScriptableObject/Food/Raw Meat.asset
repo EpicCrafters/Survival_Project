@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   id: 64
   itemName: Raw Meat
-  image: {fileID: 0}
+  image: {fileID: 21300000, guid: 53b059442d9481741b646b52d10dacef, type: 3}
   type: 2
   worldPrefab: {fileID: 6490230109583054912, guid: c57c5af0f99da1e42aab21aff575d064, type: 3}
   heldPrefab: {fileID: 6490230109583054912, guid: 45d10bc2bc0049f4c8732db5f7add485, type: 3}

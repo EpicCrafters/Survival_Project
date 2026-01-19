@@ -18,7 +18,7 @@ MonoBehaviour:
   minDamage: 5
   maxDamage: 25
   minSpeed: 20
-  maxSpeed: 2500
+  maxSpeed: 100
   maxChargeTime: 2
   gravityMultiplier: 0
   lifetime: 10

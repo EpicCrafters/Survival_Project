@@ -29,7 +29,7 @@ public class PlayerAnimator : NetworkBehaviour
     private const string IS_ATTACKING = "Attack";
     private const string AIM_WEIGHT = "AimWeight";
 
-    [Header("Player blend speed")]
+    [Header("PlayerMovement blend speed")]
     [SerializeField] private float playerSpeed;
     [SerializeField] private float AimBlendSpeed;
     private float currentAimWeight = 0f;
@@ -45,7 +45,7 @@ public class PlayerAnimator : NetworkBehaviour
     [SerializeField] private float playerSpeedAcceleration = 3f;
 
     [Header("References")]
-    [SerializeField] private Player player;
+    [SerializeField] private PlayerMovement player;
     [SerializeField] private PlayerInteract playerInteract;
     [SerializeField] private PlayerHoldingItem playerholdingItem;
     [SerializeField] private PlayerCombat playerCombat;
@@ -64,9 +64,9 @@ public class PlayerAnimator : NetworkBehaviour
             Debug.LogError("Animator chưa được gán trên PlayerAnimator!");
 
         if (player == null)
-            player = GetComponent<Player>();
+            player = GetComponent<PlayerMovement>();
         if (player == null)
-            Debug.LogError("Player chưa được gán trên PlayerAnimator!");
+            Debug.LogError("PlayerMovement chưa được gán trên PlayerAnimator!");
 
         if (playerInteract == null)
             playerInteract = GetComponent<PlayerInteract>();
@@ -78,7 +78,7 @@ public class PlayerAnimator : NetworkBehaviour
             playerItemUseHandler = GetComponent<PlayerItemUseHandler>();
     }
 
-    private void Update()
+    public void UpdatePlayerAnimator(float deltaTime)
     {
 
         if (!isLocalPlayer) return;

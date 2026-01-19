@@ -1,12 +1,13 @@
 ﻿using Mirror;
 using TMPro;
 using UnityEngine;
+using static InventoryData;
 using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 // Quản lý tương tác player với vật phẩm, công trình, cây/đá
 public class PlayerInteract : NetworkBehaviour
 {
-    
+
     private PlayerHoldingItem playerHoldingItem;
 
     private IPickupAble currentPickup;
@@ -83,7 +84,7 @@ public class PlayerInteract : NetworkBehaviour
     }
 
 
-    private void Update()
+    public void UpdatePlayerInteract(float deltaTime)
     {
 
         if (!isLocalPlayer) return;
@@ -197,6 +198,20 @@ public class PlayerInteract : NetworkBehaviour
 
             return true;
         }
+        else if (hit.collider.TryGetComponent(out IPickupAble pickup))
+        {
+            currentPickup = pickup;
+            currentInteractable = null;
+            isReadyToPickup = true;
+            uiManager.ShowInteractUI();
+            uiManager.ChangeInteractText(
+                "E: Nhặt",
+                null,
+                null,
+                0
+            );
+            return true;
+        }
         return false;
     }
 
@@ -218,8 +233,8 @@ public class PlayerInteract : NetworkBehaviour
             uiManager.ShowInteractUI();
             uiManager.ChangeInteractText("E: " + text);
 
-            if (interactable is CampFire campfire)
-                campfire.ShowUI();
+            if (interactable is IHasUI hasUI)
+                hasUI.ShowUI();
 
             return true;
         }
@@ -319,19 +334,40 @@ public class PlayerInteract : NetworkBehaviour
     [Command]
     private void CmdRequestPickup(NetworkIdentity itemNetId)
     {
+        Debug.Log("pickUp Item");
         if (itemNetId == null) return;
-
-        if (!itemNetId.TryGetComponent<WorldItemBundle>(out var bundle))
-            return;
+        Debug.Log("itemId is null");
         var invData = GetComponentInChildren<InventoryData>();
-        if (invData != null && isLocalPlayer)
+        if (invData == null) return;
+
+        int itemId = -1;
+        int count = 0;
+
+        // Ưu tiên bundle
+        if (itemNetId.TryGetComponent<WorldItemBundle>(out var bundle))
         {
-            invData.CmdAddItem(bundle.GetItemData().id, bundle.count);
-        }       
+            itemId = bundle.GetItemData().id;
+            count = bundle.count;
+        }
+        // Resource / stick / ore...
+        else if (itemNetId.TryGetComponent<Item>(out var pickup))
+        {
+            Debug.Log("Tim duoc item");
+            itemId = pickup.itemData.id;
+            count = 1;
+        }
+        // Có thể thêm ELSE IF cho loại khác
+        else
+        {
+            return; // không phải item nhặt được
+        }
 
-        NetworkServer.Destroy(bundle.gameObject);
+        if (itemId < 0 || count <= 0)
+            return;
+
+        invData.CmdAddItem(itemId, count);
+        NetworkServer.Destroy(itemNetId.gameObject);
     }
-
 
     // Reset trạng thái tương tác
 
@@ -350,8 +386,8 @@ public class PlayerInteract : NetworkBehaviour
         rayColor = Color.green;
         currentPickup = null;
 
-        if (currentInteractable is CampFire campfire)
-            campfire.HideUI();
+        if (currentInteractable is IHasUI hasUI)
+            hasUI.HideUI();
 
         currentInteractable = null;
     }
@@ -363,3 +399,5 @@ public class PlayerInteract : NetworkBehaviour
     public bool IsTree() => isTree;
     public bool IsRock() => isRock;
 }
+
+

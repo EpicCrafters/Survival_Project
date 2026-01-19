@@ -16,13 +16,6 @@ public class BowStringController : MonoBehaviour
     [Tooltip("Bottom attachment point of the string")]
     public Transform stringBottomBone;
 
-    [Header("Draw Settings")]
-    [Tooltip("How far back the string can be pulled (in local space)")]
-    public float maxDrawDistance = 0.3f;
-
-    [Tooltip("Speed of string snap back animation")]
-    public float releaseSpeed = 10f;
-
     [Header("Arrow Spawn")]
     public Transform arrowSpawnPoint;
     public GameObject arrowVisualPoint;
@@ -31,6 +24,13 @@ public class BowStringController : MonoBehaviour
     [Tooltip("Transform for RIGHT hand to follow string (auto-created as child of stringMiddleBone)")]
     public Transform rightHandIKTarget;
     public Transform rightHintPosition;
+
+    [Header("Bow Animator")]
+    [Tooltip("Animator on the bow prefab that controls string pull animation")]
+    public Animator bowAnimator;
+
+    [Tooltip("Speed at which bow snaps back to idle after release")]
+    public float releaseSpeed = 10f;
 
     [Header("Realistic Aiming")]
     [Tooltip("Camera used for aiming calculation")]
@@ -65,35 +65,28 @@ public class BowStringController : MonoBehaviour
     [Tooltip("Duration to show spawn debug sphere")]
     public float spawnDebugDuration = 2f;
 
+    // Animation parameter name - single blend tree parameter
+    private const string ANIM_CHARGE_AMOUNT = "ChargeAmount";
+
     // Private state
-    private Vector3 middleBoneRestPosition;
-    private Vector3 middleBoneRestLocalPosition;
-    private GameObject currentArrowVisual;
     public bool isDrawing = false;
-    public bool isReleasing = false;
+    private bool isReleasing = false;
     private float currentDrawAmount = 0f;
+    private float targetDrawAmount = 0f;
 
     private void Awake()
     {
-        // Lưu vị trí ban đầu của xương giữa
-        if (stringMiddleBone != null)
-        {
-            middleBoneRestPosition = stringMiddleBone.position;
-            middleBoneRestLocalPosition = stringMiddleBone.localPosition;
-        }
-
-        // Tự tìm camera nếu chưa gán
+        // Auto-find camera if not assigned
         if (aimCamera == null)
             aimCamera = Camera.main;
 
-        // Tự tìm player root nếu chưa gán
+        // Auto-find player root if not assigned
         if (playerRoot == null)
         {
-            playerRoot = GetComponentInParent<Player>()?.transform;
+            playerRoot = GetComponentInParent<PlayerMovement>()?.transform;
             if (playerRoot == null)
             {
-                // Try to find by tag if Player component not found
-                GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+                GameObject playerObj = GameObject.FindGameObjectWithTag("PlayerMovement");
                 if (playerObj != null)
                     playerRoot = playerObj.transform;
             }
@@ -101,9 +94,27 @@ public class BowStringController : MonoBehaviour
             if (playerRoot != null && showAimDebug)
                 Debug.Log($"[BowString] Auto-found player root: {playerRoot.name}");
         }
+
+        // Auto-find bow animator if not assigned
+        if (bowAnimator == null)
+        {
+            bowAnimator = GetComponent<Animator>();
+            if (bowAnimator == null)
+            {
+                Debug.LogWarning("[BowString] No Animator found on bow! String won't animate.");
+            }
+        }
+
+        // Initialize animator to idle state
+        if (bowAnimator != null)
+        {
+            bowAnimator.SetFloat(ANIM_CHARGE_AMOUNT, 0f);
+        }
     }
 
-    // Bắt đầu kéo cung
+    /// <summary>
+    /// Start charging - begins the bow's charge animation
+    /// </summary>
     public void StartDrawing()
     {
         if (isDrawing) return;
@@ -111,64 +122,87 @@ public class BowStringController : MonoBehaviour
         isDrawing = true;
         isReleasing = false;
         currentDrawAmount = 0f;
+        targetDrawAmount = 0f;
         arrowVisualPoint.SetActive(true);
 
+        Debug.Log("[BowString] Started charging - bow animator will blend from 0 to 1");
     }
 
-    // Update % kéo cung (0 → 1)
+    /// <summary>
+    /// Update charge amount (0 → 1) - updates target for blend tree
+    /// Player animator and bow animator will sync via this value
+    /// </summary>
     public void UpdateDrawAmount(float drawPercent)
     {
-        if (!isDrawing || stringMiddleBone == null) return;
+        if (!isDrawing) return;
 
-        currentDrawAmount = Mathf.Clamp01(drawPercent);
-
-        // Kéo xương giữa dọc theo -Y local
-        Vector3 pullOffset = -Vector3.up * (maxDrawDistance * currentDrawAmount);
-        stringMiddleBone.localPosition = middleBoneRestLocalPosition + pullOffset;
+        targetDrawAmount = Mathf.Clamp01(drawPercent);
     }
 
-    // Thả dây cung
+    /// <summary>
+    /// Release the bow - bow will snap back to idle quickly
+    /// </summary>
     public void Release()
     {
         if (!isDrawing) return;
 
         isDrawing = false;
         isReleasing = true;
-
+        targetDrawAmount = 0f; // Target back to idle
         arrowVisualPoint.SetActive(false);
+
+        Debug.Log("[BowString] Released - bow will snap back to idle (ChargeAmount → 0)");
     }
 
-    // Hủy kéo cung giữa chừng
+    /// <summary>
+    /// Cancel drawing mid-charge
+    /// </summary>
     public void CancelDraw()
     {
         if (!isDrawing && !isReleasing) return;
 
         isDrawing = false;
         isReleasing = true;
+        targetDrawAmount = 0f;
+        arrowVisualPoint.SetActive(false);
 
-        if (currentArrowVisual != null)
-            Destroy(currentArrowVisual);
+        Debug.Log("[BowString] Cancelled - bow will snap back to idle");
     }
 
     private void Update()
     {
-        // Animation dây cung bật về vị trí cũ
-        if (isReleasing && stringMiddleBone != null)
+        // Smooth lerp to target charge amount when charging
+        if (isDrawing)
         {
-            stringMiddleBone.localPosition = Vector3.Lerp(
-                stringMiddleBone.localPosition,
-                middleBoneRestLocalPosition,
-                releaseSpeed * Time.deltaTime
-            );
+            // Smooth increase when charging (slower, more controlled)
+            currentDrawAmount = Mathf.Lerp(currentDrawAmount, targetDrawAmount, 5f * Time.deltaTime);
+        }
+        // Fast snap back to idle when releasing
+        else if (isReleasing)
+        {
+            // Fast decrease when releasing (quick snap-back)
+            currentDrawAmount = Mathf.Lerp(currentDrawAmount, 0f, releaseSpeed * Time.deltaTime);
+
+            // Stop releasing when nearly at idle
+            if (currentDrawAmount < 0.01f)
+            {
+                currentDrawAmount = 0f;
+                isReleasing = false;
+            }
+        }
+
+        // Update bow animator blend tree parameter
+        if (bowAnimator != null)
+        {
+            bowAnimator.SetFloat(ANIM_CHARGE_AMOUNT, currentDrawAmount);
         }
     }
 
     /// <summary>
-    /// Tính toán hướng bắn thực tế dựa trên ray từ camera với constraints
+    /// Calculate realistic arrow spawn data with aiming constraints
     /// </summary>
     public (Vector3 spawnPos, Vector3 shootDir, Quaternion spawnRot) GetRealisticArrowSpawnData()
     {
-        // Get base spawn position
         Vector3 baseSpawnPos = arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
 
         if (aimCamera == null)
@@ -178,21 +212,15 @@ public class BowStringController : MonoBehaviour
             return (offsetSpawnPos, fallbackDir, Quaternion.LookRotation(fallbackDir));
         }
 
-        // Get camera forward direction
         Vector3 cameraForward = aimCamera.transform.forward;
-
-        // CRITICAL: Calculate safe spawn position by moving forward along camera direction
         Vector3 finalSpawnPos = baseSpawnPos + cameraForward * spawnForwardOffset;
 
-        // Create ray from camera center
         Ray aimRay = aimCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
         Vector3 targetPoint;
 
-        // Build ignore list for player colliders
         Collider[] playerColliders = playerRoot != null ?
             playerRoot.GetComponentsInChildren<Collider>() : new Collider[0];
 
-        // Raycast for target, ignoring player colliders
         RaycastHit[] hits = Physics.RaycastAll(aimRay, maxAimDistance, aimLayerMask);
         RaycastHit validHit = default;
         bool foundValidHit = false;
@@ -200,7 +228,6 @@ public class BowStringController : MonoBehaviour
 
         foreach (RaycastHit hit in hits)
         {
-            // Skip if this is a player collider
             bool isPlayerCollider = false;
             foreach (Collider playerCol in playerColliders)
             {
@@ -223,22 +250,14 @@ public class BowStringController : MonoBehaviour
             }
         }
 
-        if (foundValidHit)
-        {
-            targetPoint = validHit.point;
-        }
-        else
-        {
-            targetPoint = aimRay.GetPoint(maxAimDistance);
-        }
+        targetPoint = foundValidHit ? validHit.point : aimRay.GetPoint(maxAimDistance);
 
-        // Calculate shoot direction from SAFE spawn position (not base position)
         Vector3 rawShootDir = (targetPoint - finalSpawnPos).normalized;
 
         if (showAimDebug)
         {
             Debug.DrawRay(aimCamera.transform.position, aimRay.direction * maxAimDistance, Color.cyan, 0.1f);
-            Debug.DrawLine(baseSpawnPos, finalSpawnPos, Color.white, 0.1f); // Show offset
+            Debug.DrawLine(baseSpawnPos, finalSpawnPos, Color.white, 0.1f);
             Debug.DrawLine(finalSpawnPos, targetPoint, Color.yellow, 0.1f);
             Debug.DrawRay(finalSpawnPos, rawShootDir * 5f, Color.red, 0.1f);
         }
@@ -247,13 +266,9 @@ public class BowStringController : MonoBehaviour
         float distanceToTarget = Vector3.Distance(finalSpawnPos, targetPoint);
         if (distanceToTarget < minAimDistance)
         {
-            Vector3 constrainedDir = cameraForward;
             if (showAimDebug)
-            {
-                Debug.DrawRay(finalSpawnPos, constrainedDir * 5f, Color.green, 0.1f);
                 Debug.Log($"[Bow] Target too close ({distanceToTarget:F2}m), using camera forward");
-            }
-            return (finalSpawnPos, constrainedDir, Quaternion.LookRotation(constrainedDir));
+            return (finalSpawnPos, cameraForward, Quaternion.LookRotation(cameraForward));
         }
 
         // CONSTRAINT 2: Check angle deviation
@@ -268,10 +283,7 @@ public class BowStringController : MonoBehaviour
             );
 
             if (showAimDebug)
-            {
-                Debug.DrawRay(finalSpawnPos, clampedDir * 5f, Color.magenta, 0.1f);
                 Debug.Log($"[Bow] Angle clamped from {angleFromCamera:F1}° to {maxAimAngleDeviation}°");
-            }
 
             return (finalSpawnPos, clampedDir, Quaternion.LookRotation(clampedDir));
         }
@@ -280,29 +292,20 @@ public class BowStringController : MonoBehaviour
         float dotProduct = Vector3.Dot(cameraForward, rawShootDir);
         if (dotProduct < 0)
         {
-            Vector3 forwardDir = cameraForward;
             if (showAimDebug)
-            {
-                Debug.DrawRay(finalSpawnPos, forwardDir * 5f, Color.blue, 0.1f);
-                Debug.Log($"[Bow] Would shoot backwards, using camera forward");
-            }
-            return (finalSpawnPos, forwardDir, Quaternion.LookRotation(forwardDir));
+                Debug.Log("[Bow] Would shoot backwards, using camera forward");
+            return (finalSpawnPos, cameraForward, Quaternion.LookRotation(cameraForward));
         }
 
-        // Return safe spawn position with correct direction
         return (finalSpawnPos, rawShootDir, Quaternion.LookRotation(rawShootDir));
     }
 
-    /// <summary>
-    /// Get the ACTUAL spawn position that will be used (includes forward offset)
-    /// </summary>
     public Vector3 GetArrowSpawnPosition()
     {
         Vector3 basePos = arrowSpawnPoint != null ? arrowSpawnPoint.position : stringMiddleBone.position;
 
         if (aimCamera != null)
         {
-            // Apply the same forward offset used in GetRealisticArrowSpawnData
             return basePos + aimCamera.transform.forward * spawnForwardOffset;
         }
         else
@@ -323,47 +326,38 @@ public class BowStringController : MonoBehaviour
         return projectileData;
     }
 
-    /// <summary>
-    /// Debug visualization when arrow is spawned
-    /// Call this from your fire code to show where the arrow spawns
-    /// </summary>
     public void DebugArrowSpawn(Vector3 spawnPosition, Vector3 shootDirection)
     {
         if (!showSpawnDebug) return;
 
-        // Draw debug sphere at spawn position
         Debug.DrawRay(spawnPosition, Vector3.up * 0.5f, Color.green, spawnDebugDuration);
         Debug.DrawRay(spawnPosition, Vector3.down * 0.5f, Color.green, spawnDebugDuration);
         Debug.DrawRay(spawnPosition, Vector3.left * 0.5f, Color.green, spawnDebugDuration);
         Debug.DrawRay(spawnPosition, Vector3.right * 0.5f, Color.green, spawnDebugDuration);
         Debug.DrawRay(spawnPosition, Vector3.forward * 0.5f, Color.green, spawnDebugDuration);
         Debug.DrawRay(spawnPosition, Vector3.back * 0.5f, Color.green, spawnDebugDuration);
-
-        // Draw shoot direction
         Debug.DrawRay(spawnPosition, shootDirection * 10f, Color.red, spawnDebugDuration);
 
-        // Log to console
-        Debug.Log($"[BowString] 🏹 ARROW SPAWNED at {spawnPosition} | Direction: {shootDirection} | Distance from bow: {Vector3.Distance(spawnPosition, transform.position):F2}m");
+        Debug.Log($"[BowString] 🏹 ARROW SPAWNED at {spawnPosition} | Direction: {shootDirection}");
     }
 
     private void OnDisable()
     {
-        // Reset khi đổi vũ khí
+        // Reset when switching weapons
         if (isDrawing || isReleasing)
         {
-            if (stringMiddleBone != null)
-                stringMiddleBone.localPosition = middleBoneRestLocalPosition;
-
-            if (currentArrowVisual != null)
-                Destroy(currentArrowVisual);
+            if (bowAnimator != null)
+            {
+                bowAnimator.SetFloat(ANIM_CHARGE_AMOUNT, 0f);
+            }
 
             isDrawing = false;
             isReleasing = false;
             currentDrawAmount = 0f;
+            targetDrawAmount = 0f;
         }
     }
 
-    // Debug visualization in editor
     private void OnDrawGizmosSelected()
     {
         if (!Application.isPlaying || !showAimDebug || aimCamera == null) return;
@@ -372,40 +366,25 @@ public class BowStringController : MonoBehaviour
         Vector3 cameraForward = aimCamera.transform.forward;
         Vector3 offsetPos = basePos + cameraForward * spawnForwardOffset;
 
-        // Draw base spawn point
         Gizmos.color = Color.white;
         Gizmos.DrawWireSphere(basePos, 0.05f);
 
-        // Draw safe spawn point
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(offsetPos, 0.05f);
 
-        // Draw offset line
         Gizmos.color = Color.white;
         Gizmos.DrawLine(basePos, offsetPos);
 
-        // Draw camera forward
         Gizmos.color = Color.cyan;
         Gizmos.DrawRay(offsetPos, cameraForward * 10f);
 
-        // Draw min distance sphere
         Gizmos.color = new Color(1f, 0f, 0f, 0.2f);
         Gizmos.DrawWireSphere(offsetPos, minAimDistance);
-
-        // Draw max angle cone (approximate)
-        Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
-        Vector3 right = Vector3.Cross(cameraForward, Vector3.up).normalized;
-        Vector3 maxAngleDir = Quaternion.AngleAxis(maxAimAngleDeviation, right) * cameraForward;
-        Gizmos.DrawRay(offsetPos, maxAngleDir * 10f);
     }
 
     public bool IsDrawing => isDrawing;
     public float CurrentDrawAmount => currentDrawAmount;
 
-    /// <summary>
-    /// Set the player root transform to ignore player colliders in aiming raycast
-    /// Call this when equipping the bow
-    /// </summary>
     public void SetPlayerRoot(Transform player)
     {
         playerRoot = player;

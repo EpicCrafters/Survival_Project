@@ -16,7 +16,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TMP_Text itemCountText;
     [SerializeField] private Image itemIcon;
 
-    [Header("Player HUD")]
+    [Header("PlayerMovement HUD")]
     [SerializeField] private Image healthFill;          // Thanh máu chính 
     [SerializeField] private Image healthDamageFill;    // Thanh máu phụ 
     [SerializeField] private float healthDelaySpeed = 1.5f; // Tốc độ thanh trắng tụt xuống (mượt hơn)

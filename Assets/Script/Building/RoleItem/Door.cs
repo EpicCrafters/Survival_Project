@@ -43,7 +43,7 @@ public class Door : NetworkBehaviour, Iinteractable, IHasCustomText
     // ==========================================
     //  IMPLEMENT Iinteractable
     // ==========================================
-    public void Interact()
+    public void Interact(PlayerHoldingItem playerHoldingItem)
     {
         ToggleDoor();
     }
@@ -56,7 +56,7 @@ public class Door : NetworkBehaviour, Iinteractable, IHasCustomText
         return isOpen ? "Close Door" : "Open Door";
     }
 
-    public void Interact(PlayerHoldingItem playerHoldingItem)
+    public void Interact()
     {
         throw new System.NotImplementedException();
     }

@@ -1,10 +1,11 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using Mirror;
 using UnityEngine;
 using UnityEngine.UI;
 
 
-public class DayNightCycle : MonoBehaviour
+public class DayNightCycle : NetworkBehaviour
 {
 
     [Header("Time")]
@@ -24,7 +25,7 @@ public class DayNightCycle : MonoBehaviour
     private bool use24Clock = true;
     //[SerializeField]
     //private Text clockText;
-    [SerializeField]
+    [SyncVar(hook = nameof(OnTimeOfDaySync))]
     [Range(0f, 1f)]
     private float _timeOfDay;// giá trị từ 0 -> 1 (phần trăm ngày)
     public float timeOfDay
@@ -66,6 +67,7 @@ public class DayNightCycle : MonoBehaviour
     [SerializeField]
     private AnimationCurve timeCurve;
     private float timeCurveNormalization;
+    private float visualTimeOfDay;
 
 
     [Header("Sun Light")]
@@ -96,27 +98,41 @@ public class DayNightCycle : MonoBehaviour
 
     private void Start()
     {
-        _timeOfDay = 6f / 24f; // 6h sáng
+        _timeOfDay = 20f / 24f; // 6h sáng
+        visualTimeOfDay = _timeOfDay;
         elapsedTime = _timeOfDay * targetDayLength * 60; // đồng bộ elapsedTime
         NormalTimeCurve();
     }
-
-
     private void Update()
     {
-        if (!pause)
+        //  CHỈ SERVER MỚI ĐƯỢC TĂNG THỜI GIAN
+        if (isServer && !pause)
         {
             UpdateTimeScale();
             UpdateTime();
             UpdateClock();
         }
 
+        //  CLIENT LERP – SERVER GÁN THẲNG
+        if (!isServer)
+        {
+            visualTimeOfDay = Mathf.Lerp(
+                visualTimeOfDay,
+                _timeOfDay,
+                Time.deltaTime * 5f
+            );
+        }
+        else
+        {
+            visualTimeOfDay = _timeOfDay;
+        }
 
+        //  RENDER DÙNG visualTimeOfDay
         AdjustSunRotation();
         SunIntensity();
         AdjustSunColor();
         UpdateLighting();
-        UpdateModules(); //will update modules each frame
+        UpdateModules();
     }
 
 
@@ -205,7 +221,8 @@ public class DayNightCycle : MonoBehaviour
     //rotates the sun daily (and seasonally soon too);
     private void AdjustSunRotation()
     {
-        float sunAngle = timeOfDay * 360f;
+        float sunAngle = visualTimeOfDay * 360f;
+
         dailyRotation.localRotation = Quaternion.Euler(sunAngle, 0f, 0f);
 
         float seasonalAngle = -maxSeasonalTilt * Mathf.Cos(dayNumber / yearLength * 2f * Mathf.PI);
@@ -252,36 +269,43 @@ public class DayNightCycle : MonoBehaviour
             module.UpdateModule(intensity);
         }
     }
+    void OnTimeOfDaySync(float oldValue, float newValue)
+    {
+        _timeOfDay = newValue;
+    }
 
     private void UpdateLighting()
     {
         float ambientIntensity = 0f;
 
-        if (timeOfDay >= 0.15f && timeOfDay <= 0.25f)
+        if (visualTimeOfDay >= 0.15f && visualTimeOfDay <= 0.25f)
         {
-            // Bình minh -> giữa trưa: tăng dần từ 0 -> 85
-            float t = Mathf.InverseLerp(0.15f, 0.25f, timeOfDay);
+            float t = Mathf.InverseLerp(0.15f, 0.25f, visualTimeOfDay);
             ambientIntensity = Mathf.Lerp(0f, 0.85f, t);
         }
-        else if (timeOfDay > 0.25f && timeOfDay <= 0.7f)
+        else if (visualTimeOfDay > 0.25f && visualTimeOfDay <= 0.7f)
         {
-            // Giữa trưa: giữ nguyên 
             ambientIntensity = 0.85f;
         }
-        else if (timeOfDay > 0.7f && timeOfDay <= 0.85f)
+        else if (visualTimeOfDay > 0.7f && visualTimeOfDay <= 0.85f)
         {
-            // Hoàng hôn -> đêm: giảm từ 1 -> 0.05
-            float t = Mathf.InverseLerp(0.7f, 0.85f, timeOfDay);
+            float t = Mathf.InverseLerp(0.7f, 0.85f, visualTimeOfDay);
             ambientIntensity = Mathf.Lerp(1f, 0.05f, t);
         }
-        else if (timeOfDay > 0.85f || timeOfDay < 0.15f)
+        else
         {
-            // Đêm: giữ tối
             ambientIntensity = 0.05f;
         }
 
+        // ===== AMBIENT =====
         RenderSettings.ambientIntensity = ambientIntensity;
-        //Debug.Log($"TimeOfDay: {timeOfDay} | AmbientIntensity: {ambientIntensity}");
+
+        // ===== REFLECTION =====
+        // Reflection luôn yếu hơn ambient, và về 0 ban đêm
+        float reflectionIntensity =
+            Mathf.Clamp01(ambientIntensity * 0.8f);
+
+        RenderSettings.reflectionIntensity = reflectionIntensity;
     }
 
 }

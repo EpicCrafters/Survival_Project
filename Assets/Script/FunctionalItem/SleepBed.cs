@@ -5,7 +5,7 @@ public class SleepBed : MonoBehaviour,Iinteractable
     [SerializeField] private float sleepDuration;
     public void Interact()
     {
-        Debug.Log("Player Sleep");
+        Debug.Log("PlayerMovement Sleep");
         StartCoroutine(SleepRoutine());
     }
 

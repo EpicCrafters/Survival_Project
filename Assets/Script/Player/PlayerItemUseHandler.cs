@@ -17,7 +17,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
     [SerializeField] private PlayableAnimationBlender playableAnimationBlender;
     [SerializeField] private PlayerPlaySound playSound;
     [SerializeField] private PlayerCameraManager playerCameraManager;
-    [SerializeField] private CrosshairManager crosshairManager; // ✨ Crosshair manager
+    [SerializeField] private CrosshairManager crosshairManager;
 
     // Properties public
     public PlayerHoldingItem PlayerHoldingItem => playerHoldingItem;
@@ -67,7 +67,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
             }
         }
 
-        // ✨ Tìm CrosshairManager trong scene
         if (crosshairManager == null)
         {
             crosshairManager = FindObjectOfType<CrosshairManager>();
@@ -102,7 +101,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
     // ===========================================================
     // Update - Xử lý logic hàng frame
     // ===========================================================
-    private void Update()
+    public void UpdatePlayerItemUse(float deltaTime)
     {
         if (!isLocalPlayer) return;
 
@@ -112,15 +111,15 @@ public class PlayerItemUseHandler : NetworkBehaviour
             float heldTime = Time.time - useStartTime;
             currentStrategy.OnUseHeld(playerHoldingItem.ItemData, this, heldTime);
 
-            // ✨ Update crosshair dựa trên charge time
+            // Update crosshair dựa trên charge time
             UpdateCrosshairBasedOnCharge(heldTime);
         }
     }
 
-    // ✨ Hàm update crosshair dựa trên thời gian charge
+    // Hàm update crosshair dựa trên thời gian charge
     private void UpdateCrosshairBasedOnCharge(float chargeTime)
     {
-        // ✨ Thêm kiểm tra: phải đang aim VÀ đang charge
+        // Thêm kiểm tra: phải đang aim VÀ đang charge
         if (crosshairManager == null || !isCharging || !isAiming) return;
 
         var itemData = playerHoldingItem.ItemData;
@@ -136,7 +135,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
             ProjectileData projectileData = bowString.GetProjectileData();
             if (projectileData != null)
             {
-                // ✨ Sử dụng phương thức mới từ ProjectileData
+                // Sử dụng phương thức từ ProjectileData
                 float chargePercent = projectileData.CalculateChargePercent(chargeTime);
 
                 // Update crosshair
@@ -171,19 +170,19 @@ public class PlayerItemUseHandler : NetworkBehaviour
         isCharging = true;
         useStartTime = Time.time;
 
-        // ✨ Chỉ hiển thị crosshair khi: Đang cầm cung + Đang aim + Bắt đầu charge
+        // Chỉ hiển thị crosshair khi: Đang cầm cung + Đang aim + Bắt đầu charge
         if (crosshairManager != null &&
             itemData.weapon != null &&
             itemData.weapon.weaponType == WeaponType.Bow &&
-            isAiming) // ✨ Thêm điều kiện phải đang aim
+            isAiming)
         {
             crosshairManager.ShowCrosshair();
             playSound.PlayArrowCharge();
-            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair hiển thị - Đang aim + charge");
+            Debug.Log("[PlayerItemUseHandler] Crosshair displayed - Aiming + charging");
         }
 
         currentStrategy.OnUseStarted(itemData, this);
-        Debug.Log($"[PlayerItemUseHandler] Bắt đầu sử dụng {itemData.itemName}");
+        Debug.Log($"[PlayerItemUseHandler] Started using {itemData.itemName}");
     }
 
     private void HandleUseCanceled(object sender, System.EventArgs e)
@@ -198,15 +197,15 @@ public class PlayerItemUseHandler : NetworkBehaviour
         currentStrategy.OnUseReleased(itemData, this, heldTime);
         isUsing = false;
 
-        // ✨ Ẩn crosshair khi thả (bắn hoặc cancel)
-        if (crosshairManager != null&& itemData.weapon.weaponType == WeaponType.Bow )
+        // Ẩn crosshair khi thả (bắn hoặc cancel)
+        if (crosshairManager != null && itemData.weapon.weaponType == WeaponType.Bow)
         {
             crosshairManager.HideCrosshair();
-            playSound.PlayArrowRelease();
-            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair ẩn - Đã thả");
+          
+            Debug.Log("[PlayerItemUseHandler] Crosshair hidden - Released");
         }
 
-        Debug.Log($"[PlayerItemUseHandler] Đã thả sử dụng");
+        Debug.Log($"[PlayerItemUseHandler] Released use");
     }
 
     private void HandleAimStarted(object sender, System.EventArgs e)
@@ -224,23 +223,20 @@ public class PlayerItemUseHandler : NetworkBehaviour
 
         isAiming = true;
 
-        // ✨ KHÔNG hiển thị crosshair khi chỉ aim - chỉ hiển thị khi BẮT ĐẦU CHARGE
+        // KHÔNG hiển thị crosshair khi chỉ aim - chỉ hiển thị khi BẮT ĐẦU CHARGE
         // Crosshair sẽ được hiển thị trong HandleUseStarted (khi nhấn attack)
 
-        // Chuyển sang camera aim
-        if (playerCameraManager != null)
-        {
-            playerCameraManager.SetAimingMode(true, itemData);
-        }
+        // Chuyển sang camera aim (priority-based, smooth blend)
+      
 
         // Setup IK cho cung
         if (itemData.weapon.weaponType == WeaponType.Bow && currentBowStringOverride != null)
         {
-            Debug.Log($"[PlayerItemUseHandler] ✅ Aiming với override: {currentBowStringOverride.name}");
+            Debug.Log($"[PlayerItemUseHandler] Aiming with override: {currentBowStringOverride.name}");
         }
 
         currentStrategy.OnAimStarted(itemData, this);
-        Debug.Log("[PlayerItemUseHandler] Bắt đầu aim (crosshair vẫn ẩn cho đến khi charge)");
+        Debug.Log("[PlayerItemUseHandler] Started aiming (crosshair hidden until charge)");
     }
 
     private void HandleAimCanceled(object sender, System.EventArgs e)
@@ -255,18 +251,13 @@ public class PlayerItemUseHandler : NetworkBehaviour
 
         isAiming = false;
 
-        // ✨ Ẩn crosshair nếu đang hiển thị
+        // Ẩn crosshair nếu đang hiển thị
         if (crosshairManager != null && crosshairManager.IsVisible())
         {
             crosshairManager.HideCrosshair();
-            Debug.Log("[PlayerItemUseHandler] ✅ Crosshair ẩn - Ngừng aim");
+            Debug.Log("[PlayerItemUseHandler] Crosshair hidden - Stopped aiming");
         }
 
-        // Chuyển về camera thường
-        if (playerCameraManager != null)
-        {
-            playerCameraManager.SetAimingMode(false, itemData);
-        }
 
         currentStrategy.OnAimReleased(itemData, this);
 
@@ -285,7 +276,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         if (ikTarget != null)
         {
             currentBowIKTarget = ikTarget;
-            Debug.Log($"[PlayerItemUseHandler] ✅ Bow IK static target đã lưu: {ikTarget.name}");
+            Debug.Log($"[PlayerItemUseHandler] Bow IK static target saved: {ikTarget.name}");
         }
     }
 
@@ -294,7 +285,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         if (stringBone != null)
         {
             currentBowStringOverride = stringBone;
-            Debug.Log($"[PlayerItemUseHandler] ✅ Bow string override đã lưu: {stringBone.name}");
+            Debug.Log($"[PlayerItemUseHandler] Bow string override saved: {stringBone.name}");
         }
     }
 
@@ -303,7 +294,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         if (hintOverride != null)
         {
             currentBowRightHintOverride = hintOverride;
-            Debug.Log($"[PlayerItemUseHandler] ✅ Bow right hint override đã lưu: {hintOverride.name}");
+            Debug.Log($"[PlayerItemUseHandler] Bow right hint override saved: {hintOverride.name}");
         }
     }
 
@@ -313,13 +304,10 @@ public class PlayerItemUseHandler : NetworkBehaviour
         {
             CancelCurrentAction();
 
-            if (playerCameraManager != null)
-            {
-                playerCameraManager.SetAimingMode(false, null);
-            }
+           
         }
 
-        // ✨ Ẩn crosshair khi đổi item
+        // Ẩn crosshair khi đổi item
         if (crosshairManager != null && crosshairManager.IsVisible())
         {
             crosshairManager.HideCrosshair();
@@ -345,16 +333,14 @@ public class PlayerItemUseHandler : NetworkBehaviour
             }
         }
 
-        // ✨ Ẩn crosshair khi cancel
+        // Ẩn crosshair khi cancel
         if (crosshairManager != null && crosshairManager.IsVisible())
         {
             crosshairManager.HideCrosshair();
         }
 
-        if (playerCameraManager != null)
-        {
-            playerCameraManager.SetAimingMode(false, null);
-        }
+        // Camera will smoothly blend back to normal
+       
 
         isUsing = false;
         isAiming = false;
@@ -420,7 +406,7 @@ public class PlayerItemUseHandler : NetworkBehaviour
         {
             NetworkServer.Destroy(arrowObj);
         }
-
+        playSound.PlayArrowRelease();
         RpcPlayBowRelease();
     }
 
@@ -429,7 +415,6 @@ public class PlayerItemUseHandler : NetworkBehaviour
         gameInput = gameinput;
     }
 
-    // ✨ NEW: Setter for CrosshairManager
     public void SetCrosshairManager(CrosshairManager manager)
     {
         crosshairManager = manager;

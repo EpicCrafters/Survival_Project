@@ -44,6 +44,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ebcb075e8e37ec469edc13d38413093, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
   ghostMaterial: {fileID: -6478536213147159724, guid: b7620355d9f7d104fb3e1b442a993c97, type: 3}
   maxPlaceDistance: 25
   placeableLayers:

@@ -1,12 +1,15 @@
 ﻿using UnityEngine;
 
-public class ItemPlacer : MonoBehaviour
+using Mirror;
+
+public class ItemPlacer : NetworkBehaviour
+
 {
     [Header("Settings")]
     [SerializeField] private Material ghostMaterial;
-    
+
     [SerializeField] private float maxPlaceDistance = 25f;
-    
+
 
     private GameObject ghostObject;
     private ItemData placingItem;
@@ -93,22 +96,44 @@ public class ItemPlacer : MonoBehaviour
             ghostObject.transform.rotation = Quaternion.Euler(0, currentRotationY, 0);
         }
     }
-
-
     void PlaceItem()
     {
         if (ghostObject == null) return;
 
+        // 1. Validate local (để UX mượt)
         GhostValidator validator = ghostObject.GetComponent<GhostValidator>();
         if (validator != null && !validator.IsValid)
         {
-            Debug.Log("[PlaceItem] Cannot place: ghost is colliding.");
+            Debug.Log("[ItemPlacer] Ghost invalid, cancel place.");
             return;
         }
 
-        Instantiate(placingItem.worldPrefab, ghostObject.transform.position, ghostObject.transform.rotation);
+        // 2. Lấy dữ liệu cần gửi server
+        Vector3 pos = ghostObject.transform.position;
+        Quaternion rot = ghostObject.transform.rotation;
+        int itemId = placingItem.id;
+
+        // 3. Gửi request lên server
+        RequestPlaceItemServer(pos, rot, itemId);
+
+        // 4. Dọn ghost (client-side)
         Destroy(ghostObject);
+        ghostObject = null;
         isPlacing = false;
+    }
+    void RequestPlaceItemServer(Vector3 pos, Quaternion rot, int itemId)
+    {
+        CmdPlaceItem(pos, rot, itemId);
+    }
+    [Command]
+    void CmdPlaceItem(Vector3 pos, Quaternion rot, int itemId)
+    {
+        ItemData item = ItemDatabase.Get(itemId);
+        if (item == null) return;
+
+        GameObject obj = Instantiate(item.worldPrefab, pos, rot);
+
+        NetworkServer.Spawn(obj);
         playerHolding.OnPlaced();
     }
 

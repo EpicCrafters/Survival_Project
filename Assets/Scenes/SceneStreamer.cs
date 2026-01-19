@@ -28,19 +28,19 @@ public class SceneStreamer : MonoBehaviour
     public Color unloadColor = Color.red;
     public bool drawLabels = true;
 
-    [Header("Player detection")]
+    [Header("PlayerMovement detection")]
     [Tooltip("Tags to consider players. If empty, will check objects with name containing 'player'.")]
-    public string[] playerTags = new string[] { "Player" };
+    public string[] playerTags = new string[] { "PlayerMovement" };
 
     [Header("Startup Configuration")]
     [Tooltip("Wait for all scenes in sceneConfig to be available before starting streaming logic")]
     public bool waitForAllScenes = true;
 
-    [Header("Automatic Player Detection")]
+    [Header("Automatic PlayerMovement Detection")]
     [Tooltip("Automatically search for players in newly loaded scenes")]
     public bool autoDetectNewPlayers = true;
-    [Tooltip("Player prefab name to search for (case insensitive)")]
-    public string playerPrefabName = "Player";
+    [Tooltip("PlayerMovement prefab name to search for (case insensitive)")]
+    public string playerPrefabName = "PlayerMovement";
 
     private Transform[] players;
     private HashSet<string> loadingScenes = new HashSet<string>();

@@ -1,6 +1,7 @@
 ﻿using Mirror;
 using UnityEngine;
 using System.Collections.Generic;
+using NUnit.Framework.Internal;
 
 public class ItemHitBox : MonoBehaviour
 {
@@ -15,6 +16,10 @@ public class ItemHitBox : MonoBehaviour
     public Transform startPoint;
     [Tooltip("Điểm kết thúc của lưỡi kiếm/công cụ")]
     public Transform endPoint;
+
+    public ParticleSystem effect;
+   
+
 
     [Header("Fallback Offsets")]
     [Tooltip("Offset từ transform nếu không có startPoint")]
@@ -95,9 +100,11 @@ public class ItemHitBox : MonoBehaviour
         spherePositions = new Vector3[sphereCount];
         hitBuffer = new Collider[maxHitsPerCheck];
 
+        if(effect!=null)
+        effect.Stop();
         // Tìm ItemHeld component từ parent
         itemHeld = GetComponentInParent<ItemHeld>();
-
+       
         // Cập nhật combined layers
         UpdateCombinedLayers();
 
@@ -181,18 +188,31 @@ public class ItemHitBox : MonoBehaviour
         }
     }
 
-  
+    public void PlayerEffect()
+    {
+        if(effect!=null)
+        effect.Play();
+    }
+
+    public void StopEffect()
+    {
+        if (effect != null)
+        {
+            effect.Stop();
+           effect.Clear();
+        }
+    }
     public void EnableHitbox()
     {
         UpdateItemData();
         UpdateCombinedLayers();
         isHitboxActive = true;
-
+        
         // Clear tất cả tracking
         alreadyHitNetIds.Clear();
         alreadyHitInstanceIds.Clear();
         hasHitSomething = false;
-
+        
         // Clear component caches khi bật hitbox mới để tránh cache stale data
         ClearComponentCaches();
 
@@ -204,12 +224,12 @@ public class ItemHitBox : MonoBehaviour
     public void DisableHitbox()
     {
         isHitboxActive = false;
-
+        
         // Clear tracking
         alreadyHitNetIds.Clear();
         alreadyHitInstanceIds.Clear();
         hasHitSomething = false;
-
+        
         if (enableDebugLogs)
             Debug.Log($"[ItemHitBox] Hitbox bị tắt");
     }
@@ -653,10 +673,11 @@ public class ItemHitBox : MonoBehaviour
         }
     }
 
-   
+
     private bool IsToolValidForResource(ToolType tool, ResourceType resource)
     {
         bool isValid = (tool == ToolType.Axe && resource == ResourceType.Tree) ||
+                       (tool == ToolType.Axe && resource == ResourceType.Bush) ||
                        (tool == ToolType.Pickaxe && resource == ResourceType.Rock);
 
         if (enableDebugLogs)
@@ -665,7 +686,7 @@ public class ItemHitBox : MonoBehaviour
         return isValid;
     }
 
-    
+
     private bool IsLayerInMask(int layer, LayerMask mask)
     {
         return ((1 << layer) & mask.value) != 0;

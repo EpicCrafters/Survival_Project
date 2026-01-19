@@ -7,17 +7,17 @@ using Mirror;
 [DisallowMultipleComponent]
 public class PlayerFreezeUntilReady : NetworkBehaviour
 {
-    private Player player;
+    private PlayerMovement player;
     private CharacterController controller;
     private bool isReady = false;
 
     private void Awake()
     {
-        player = GetComponent<Player>();
+        player = GetComponent<PlayerMovement>();
         controller = GetComponent<CharacterController>();
 
         if (player == null)
-            Debug.LogError("[PlayerFreezeUntilReady] No Player component found on this GameObject!");
+            Debug.LogError("[PlayerFreezeUntilReady] No PlayerMovement component found on this GameObject!");
         if (controller == null)
             Debug.LogError("[PlayerFreezeUntilReady] No CharacterController found on this GameObject!");
     }
@@ -33,7 +33,7 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         // Freeze player
         if (player != null) player.enabled = false;
         if (controller != null) controller.enabled = false;
-        Debug.Log("[PlayerFreezeUntilReady] Player frozen until all scenes loaded.");
+        Debug.Log("[PlayerFreezeUntilReady] PlayerMovement frozen until all scenes loaded.");
 
         // Wait for MainMenuUI to exist
         MainMenuUI menuUI = null;
@@ -55,7 +55,7 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         // Unfreeze player
         if (player != null) player.enabled = true;
         if (controller != null) controller.enabled = true;
-        Debug.Log("[PlayerFreezeUntilReady] Player unfrozen. Ready to move!");
+        Debug.Log("[PlayerFreezeUntilReady] PlayerMovement unfrozen. Ready to move!");
 
         isReady = true;
     }
@@ -84,6 +84,6 @@ public class PlayerFreezeUntilReady : NetworkBehaviour
         if (controller != null) controller.enabled = true;
 
         isReady = true;
-        Debug.Log("[PlayerFreezeUntilReady] ForceActivate called: Player unfrozen.");
+        Debug.Log("[PlayerFreezeUntilReady] ForceActivate called: PlayerMovement unfrozen.");
     }
 }

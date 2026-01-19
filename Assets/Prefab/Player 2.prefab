@@ -57,6 +57,18 @@ MonoBehaviour:
     amount: 10
   - itemId: {fileID: 11400000, guid: b21e0a1aa4c440749bc19dd16c1ef4a1, type: 2}
     amount: 1
+  - itemId: {fileID: 11400000, guid: 55f335ba711b3aa4a8d9ccb633963781, type: 2}
+    amount: 1
+  - itemId: {fileID: 11400000, guid: 90052163b35ca314fbf09332d29e5170, type: 2}
+    amount: 1
+  - itemId: {fileID: 11400000, guid: 5072ad816acd83541ad0d5d7a6831080, type: 2}
+    amount: 1
+  - itemId: {fileID: 11400000, guid: 0eb0dc0b3da48db449f1f1a13ba309a2, type: 2}
+    amount: 3
+  - itemId: {fileID: 11400000, guid: 380384b12d63340478dfca131eeca5da, type: 2}
+    amount: 3
+  - itemId: {fileID: 11400000, guid: 99e6af84a3590e54f8b2b53ec101d073, type: 2}
+    amount: 20
 --- !u!114 &3516166399862806744
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -525,6 +537,7 @@ GameObject:
   - component: {fileID: 1105355830668630622}
   - component: {fileID: 6898246783387066304}
   - component: {fileID: -4590973325412194780}
+  - component: {fileID: 1155290580682266306}
   - component: {fileID: 7217165074648246924}
   - component: {fileID: 8379247133936365975}
   - component: {fileID: 1418801298050016171}
@@ -537,7 +550,7 @@ GameObject:
   - component: {fileID: 7899091005692801954}
   m_Layer: 16
   m_Name: Player 2
-  m_TagString: Player
+  m_TagString: PlayerMovement
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -677,6 +690,25 @@ MonoBehaviour:
   playerInteract: {fileID: 8379247133936365975}
   playerIKController: {fileID: 8619790328612939904}
   playerCameraManager: {fileID: 7899091005692801954}
+--- !u!114 &1155290580682266306
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8626825677803242378}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4cbacf3687e77324484b2bc72c54d0d4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 7217165074648246924}
+  playerAnimator: {fileID: 3264871134979126737}
+  playerStatManager: {fileID: 5284994920541229815}
+  playerItemUseHandler: {fileID: 2127603789340546886}
+  playerIKController: {fileID: 8619790328612939904}
+  playerInteract: {fileID: 8379247133936365975}
+  isLocalPlayer: 0
 --- !u!114 &7217165074648246924
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -695,6 +727,7 @@ MonoBehaviour:
   playerInteract: {fileID: 8379247133936365975}
   playerItemUseHandler: {fileID: 2127603789340546886}
   playerCameraManager: {fileID: 7899091005692801954}
+  playerCombat: {fileID: 5528069724715214631}
   state: 0
   gameInput: {fileID: 0}
   playerAnimator: {fileID: 3264871134979126737}
@@ -791,14 +824,15 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  damageTest: 50
+  damageTest: 1
   healTest: 50
   maxHealth: 100
   maxStamina: 100
   staminaRestoreRate: 5
   staminaRegenDelay: 2
   maxHunger: 100
-  hungerDrainRate: 0.2
+  hungerDrainRateFullHealth: 0.5
+  hungerDrainRateDamaged: 1.5
   hungerTickInterval: 5
   starvationDamageInterval: 2
   starvationDamage: 1
@@ -809,6 +843,7 @@ MonoBehaviour:
   animator: {fileID: 4751871965091081300}
   characterController: {fileID: 4039622900495366456}
   playableAnimationBlender: {fileID: 6139904063114402170}
+  playerCameraManager: {fileID: 7899091005692801954}
   screenDamageMaterial: {fileID: 2100000, guid: ce69a9a1c21c31b4683088daf1b231df, type: 2}
   damagedVignetteRadius: 0.3
   vignetteRecoveryDelay: 0.2
@@ -925,8 +960,17 @@ MonoBehaviour:
   syncDirection: 0
   syncMode: 0
   syncInterval: 0
-  normalFreeLookCamera: {fileID: 0}
-  aimFreeLookCamera: {fileID: 0}
+  freeLookCamera: {fileID: 0}
+  normalCameraOffset: {x: 0, y: 0.5, z: 0}
+  normalOrbitRadius: 5
+  normalOrbitAngles: {x: 0, y: 0}
+  aimCameraOffset: {x: 0.8, y: 0.3, z: 5}
+  aimOrbitRadius: 2.5
+  aimOrbitAngles: {x: 0, y: 0}
+  transitionSpeed: 5
+  shakeAmplitude: 1
+  shakeFrequency: 2
+  shakeDuration: 0.3
 --- !u!1 &9031482426013108936
 GameObject:
   m_ObjectHideFlags: 0
@@ -1997,8 +2041,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   audioSource: {fileID: 7433979514852281141}
   soundEffectsSO: {fileID: 11400000, guid: 328b86f21aee6a5459405bba5fedf5c6, type: 2}
-  minDistance: 1
-  maxDistance: 15
+  minDistance: 15
+  maxDistance: 18
   rolloffMode: 1
 --- !u!82 &7433979514852281141
 AudioSource:
@@ -2989,6 +3033,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1662433770010703406}
     m_Modifications:
+    - target: {fileID: -3059373307504918176, guid: d46969599e4f49243af6c963521b52da, type: 3}
+      propertyPath: _assetId
+      value: 1658863337
+      objectReference: {fileID: 0}
     - target: {fileID: 1181016785037585757, guid: d46969599e4f49243af6c963521b52da, type: 3}
       propertyPath: m_Name
       value: PlaceItem
