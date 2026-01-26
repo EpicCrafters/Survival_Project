@@ -35,10 +35,18 @@ public class AIEntity : NetworkBehaviour
         if (controller == null)
             controller = GetComponent<HFSMController>();
 
-        // ✅ ĐẢM BẢO CHARACTER CONTROLLER HOẠT ĐỘNG
-        if (characterController != null && !controller.syncedIsDead)
+        // ✅ CHARACTER CONTROLLER CHỈ HOẠT ĐỘNG TRÊN SERVER
+        if (characterController != null)
         {
-            characterController.enabled = true;
+            if (isServer)
+            {
+                characterController.enabled = !controller.syncedIsDead;
+            }
+            else
+            {
+                // ❌ TẮT HOÀN TOÀN TRÊN CLIENT
+                characterController.enabled = false;
+            }
         }
 
         if (AISyncManager.Instance != null)
@@ -71,14 +79,22 @@ public class AIEntity : NetworkBehaviour
     {
         if (isServer) return;
 
-        // ✅ CLIENT KHÔNG CÓ CHARACTER CONTROLLER HOẠT ĐỘNG
-        // Chỉ nội suy vị trí và rotation để mượt mà
+        // ✅ INTERPOLATION MỀM MẠI HƠN
         float smoothFactor = 1 - Mathf.Exp(-clientLerpRate * Time.deltaTime);
 
-        transform.position = Vector3.Lerp(transform.position, syncedPosition, smoothFactor);
-        transform.rotation = Quaternion.Slerp(transform.rotation, syncedRotation, smoothFactor);
+        // Sử dụng distance check để tránh teleport
+        float distance = Vector3.Distance(transform.position, syncedPosition);
 
-        // Animator sẽ tự động cập nhật trong TickAI()
+        if (distance > 5f) // Nếu quá xa, teleport luôn
+        {
+            transform.position = syncedPosition;
+            transform.rotation = syncedRotation;
+        }
+        else if (distance > 0.01f) // Chỉ interpolate khi có sự khác biệt đáng kể
+        {
+            transform.position = Vector3.Lerp(transform.position, syncedPosition, smoothFactor);
+            transform.rotation = Quaternion.Slerp(transform.rotation, syncedRotation, smoothFactor);
+        }
     }
 
     // 🔹 LOGIC AI - Được gọi từ AISyncManager

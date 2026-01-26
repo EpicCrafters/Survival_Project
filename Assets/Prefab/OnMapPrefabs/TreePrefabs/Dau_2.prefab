@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &3314944728917707235
+--- !u!1 &5308324299730582072
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,24 +8,24 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 6711788438257980917}
-  m_Layer: 0
-  m_Name: Particle Position
+  - component: {fileID: 1222727909004104862}
+  m_Layer: 8
+  m_Name: DestroyEffectPosition
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 17
+  m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &6711788438257980917
+--- !u!4 &1222727909004104862
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3314944728917707235}
+  m_GameObject: {fileID: 5308324299730582072}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 1.35, z: 0}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 49.6, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -87,10 +87,6 @@ PrefabInstance:
       propertyPath: treeSize
       value: 2
       objectReference: {fileID: 0}
-    - target: {fileID: 2115085978602330394, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
-      propertyPath: particleSpawnPosition
-      value: 
-      objectReference: {fileID: 6711788438257980917}
     - target: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       propertyPath: m_Name
       value: Dau_2
@@ -115,10 +111,10 @@ PrefabInstance:
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 6711788438257980917}
+      addedObject: {fileID: 8332903587691688817}
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 8332903587691688817}
+      addedObject: {fileID: 1222727909004104862}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
@@ -177,19 +173,11 @@ MonoBehaviour:
   isBeingDestroyed: 0
   uniqueId: 
   maxInteractDistance: 3
-  treeType: 0
-  treeSize: 2
-  treeLogPrefab: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}
-  treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
-  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  halfLogSpacing: 1.2
-  useColliderBoundsForLogLength: 1
-  manualLogLength: 5
-  overrideMinDropCount: -1
-  overrideMaxDropCount: -1
   debugMode: 1
-  verboseDebug: 1
+  effectPosition: {fileID: 1222727909004104862}
+  treeLogPrefab: {fileID: 4831145717909944171, guid: 1255c95ebcbb2e041823f24dc95783dc, type: 3}
+  treeStumpPrefab: {fileID: 9129121317265379366, guid: f0f73ea5a394da34ea05c8466e775258, type: 3}
+  destructionEffectId: tree_leaves
 --- !u!4 &2401683154036985251 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}

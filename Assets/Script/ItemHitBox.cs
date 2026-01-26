@@ -465,6 +465,9 @@ public class ItemHitBox : MonoBehaviour
     }
 
 
+    // ==================== TRONG ItemHitBox.cs ====================
+    // Cập nhật hàm ProcessToolDamage để hỗ trợ MyBush
+
     private void ProcessToolDamage(Collider other, Vector3 hitPoint, Vector3 hitNormal)
     {
         int instanceId = other.GetInstanceID();
@@ -492,7 +495,45 @@ public class ItemHitBox : MonoBehaviour
 
         int dmg = itemData.tool.damage;
 
-        // Check for networked choppable first
+        // ===== KIỂM TRA MyBush (LOCAL) TRƯỚC =====
+        MyBush bush = other.GetComponent<MyBush>();
+        if (bush == null)
+            bush = other.GetComponentInParent<MyBush>();
+
+        if (bush != null)
+        {
+            // Dùng UniqueId của bush để tracking
+            string bushId = bush.GetUniqueId();
+            if (!string.IsNullOrEmpty(bushId))
+            {
+                uint bushIdHash = (uint)bushId.GetHashCode();
+                if (alreadyHitNetIds.Contains(bushIdHash))
+                {
+                    if (enableDebugLogs)
+                        Debug.Log($"[ProcessToolDamage] Already hit this bush, skipping");
+                    return;
+                }
+                alreadyHitNetIds.Add(bushIdHash);
+                hasHitSomething = true;
+
+                // Gọi damage qua player's inventory (có authority)
+                if (playerCombat != null)
+                {
+                    var inventory = playerCombat.GetComponentInChildren<InventoryData>();
+                    if (inventory != null)
+                    {
+                        inventory.CmdDamageBush(bushId, dmg);
+
+                        if (enableDebugLogs)
+                            Debug.Log($"[ProcessToolDamage] ✅ Sent damage to MyBush via Inventory");
+                    }
+                }
+
+                return;
+            }
+        }
+
+        // ===== KIỂM TRA NetworkedChoppable (Log, HalfLog, Stump) =====
         NetworkedChoppable networkedChoppable = other.GetComponent<NetworkedChoppable>();
         if (networkedChoppable == null)
             networkedChoppable = other.GetComponentInParent<NetworkedChoppable>();
@@ -526,7 +567,7 @@ public class ItemHitBox : MonoBehaviour
             }
         }
 
-        // Handle BaseResource (both networked and local)
+        // ===== KIỂM TRA BaseResource (Tree, Rock - persistent) =====
         BaseResource baseResource = null;
 
         if (!resourceCache.TryGetValue(instanceId, out baseResource))
@@ -541,7 +582,7 @@ public class ItemHitBox : MonoBehaviour
         if (baseResource == null)
         {
             if (enableDebugLogs)
-                Debug.Log($"[ProcessToolDamage] No BaseResource or NetworkedChoppable found on {other.name}");
+                Debug.Log($"[ProcessToolDamage] No resource found on {other.name}");
             return;
         }
 
@@ -556,7 +597,7 @@ public class ItemHitBox : MonoBehaviour
             alreadyHitNetIds.Add(uniqueIdHash);
             hasHitSomething = true;
 
-            // ===== NEW: Check if resource has NetworkIdentity =====
+            // Check if resource has NetworkIdentity
             NetworkIdentity resourceNetId = baseResource.GetComponent<NetworkIdentity>();
 
             if (resourceNetId != null && playerCombat != null)
@@ -574,7 +615,7 @@ public class ItemHitBox : MonoBehaviour
             }
             else
             {
-                // ===== LOCAL-ONLY RESOURCE - Damage directly =====
+                // LOCAL-ONLY RESOURCE - Damage directly
                 if (enableDebugLogs)
                     Debug.Log($"[ProcessToolDamage] ✅ Damaging LOCAL resource directly (no network)");
 
@@ -586,6 +627,9 @@ public class ItemHitBox : MonoBehaviour
             }
         }
     }
+
+    // ===== KIỂM TRA TOOL HỢP LỆ (đã có Bush) =====
+  
 
 
 
@@ -677,7 +721,7 @@ public class ItemHitBox : MonoBehaviour
     private bool IsToolValidForResource(ToolType tool, ResourceType resource)
     {
         bool isValid = (tool == ToolType.Axe && resource == ResourceType.Tree) ||
-                       (tool == ToolType.Axe && resource == ResourceType.Bush) ||
+                       (tool == ToolType.Axe && resource == ResourceType.Bush) ||  // <-- ĐÃ CÓ
                        (tool == ToolType.Pickaxe && resource == ResourceType.Rock);
 
         if (enableDebugLogs)

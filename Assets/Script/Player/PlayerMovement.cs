@@ -419,7 +419,23 @@ public class PlayerMovement : NetworkBehaviour
 
     private void CheckIfGrounded()
     {
-        isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
+        // SphereCast downward from slightly above ground check point
+        Vector3 spherePosition = groundCheck.position + Vector3.up * groundDistance;
+
+        isGrounded = Physics.SphereCast(
+            spherePosition,
+            groundDistance,
+            Vector3.down,
+            out RaycastHit hit,
+            groundDistance * 2f, // Cast distance
+            groundMask
+        );
+
+        // Optional: Store hit info for slope calculations
+        if (isGrounded)
+        {
+            hitPointNormal = hit.normal;
+        }
 
         if (isGrounded && !wasGrounded)
         {

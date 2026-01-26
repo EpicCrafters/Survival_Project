@@ -11,10 +11,10 @@ public class MyRock : ChoppableBase
 
     [Header("Rock Specific")]
     [SerializeField] private RockType rockType = RockType.MediumRock;
-    [SerializeField] private Transform stonePrefab; // networked fragment prefab
+    [SerializeField] private Transform stonePrefab;
+    [SerializeField] private string destructionEffectId = "rock_dust"; // ✅ New field
+    
 
-    [Header("Rock Effects")]
-    [SerializeField] private ParticleSystem dustEffectPrefab;
 
     [Header("Fragment Settings")]
     [SerializeField] private float fragmentUpForceMin = 0.6f;
@@ -39,16 +39,16 @@ public class MyRock : ChoppableBase
     {
         int stoneCount = rockType switch
         {
-            RockType.SmallRock => Random.Range(1, 3),   // 1-2
-            RockType.MediumRock => Random.Range(2, 4),  // 2-3
-            RockType.LargeRock => Random.Range(3, 6),   // 3-5
-            RockType.Boulder => Random.Range(5, 8),     // 5-7
+            RockType.SmallRock => Random.Range(1, 3),
+            RockType.MediumRock => Random.Range(2, 4),
+            RockType.LargeRock => Random.Range(3, 6),
+            RockType.Boulder => Random.Range(5, 8),
             _ => Random.Range(2, 4)
         };
 
         DebugLog($"Rock destroyed - spawning {stoneCount} stone fragments");
 
-        // Spawn stone fragments (networked)
+        // Spawn stone fragments
         if (stonePrefab != null)
         {
             for (int i = 0; i < stoneCount; i++)
@@ -58,27 +58,23 @@ public class MyRock : ChoppableBase
                     dropHeight + Random.Range(0f, 0.3f),
                     Random.Range(-dropRadius, dropRadius)
                 );
-
                 Quaternion rot = Quaternion.Euler(
                     Random.Range(0f, 360f),
                     Random.Range(0f, 360f),
                     Random.Range(0f, 360f)
                 );
-
                 SpawnNetworkedFragment(transform.position + offset, rot);
             }
         }
-        else
-        {
-            Debug.LogWarning($"{name}: stonePrefab not assigned!");
-        }
 
-        // Spawn dust effect (networked)
-        if (dustEffectPrefab != null)
+        // ✅ Play destruction effect using the configured effect ID
+        if (WorldResourceManager.Instance != null && !string.IsNullOrEmpty(destructionEffectId))
         {
-            var dust = Instantiate(dustEffectPrefab, transform.position, transform.rotation);
-            NetworkServer.Spawn(dust.gameObject);
-            DebugLog("Spawned dust effect");
+            WorldResourceManager.Instance.RpcPlayDestructionEffect(
+                effectPosition.transform.position,
+                effectPosition.transform.rotation,
+                destructionEffectId
+            );
         }
     }
 

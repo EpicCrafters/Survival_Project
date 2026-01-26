@@ -25,32 +25,32 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OnEnable()
     {
-        Debug.Log($"[PauseMenuUI] OnEnable - GameObject: {gameObject.name}");
+       // Debug.Log($"[PauseMenuUI] OnEnable - GameObject: {gameObject.name}");
         SubscribeToGameInput();
     }
 
     private void OnDisable()
     {
-        Debug.Log($"[PauseMenuUI] OnDisable - GameObject: {gameObject.name}");
+        //Debug.Log($"[PauseMenuUI] OnDisable - GameObject: {gameObject.name}");
         UnsubscribeFromGameInput();
     }
 
     void Awake()
     {
         instance = this;
-        Debug.Log($"[PauseMenuUI] Awake START - GameObject: {gameObject.name}");
-        Debug.Log($"[PauseMenuUI] MainMenuPanel null? {mainMenuPanel == null}");
-        Debug.Log($"[PauseMenuUI] SettingsMenuPanel null? {settingsMenuPanel == null}");
+        //Debug.Log($"[PauseMenuUI] Awake START - GameObject: {gameObject.name}");
+        //Debug.Log($"[PauseMenuUI] MainMenuPanel null? {mainMenuPanel == null}");
+        //Debug.Log($"[PauseMenuUI] SettingsMenuPanel null? {settingsMenuPanel == null}");
 
         if (mainMenuPanel == null || settingsMenuPanel == null)
         {
-            Debug.LogError("[PauseMenuUI] Panel references are NULL! Check Inspector!");
+            //Debug.LogError("[PauseMenuUI] Panel references are NULL! Check Inspector!");
             return;
         }
 
         // Log initial state
-        Debug.Log($"[PauseMenuUI] MainMenuPanel initial state: {mainMenuPanel.activeSelf}");
-        Debug.Log($"[PauseMenuUI] SettingsMenuPanel initial state: {settingsMenuPanel.activeSelf}");
+       // Debug.Log($"[PauseMenuUI] MainMenuPanel initial state: {mainMenuPanel.activeSelf}");
+        //Debug.Log($"[PauseMenuUI] SettingsMenuPanel initial state: {settingsMenuPanel.activeSelf}");
 
         // Setup buttons
         if (resumeButton != null) resumeButton.onClick.AddListener(OnResume);
@@ -62,15 +62,15 @@ public class PauseMenuUI : MonoBehaviour
         mainMenuPanel.SetActive(false);
         settingsMenuPanel.SetActive(false);
 
-        Debug.Log($"[PauseMenuUI] After SetActive(false) - MainMenuPanel: {mainMenuPanel.activeSelf}");
-        Debug.Log($"[PauseMenuUI] After SetActive(false) - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
-        Debug.Log($"[PauseMenuUI] Awake END");
+        //Debug.Log($"[PauseMenuUI] After SetActive(false) - MainMenuPanel: {mainMenuPanel.activeSelf}");
+        //Debug.Log($"[PauseMenuUI] After SetActive(false) - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
+        //Debug.Log($"[PauseMenuUI] Awake END");
     }
 
     void Start()
     {
-        Debug.Log($"[PauseMenuUI] Start - MainMenuPanel: {mainMenuPanel.activeSelf}");
-        Debug.Log($"[PauseMenuUI] Start - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
+       // Debug.Log($"[PauseMenuUI] Start - MainMenuPanel: {mainMenuPanel.activeSelf}");
+       // Debug.Log($"[PauseMenuUI] Start - SettingsMenuPanel: {settingsMenuPanel.activeSelf}");
     }
 
    
@@ -81,11 +81,11 @@ public class PauseMenuUI : MonoBehaviour
         {
             gameInput.OnShowPauseMenu -= GameInput_OnShowPauseMenu;
             gameInput.OnShowPauseMenu += GameInput_OnShowPauseMenu;
-            Debug.Log("[PauseMenuUI] Subscribed to GameInput");
+            //Debug.Log("[PauseMenuUI] Subscribed to GameInput");
         }
         else
         {
-            Debug.LogWarning("[PauseMenuUI] GameInput is NULL, cannot subscribe");
+            //Debug.LogWarning("[PauseMenuUI] GameInput is NULL, cannot subscribe");
         }
     }
 
@@ -94,13 +94,13 @@ public class PauseMenuUI : MonoBehaviour
         if (gameInput != null)
         {
             gameInput.OnShowPauseMenu -= GameInput_OnShowPauseMenu;
-            Debug.Log("[PauseMenuUI] Unsubscribed from GameInput");
+           // Debug.Log("[PauseMenuUI] Unsubscribed from GameInput");
         }
     }
 
     private void GameInput_OnShowPauseMenu(object sender, EventArgs e)
     {
-        Debug.Log("[PauseMenuUI] GameInput_OnShowPauseMenu triggered");
+       // Debug.Log("[PauseMenuUI] GameInput_OnShowPauseMenu triggered");
 
         if (settingsMenuPanel.activeSelf)
         {
@@ -120,7 +120,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OpenPauseMenu()
     {
-        Debug.Log("[PauseMenuUI] OpenPauseMenu START");
+       // Debug.Log("[PauseMenuUI] OpenPauseMenu START");
         isPaused = true;
 
         mainMenuPanel.SetActive(true);
@@ -140,7 +140,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OnResume()
     {
-        Debug.Log("[PauseMenuUI] OnResume");
+       // Debug.Log("[PauseMenuUI] OnResume");
         isPaused = false;
 
         mainMenuPanel.SetActive(false);
@@ -162,7 +162,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OnSettings()
     {
-        Debug.Log("[PauseMenuUI] OnSettings");
+        //Debug.Log("[PauseMenuUI] OnSettings");
         mainMenuPanel.SetActive(false);
         settingsMenuPanel.SetActive(true);
 
@@ -174,7 +174,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void CloseSettings()
     {
-        Debug.Log("[PauseMenuUI] CloseSettings");
+       // Debug.Log("[PauseMenuUI] CloseSettings");
         settingsMenuPanel.SetActive(false);
         mainMenuPanel.SetActive(true);
 
@@ -186,7 +186,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OnBackToMainMenu()
     {
-        Debug.Log("[PauseMenuUI] OnBackToMainMenu");
+      //  Debug.Log("[PauseMenuUI] OnBackToMainMenu");
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
@@ -198,7 +198,7 @@ public class PauseMenuUI : MonoBehaviour
 
     private void OnQuit()
     {
-        Debug.Log("[PauseMenuUI] OnQuit");
+       // Debug.Log("[PauseMenuUI] OnQuit");
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
@@ -213,7 +213,7 @@ public class PauseMenuUI : MonoBehaviour
 
     public void SetGameInput(GameInput input)
     {
-        Debug.Log($"[PauseMenuUI] SetGameInput called - input null? {input == null}");
+       // Debug.Log($"[PauseMenuUI] SetGameInput called - input null? {input == null}");
         UnsubscribeFromGameInput();
         gameInput = input;
         SubscribeToGameInput();

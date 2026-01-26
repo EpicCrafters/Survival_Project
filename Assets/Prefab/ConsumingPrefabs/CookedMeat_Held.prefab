@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6104596784155185991}
+  - component: {fileID: 1121999835211872415}
   m_Layer: 0
   m_Name: CookedMeat_Held
   m_TagString: Untagged
@@ -32,6 +33,20 @@ Transform:
   - {fileID: 2104009708272969754}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1121999835211872415
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1365095145465383731}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c0f9fc63cd3019469f5d2ccb599a5ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  itemData: {fileID: 11400000, guid: 875ca39c44e647a45ba170e833112d0d, type: 2}
+  owner: {fileID: 0}
 --- !u!1 &3216544980216550346
 GameObject:
   m_ObjectHideFlags: 0

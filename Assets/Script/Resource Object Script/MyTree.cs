@@ -1,18 +1,22 @@
-﻿using UnityEngine;
+﻿using Mirror;
+using UnityEngine;
 
 public class MyTree : ChoppableBase
 {
     [Header("Tree Spawns")]
     [SerializeField] private Transform treeLogPrefab;
     [SerializeField] private Transform treeStumpPrefab;
+    [SerializeField] private string destructionEffectId = "tree_leaves";
 
     protected override int GetHealthAmount() => 30;
 
     protected override void SpawnChopResults()
     {
-        DebugLog("Tree chopped - spawning Log and Stump");
+        // Only server spawns the networked log
+        if (!NetworkServer.active) return;
 
-        // Spawn Log (networked)
+        DebugLog("Server: Spawning networked log");
+
         if (treeLogPrefab != null)
         {
             Vector3 logPos = transform.position + transform.up * 0.2f;
@@ -23,24 +27,37 @@ public class MyTree : ChoppableBase
             );
             SpawnNetworkedObject(treeLogPrefab, logPos, logRot);
         }
+    }
 
-        // Spawn Stump (local only - not networked)
-        if (treeStumpPrefab != null)
+    /// <summary>
+    /// Spawn stump locally on ALL clients (including host)
+    /// Called automatically by ChoppableBase during destruction
+    /// </summary>
+    protected override void SpawnLocalStump()
+    {
+        if (treeStumpPrefab == null) return;
+
+        var stumpObj = Instantiate(treeStumpPrefab, transform.position, transform.rotation);
+
+        if (stumpObj.TryGetComponent<MyStump>(out var stump))
         {
-            var stumpObj = Instantiate(treeStumpPrefab, transform.position, transform.rotation);
+            string stumpId = UniqueId + "_stump";
+            stump.SetUniqueId(stumpId);
+        }
 
-            // Give stump a uniqueId so ItemHitBox can track it
-            if (stumpObj.TryGetComponent<MyStump>(out var stump))
-            {
-                string stumpId = System.Guid.NewGuid().ToString("N");
-                stump.SetUniqueId(stumpId);
-            }
+        // ✅ Play destruction effect using the configured effect ID
+        if (WorldResourceManager.Instance != null && !string.IsNullOrEmpty(destructionEffectId))
+        {
+            WorldResourceManager.Instance.RpcPlayDestructionEffect(
+                effectPosition.transform.position,
+                effectPosition.transform.rotation,
+                destructionEffectId
+            );
         }
     }
 
     protected override GameObject GetReplacementPrefab()
     {
-        // Return null - we don't want replacement system, we spawn manually
-        return null;
+        return null; // We handle stump manually
     }
 }

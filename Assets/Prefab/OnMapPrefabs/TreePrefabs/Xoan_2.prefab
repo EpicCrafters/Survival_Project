@@ -55,7 +55,7 @@ CapsuleCollider:
   m_Height: 14.09
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &7888143491322894453
+--- !u!1 &4748780089859759850
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -63,24 +63,24 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1600572957281368189}
-  m_Layer: 0
-  m_Name: Particle Position
+  - component: {fileID: 6060351196245461655}
+  m_Layer: 8
+  m_Name: DestroyEffectPosition
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 17
+  m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1600572957281368189
+--- !u!4 &6060351196245461655
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7888143491322894453}
+  m_GameObject: {fileID: 4748780089859759850}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 4.55, z: 0}
+  m_LocalPosition: {x: 0, y: 28.6, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -232,10 +232,6 @@ PrefabInstance:
       propertyPath: treeSize
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2115085978602330394, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
-      propertyPath: particleSpawnPosition
-      value: 
-      objectReference: {fileID: 1600572957281368189}
     - target: {fileID: 3236695765921899963, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       propertyPath: m_Name
       value: Xoan_2
@@ -248,10 +244,6 @@ PrefabInstance:
       propertyPath: m_StaticEditorFlags
       value: 16
       objectReference: {fileID: 0}
-    - target: {fileID: 4018567811473297666, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
-      propertyPath: particleSpawnPosition
-      value: 
-      objectReference: {fileID: 1600572957281368189}
     m_RemovedComponents: []
     m_RemovedGameObjects:
     - {fileID: 8313481467499774833, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
@@ -260,10 +252,10 @@ PrefabInstance:
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 5276634187232099380}
+      addedObject: {fileID: 6060351196245461655}
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 1600572957281368189}
+      addedObject: {fileID: 5276634187232099380}
     - targetCorrespondingSourceObject: {fileID: 917302184313152125, guid: 1365462a60135e442a0a02ccc38ec249, type: 3}
       insertIndex: -1
       addedObject: {fileID: 3848784363424341138}
@@ -308,19 +300,11 @@ MonoBehaviour:
   isBeingDestroyed: 0
   uniqueId: 
   maxInteractDistance: 3
-  treeType: 0
-  treeSize: 1
-  treeLogPrefab: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
-  treeLogHalfPrefab: {fileID: 2637888889986962543, guid: bc5b81756fb40ba409476ef902a05ba7, type: 3}
-  treeStumpPrefab: {fileID: 9190801894893699412, guid: 8042dffe65e713944a0931b5e0ffae8b, type: 3}
-  stickPrefab: {fileID: 93746505767558392, guid: ee83cf33729959b488f04fbc83423be8, type: 3}
-  halfLogSpacing: 1.2
-  useColliderBoundsForLogLength: 1
-  manualLogLength: 5
-  overrideMinDropCount: -1
-  overrideMaxDropCount: -1
   debugMode: 1
-  verboseDebug: 1
+  effectPosition: {fileID: 6060351196245461655}
+  treeLogPrefab: {fileID: 496689655629043481, guid: 9ebc0dc37183d134e9d87f1f615e68fd, type: 3}
+  treeStumpPrefab: {fileID: 9190801894893699412, guid: 8042dffe65e713944a0931b5e0ffae8b, type: 3}
+  destructionEffectId: tree_leaves
 --- !u!136 &-8840769360810639939
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -334,7 +318,7 @@ CapsuleCollider:
     m_Bits: 0
   m_ExcludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 512
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0

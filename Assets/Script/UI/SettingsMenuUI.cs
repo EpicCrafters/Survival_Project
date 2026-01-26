@@ -20,7 +20,6 @@ public class SettingsMenuUI : MonoBehaviour
 
     [Header("Action Buttons")]
     public Button applyButton;
-    public Button saveButton;
     public Button resetButton;
     public Button backButton;
 
@@ -40,7 +39,6 @@ public class SettingsMenuUI : MonoBehaviour
 
         // Setup action buttons
         applyButton.onClick.AddListener(OnApply);
-        saveButton.onClick.AddListener(OnSave);
         resetButton.onClick.AddListener(OnReset);
         backButton.onClick.AddListener(OnBack);
 
@@ -78,14 +76,10 @@ public class SettingsMenuUI : MonoBehaviour
         SetButtonColor(keybindingsTabButton, inactiveTabColor);
 
         // Highlight tab đang active
-        if (activePanel == graphicsPanel)
-            SetButtonColor(graphicsTabButton, activeTabColor);
-        else if (activePanel == audioPanel)
-            SetButtonColor(audioTabButton, activeTabColor);
-        else if (activePanel == controlsPanel)
-            SetButtonColor(controlsTabButton, activeTabColor);
-        else if (activePanel == keybindingsPanel)
-            SetButtonColor(keybindingsTabButton, activeTabColor);
+        if (activePanel == graphicsPanel) SetButtonColor(graphicsTabButton, activeTabColor);
+        else if (activePanel == audioPanel) SetButtonColor(audioTabButton, activeTabColor);
+        else if (activePanel == controlsPanel) SetButtonColor(controlsTabButton, activeTabColor);
+        else if (activePanel == keybindingsPanel) SetButtonColor(keybindingsTabButton, activeTabColor);
     }
 
     private void SetButtonColor(Button button, Color color)
@@ -98,39 +92,129 @@ public class SettingsMenuUI : MonoBehaviour
 
     private void OnApply()
     {
-        SettingsManager.Instance.ApplyAllSettings();
+        Debug.Log("========== APPLY BUTTON CLICKED ==========");
 
-        if (AudioManager.Instance != null)
+        try
         {
-            AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
+            // Step 1: Apply pending changes from all UI panels to controllers
+            Debug.Log("Step 1: Applying pending changes from UI to controllers...");
+            ApplyAllPendingChanges();
+
+            // Step 2: Apply settings from controllers to Unity systems
+            Debug.Log("Step 2: Applying settings to Unity...");
+            if (SettingsManager.Instance != null)
+            {
+                SettingsManager.Instance.ApplyAllSettings();
+            }
+            else
+            {
+                Debug.LogError("SettingsManager.Instance is NULL!");
+            }
+
+            // Step 3: Save settings to PlayerPrefs
+            Debug.Log("Step 3: Saving settings...");
+            if (SettingsManager.Instance != null)
+            {
+                SettingsManager.Instance.SaveSettings();
+            }
+
+            Debug.Log("========== SETTINGS SUCCESSFULLY APPLIED AND SAVED ==========");
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"ERROR in OnApply: {e.Message}\n{e.StackTrace}");
         }
     }
 
-    private void OnSave()
+    private void ApplyAllPendingChanges()
     {
-        SettingsManager.Instance.SaveSettings();
+        Debug.Log("Applying pending changes from all UI panels...");
 
-        if (AudioManager.Instance != null)
+        try
         {
-            AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
+            var graphicsUI = graphicsPanel.GetComponent<GraphicsSettingsUI>();
+            var audioUI = audioPanel.GetComponent<AudioSettingsUI>();
+            var controlsUI = controlsPanel.GetComponent<ControlsSettingsUI>();
+
+            if (graphicsUI != null)
+            {
+                Debug.Log("Calling GraphicsUI.ApplyPendingChanges()...");
+                graphicsUI.ApplyPendingChanges();
+            }
+            else
+            {
+                Debug.LogWarning("GraphicsSettingsUI component not found!");
+            }
+
+            if (audioUI != null)
+            {
+                Debug.Log("Calling AudioUI.ApplyPendingChanges()...");
+                audioUI.ApplyPendingChanges();
+            }
+            else
+            {
+                Debug.LogWarning("AudioSettingsUI component not found!");
+            }
+
+            if (controlsUI != null)
+            {
+                Debug.Log("Calling ControlsUI.ApplyPendingChanges()...");
+                controlsUI.ApplyPendingChanges();
+            }
+            else
+            {
+                Debug.LogWarning("ControlsSettingsUI component not found!");
+            }
+
+            Debug.Log("All pending changes applied to controllers");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"ERROR in ApplyAllPendingChanges: {e.Message}\n{e.StackTrace}");
         }
     }
 
     private void OnReset()
     {
-        SettingsManager.Instance.ResetToDefaults();
+        Debug.Log("========== RESET BUTTON CLICKED ==========");
 
-        // Refresh tất cả UI panels
-        RefreshAllPanels();
-
-        if (AudioManager.Instance != null)
+        try
         {
-            AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
+            if (SettingsManager.Instance != null)
+            {
+                // Reset settings to defaults
+                SettingsManager.Instance.ResetToDefaults();
+
+                // Refresh tất cả UI panels để hiển thị default values
+                RefreshAllPanels();
+
+                Debug.Log("========== SETTINGS RESET TO DEFAULTS ==========");
+            }
+            else
+            {
+                Debug.LogError("SettingsManager.Instance is NULL!");
+            }
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayUISFX(SoundType.UI_Click);
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"ERROR in OnReset: {e.Message}\n{e.StackTrace}");
         }
     }
 
     private void RefreshAllPanels()
     {
+        Debug.Log("Refreshing all UI panels...");
+
         var graphicsUI = graphicsPanel.GetComponent<GraphicsSettingsUI>();
         var audioUI = audioPanel.GetComponent<AudioSettingsUI>();
         var controlsUI = controlsPanel.GetComponent<ControlsSettingsUI>();
@@ -140,6 +224,8 @@ public class SettingsMenuUI : MonoBehaviour
         if (audioUI != null) audioUI.LoadCurrentSettings();
         if (controlsUI != null) controlsUI.LoadCurrentSettings();
         if (keybindingsUI != null) keybindingsUI.LoadCurrentKeybinds();
+
+        Debug.Log("All panels refreshed");
     }
 
     private void OnBack()

@@ -62,7 +62,7 @@ public class AIRagdoll : MonoBehaviour
         {
             baseCol.gameObject.layer = ignoreRaycastLayer;
             baseCol.isTrigger = false; // Ban đầu là collider thật, không phải trigger
-            Debug.Log($"[AIRagdoll] Base collider '{baseCol.name}' đã set sang Ignore Raycast layer");
+            //Debug.Log($"[AIRagdoll] Base collider '{baseCol.name}' đã set sang Ignore Raycast layer");
         }
 
         // CHỈ các ragdoll body parts → layer AIDamageable
@@ -72,10 +72,10 @@ public class AIRagdoll : MonoBehaviour
             if (col == null) continue;
 
             col.gameObject.layer = aiDamageableLayer;
-            Debug.Log($"[AIRagdoll] Body part '{col.name}' đã set sang AIDamageable layer");
+           // Debug.Log($"[AIRagdoll] Body part '{col.name}' đã set sang AIDamageable layer");
         }
 
-        Debug.Log($"[AIRagdoll] Thiết lập hoàn tất - {ragdollColliders.Length - 1} body parts ở AIDamageable layer");
+       // Debug.Log($"[AIRagdoll] Thiết lập hoàn tất - {ragdollColliders.Length - 1} body parts ở AIDamageable layer");
     }
 
    
@@ -289,6 +289,6 @@ public class AIRagdoll : MonoBehaviour
             }
         }
 
-        Debug.Log($"✅ Đã thiết lập {bodyParts.Count} body parts cho {gameObject.name}");
+       // Debug.Log($"✅ Đã thiết lập {bodyParts.Count} body parts cho {gameObject.name}");
     }
 }

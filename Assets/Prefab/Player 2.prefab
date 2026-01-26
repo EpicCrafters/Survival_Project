@@ -535,7 +535,7 @@ GameObject:
   - component: {fileID: 4039622900495366456}
   - component: {fileID: 3907708711472795562}
   - component: {fileID: 1105355830668630622}
-  - component: {fileID: 6898246783387066304}
+  - component: {fileID: 1123827184845822162}
   - component: {fileID: -4590973325412194780}
   - component: {fileID: 1155290580682266306}
   - component: {fileID: 7217165074648246924}
@@ -630,7 +630,7 @@ MonoBehaviour:
   syncInterval: 0
   clientAuthority: 1
   animator: {fileID: 4751871965091081300}
---- !u!114 &6898246783387066304
+--- !u!114 &1123827184845822162
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -644,7 +644,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   syncDirection: 1
   syncMode: 0
-  syncInterval: 0
+  syncInterval: 0.1
   target: {fileID: 7385509276416232327}
   syncPosition: 1
   syncRotation: 1

@@ -57,11 +57,15 @@ MonoBehaviour:
   uniqueId: 
   maxInteractDistance: 3
   debugMode: 1
-  bushType: 0
-  maxHarvestCount: 3
+  maxBerries: 3
   berryVisualMesh: {fileID: 6945729081214214531}
-  harvestItemData: {fileID: 11400000, guid: 0eb0dc0b3da48db449f1f1a13ba309a2, type: 2}
-  canRespawn: 1
+  bushHealth: 20
+  berryItemData: {fileID: 11400000, guid: 0eb0dc0b3da48db449f1f1a13ba309a2, type: 2}
+  stickItemData: {fileID: 11400000, guid: 6ea3ff16cdacd6c4188f6d68e98b049a, type: 2}
+  minSticks: 1
+  maxSticks: 3
+  dropRadius: 0.2
+  canRespawn: 0
   respawnTime: 60
 --- !u!136 &7321952934268978791
 CapsuleCollider:

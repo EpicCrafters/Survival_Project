@@ -5,7 +5,7 @@ using UnityEngine;
 public class PlayerAnimator : NetworkBehaviour
 {
     // Tên các parameter trong Animator
-    
+
     public float charge;
     private const string IS_WALKING = "isWalking";
     private const string IS_JUMPING = "triggerJumping";
@@ -26,6 +26,7 @@ public class PlayerAnimator : NetworkBehaviour
 
     private const string IS_TREE = "isTree";
     private const string IS_ROCK = "isRock";
+    private const string IS_BUSH = "isBush";  // <-- THÊM PARAMETER MỚI
     private const string IS_ATTACKING = "Attack";
     private const string AIM_WEIGHT = "AimWeight";
 
@@ -80,7 +81,6 @@ public class PlayerAnimator : NetworkBehaviour
 
     public void UpdatePlayerAnimator(float deltaTime)
     {
-
         if (!isLocalPlayer) return;
 
         if (animator == null || player == null) return;
@@ -118,11 +118,13 @@ public class PlayerAnimator : NetworkBehaviour
         animator.SetFloat(AIM_BLEND_X, currentAimBlendX);
         animator.SetFloat(AIM_BLEND_Y, currentAimBlendY);
 
+        // ===== UPDATE: Thêm isBush =====
         if (playerInteract != null)
         {
             CmdSetMining(playerInteract.IsMining());
             animator.SetBool(IS_ROCK, playerInteract.IsRock());
             animator.SetBool(IS_TREE, playerInteract.IsTree());
+            animator.SetBool(IS_BUSH, playerInteract.IsBush());  // <-- THÊM DÒNG NÀY
         }
 
         if (playerholdingItem != null)
@@ -135,7 +137,7 @@ public class PlayerAnimator : NetworkBehaviour
         if (playerItemUseHandler != null)
         {
             bool Aiming = playerItemUseHandler.IsAiming();
-            bool isCharging = playerItemUseHandler.IsCharging(); // ✅ Check if charging
+            bool isCharging = playerItemUseHandler.IsCharging();
 
             animator.SetBool(IS_AIMING, Aiming);
             animator.SetBool(IS_CHARGING, isCharging);
@@ -144,11 +146,9 @@ public class PlayerAnimator : NetworkBehaviour
             float target = Aiming ? 1f : 0f;
             currentAimWeight = Mathf.MoveTowards(currentAimWeight, target, AimBlendSpeed * Time.deltaTime);
             animator.SetFloat(AIM_WEIGHT, currentAimWeight);
-
-         
         }
-
     }
+
     public void ResetAnimatorState()
     {
         if (animator == null || !animator.enabled) return;
@@ -178,6 +178,7 @@ public class PlayerAnimator : NetworkBehaviour
         animator.SetBool(IS_RANGEDWEAPON, false);
         animator.SetBool(IS_TREE, false);
         animator.SetBool(IS_ROCK, false);
+        animator.SetBool(IS_BUSH, false);  // <-- THÊM DÒNG NÀY
 
         // Reset all float parameters
         animator.SetFloat(BLEND_SPEED, 0f);
@@ -190,11 +191,8 @@ public class PlayerAnimator : NetworkBehaviour
         animator.ResetTrigger(IS_JUMPING);
         animator.ResetTrigger(IS_ATTACKING);
         animator.ResetTrigger(IS_RELEASED);
-
-      
-
-       
     }
+
     // Handle aiming movement blend (W = forward +1, S = backward -1, A/D = strafe)
     private void HandleAimingBlend()
     {
@@ -202,7 +200,6 @@ public class PlayerAnimator : NetworkBehaviour
 
         Vector2 input = player.GetMovementInput();
 
-      
         float targetBlendX = input.x; // Left/Right strafe
         float targetBlendY = input.y; // Forward/Backward
 
@@ -219,12 +216,14 @@ public class PlayerAnimator : NetworkBehaviour
         if (animator != null)
             animator.SetTrigger(IS_JUMPING);
     }
+
     //Kich hoat animation tha cung
     public void TriggerReleaseBow()
     {
-        if(animator!=null)
+        if (animator != null)
             animator.SetTrigger(IS_RELEASED);
     }
+
     // Reset trigger nhảy
     public void ResetJumpTrigger()
     {

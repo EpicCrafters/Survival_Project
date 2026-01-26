@@ -153,7 +153,7 @@ public class ResourceManager : MonoBehaviour, ISaveable
             var go = new GameObject("ResourceManager");
             if (makePersistent) DontDestroyOnLoad(go);
             inst = go.AddComponent<ResourceManager>();
-            Debug.Log("[ResourceManager] Runtime-created ResourceManager instance.");
+           // Debug.Log("[ResourceManager] Runtime-created ResourceManager instance.");
             return inst;
         }
     }
@@ -933,7 +933,9 @@ public class ResourceManager : MonoBehaviour, ISaveable
                             {
                                 record.curHealth = actualHealth;
                                 if (verboseLogs)
-                                    Debug.Log($"[ResourceManager] Updated record health during spawn: {r.uniqueId} -> {actualHealth}");
+                                {
+                                    //Debug.Log($"[ResourceManager] Updated record health during spawn: {r.uniqueId} -> {actualHealth}");
+                                }
                             }
                         }
                     }

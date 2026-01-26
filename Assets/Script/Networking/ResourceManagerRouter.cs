@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -186,7 +186,7 @@ public class ResourceManagerRouter : NetworkBehaviour
 
             try
             {
-                Debug.Log($"[Router] Sending snapshot chunk to conn={conn.connectionId} snapshotId={snapshotId} {i + 1}/{totalChunks} len={chunk.Length} compressed={compressed}");
+                //Debug.Log($"[Router] Sending snapshot chunk to conn={conn.connectionId} snapshotId={snapshotId} {i + 1}/{totalChunks} len={chunk.Length} compressed={compressed}");
                 TargetReceiveSnapshotChunk(conn, snapshotId, i, totalChunks, chunk, compressed);
             }
             catch (Exception ex)

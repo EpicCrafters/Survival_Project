@@ -7,7 +7,6 @@ using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 // Quản lý tương tác player với vật phẩm, công trình, cây/đá
 public class PlayerInteract : NetworkBehaviour
 {
-
     private PlayerHoldingItem playerHoldingItem;
 
     private IPickupAble currentPickup;
@@ -30,6 +29,7 @@ public class PlayerInteract : NetworkBehaviour
     private Color rayColor = Color.green;                  // Màu ray debug
     private bool isRock = false;
     private bool isTree = false;
+    private bool isBush = false;  // <-- THÊM DÒNG NÀY
     private bool isHoldingInteract = false;
 
     public bool isReadyToMine = false;
@@ -37,8 +37,8 @@ public class PlayerInteract : NetworkBehaviour
 
     private void Start()
     {
-
         playerHoldingItem = GetComponent<PlayerHoldingItem>();
+
         if (interactionRayOrigin == null)
         {
             Camera cam = Camera.main;
@@ -47,6 +47,7 @@ public class PlayerInteract : NetworkBehaviour
             else
                 Debug.LogError("No Main Camera found! Please tag your camera as MainCamera.");
         }
+
         // Auto-find GameInput
         if (gameInput == null)
             gameInput = FindObjectOfType<GameInput>();
@@ -62,15 +63,11 @@ public class PlayerInteract : NetworkBehaviour
             Debug.LogError("GameInput not found in scene!");
         }
 
-
         if (uiManager == null)
             uiManager = FindObjectOfType<UIManager>();
 
         if (uiManager == null)
             Debug.LogError("UIManager not found in scene!");
-
-
-
 
         int pickupableLayer = LayerMask.NameToLayer("Pickupable");
         int interactableLayer = LayerMask.NameToLayer("Interactable");
@@ -83,27 +80,28 @@ public class PlayerInteract : NetworkBehaviour
         currentRayDistance = interactRay;
     }
 
-
     public void UpdatePlayerInteract(float deltaTime)
     {
-
         if (!isLocalPlayer) return;
 
         PerformRaycast();
 
-        // Cập nhật fill nếu đang mining
-        if (isReadyToMine && (isTree || isRock))
+        // Update health bar khi mining
+        // (Damage được xử lý bởi ItemHitBox animation events)
+        if (isReadyToMine)
         {
             if (currentInteractable is MyTree tree)
                 uiManager.healthBar.Update(tree.GetHealthSystem());
             else if (currentInteractable is MyRock rock)
                 uiManager.healthBar.Update(rock.GetHealthSystem());
+            else if (currentInteractable is MyBush bush)
+                uiManager.healthBar.Update(bush.GetHealthSystem());
+            else if (currentInteractable is NetworkedChoppable choppable)
+                uiManager.healthBar.Update(choppable.GetHealthSystem());
         }
     }
 
-
     // Xử lý nhấn nút tương tác
-
     private void OnInteractPressed(object sender, System.EventArgs e)
     {
         if (isReadyToPickup) TryPickupCurrentItem();
@@ -138,9 +136,7 @@ public class PlayerInteract : NetworkBehaviour
         }
     }
 
-
     // Raycast để kiểm tra object phía trước
-
     private void PerformRaycast()
     {
         if (interactionRayOrigin == null || rayStartPoint == null) return;
@@ -153,8 +149,6 @@ public class PlayerInteract : NetworkBehaviour
 
         if (Physics.Raycast(camRay, out RaycastHit camHit, cameraRayDistance, interactableLayers))
         {
-            //Debug.Log("<color=yellow>CamRay hit: </color>" + camHit.collider.name);
-
             // Check if camera hit a mineable object first to set correct ray distance
             if (camHit.collider.TryGetComponent(out IMinenable minenable))
             {
@@ -177,7 +171,6 @@ public class PlayerInteract : NetworkBehaviour
 
         ClearInteractionState();
     }
-
 
     // Kiểm tra nhặt vật phẩm
     private bool TrySetPickupable(RaycastHit hit)
@@ -220,7 +213,6 @@ public class PlayerInteract : NetworkBehaviour
     {
         if (hit.collider.TryGetComponent(out Iinteractable interactable))
         {
-
             currentInteractable = interactable;
             currentPickup = null;
 
@@ -241,12 +233,7 @@ public class PlayerInteract : NetworkBehaviour
         return false;
     }
 
-
-    // Kiểm tra mining (cây/đá)
-
-    // Replace your TrySetMineable method with this version
-    // This fixes the tool detection by getting ItemData from PlayerHoldingItem.ItemData
-
+    // Kiểm tra mining (cây/đá/bụi)
     private bool TrySetMineable(RaycastHit hit)
     {
         if (!hit.collider.TryGetComponent(out IMinenable minenable)) return false;
@@ -254,7 +241,7 @@ public class PlayerInteract : NetworkBehaviour
         rayColor = Color.red;
         isReadyToMine = false;
 
-        // Get ItemData directly from PlayerHoldingItem
+        // Get ItemData from PlayerHoldingItem
         ItemData heldItemData = null;
         if (playerHoldingItem != null && playerHoldingItem.IsHolding())
         {
@@ -275,8 +262,10 @@ public class PlayerInteract : NetworkBehaviour
         ToolType heldTool = heldItemData.tool.toolType;
         ResourceType resourceType = minenable.GetResourceType();
 
+        // Kiểm tra tool có hợp lệ với resource không
         bool valid = (resourceType == ResourceType.Tree && heldTool == ToolType.Axe) ||
-                     (resourceType == ResourceType.Rock && heldTool == ToolType.Pickaxe);
+                     (resourceType == ResourceType.Rock && heldTool == ToolType.Pickaxe) ||
+                     (resourceType == ResourceType.Bush && heldTool == ToolType.Axe);
 
         if (!valid) return false;
 
@@ -286,28 +275,33 @@ public class PlayerInteract : NetworkBehaviour
 
         isTree = resourceType == ResourceType.Tree;
         isRock = resourceType == ResourceType.Rock;
+        isBush = resourceType == ResourceType.Bush;  // <-- THÊM DÒNG NÀY
 
-        // **FIX: Display health bar for ALL choppable/mineable objects**
-        // Check both base class types
+        // Get health system - ưu tiên MyBush trước
         HealthSystem healthSystem = null;
 
-        // Try NetworkedChoppable first (Log, HalfLog, Stump)
-        if (hit.collider.TryGetComponent<NetworkedChoppable>(out var networkedChoppable))
+        // Kiểm tra MyBush trước (vì bush có thể extend ChoppableBase)
+        if (hit.collider.TryGetComponent<MyBush>(out var bush))
+        {
+            healthSystem = bush.GetHealthSystem();
+        }
+        // Sau đó kiểm tra NetworkedChoppable (Log, HalfLog, Stump)
+        else if (hit.collider.TryGetComponent<NetworkedChoppable>(out var networkedChoppable))
         {
             healthSystem = networkedChoppable.GetHealthSystem();
         }
-        // Then try ChoppableBase (Tree)
+        // Rồi đến ChoppableBase (Tree)
         else if (hit.collider.TryGetComponent<ChoppableBase>(out var choppableBase))
         {
             healthSystem = choppableBase.GetHealthSystem();
         }
-        // Fallback to MyRock for rocks
+        // Cuối cùng là Rock
         else if (isRock && hit.collider.TryGetComponent(out MyRock rock))
         {
             healthSystem = rock.GetHealthSystem();
         }
 
-        // Set the health bar if we found a health system
+        // Set the health bar
         if (healthSystem != null)
         {
             uiManager.healthBar.SetTarget(healthSystem);
@@ -326,17 +320,16 @@ public class PlayerInteract : NetworkBehaviour
 
         if (currentPickup is NetworkBehaviour nb)
         {
-
             CmdRequestPickup(nb.netIdentity);
             ClearInteractionState();
         }
     }
+
     [Command]
     private void CmdRequestPickup(NetworkIdentity itemNetId)
     {
-        Debug.Log("pickUp Item");
         if (itemNetId == null) return;
-        Debug.Log("itemId is null");
+
         var invData = GetComponentInChildren<InventoryData>();
         if (invData == null) return;
 
@@ -352,11 +345,9 @@ public class PlayerInteract : NetworkBehaviour
         // Resource / stick / ore...
         else if (itemNetId.TryGetComponent<Item>(out var pickup))
         {
-            Debug.Log("Tim duoc item");
             itemId = pickup.itemData.id;
             count = 1;
         }
-        // Có thể thêm ELSE IF cho loại khác
         else
         {
             return; // không phải item nhặt được
@@ -370,7 +361,6 @@ public class PlayerInteract : NetworkBehaviour
     }
 
     // Reset trạng thái tương tác
-
     private void ClearInteractionState()
     {
         uiManager.HideInteractUI();
@@ -379,6 +369,7 @@ public class PlayerInteract : NetworkBehaviour
         currentRayDistance = interactRay;
         isRock = false;
         isTree = false;
+        isBush = false;  // <-- THÊM DÒNG NÀY
         isReadyToMine = false;
         isReadyToPickup = false;
         isHoldingInteract = false;
@@ -392,12 +383,9 @@ public class PlayerInteract : NetworkBehaviour
         currentInteractable = null;
     }
 
-
     // Getter trạng thái
-
     public bool IsMining() => isHoldingInteract;
     public bool IsTree() => isTree;
     public bool IsRock() => isRock;
+    public bool IsBush() => isBush;  // <-- THÊM DÒNG NÀY
 }
-
-

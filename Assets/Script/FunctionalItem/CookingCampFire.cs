@@ -80,9 +80,10 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
             slotRecipeIndicesSync.Add(-1);
         }
 
-        // Subscribe to sync list changes
+        // Subscribe to sync list changes - BOTH lists need to trigger visual updates
         slotStatesSync.Callback += OnSlotStateChanged;
         slotTimersSync.Callback += OnSlotTimerChanged;
+        slotRecipeIndicesSync.Callback += OnSlotRecipeChanged;
     }
 
     protected virtual void Start()
@@ -93,7 +94,7 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
         }
 
         UpdateFireVisuals();
-
+        HideUI();
         if (flameLight != null)
         {
             flameLight.intensity = 0f;
@@ -104,6 +105,20 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
         {
             UpdateSlotVisual(i);
         }
+    }
+
+    // ADD THIS METHOD
+    public override void OnStartClient()
+    {
+        base.OnStartClient();
+
+        // When a client connects, update all slot visuals based on current state
+        Debug.Log("[CookingCampFire] OnStartClient - Initializing visuals for client");
+        for (int i = 0; i < 4; i++)
+        {
+            UpdateSlotVisual(i);
+        }
+        UpdateFireVisuals();
     }
 
     protected virtual void Update()
@@ -186,6 +201,7 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
 
         slotStatesSync.Callback -= OnSlotStateChanged;
         slotTimersSync.Callback -= OnSlotTimerChanged;
+        slotRecipeIndicesSync.Callback -= OnSlotRecipeChanged;
     }
 
     // ================= INTERACTION =================
@@ -300,10 +316,11 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
         if (!ConsumeFromSlot(inv, slotIndex))
             return;
 
-        // Add ingredient to cooking slot
+        // CRITICAL FIX: Set recipe index FIRST, then state
+        // This ensures clients have the recipe data when the state callback fires
         slotRecipeIndicesSync[targetSlot] = recipeIndex;
-        slotStatesSync[targetSlot] = (int)CookingState.Cooking;
         slotTimersSync[targetSlot] = 0f;
+        slotStatesSync[targetSlot] = (int)CookingState.Cooking;
 
         Debug.Log($"[CookingCampFire][SERVER] Ingredient added to slot {targetSlot}");
     }
@@ -416,15 +433,21 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
 
     private void OnSlotStateChanged(SyncList<int>.Operation op, int index, int oldItem, int newItem)
     {
-        if (op == SyncList<int>.Operation.OP_SET)
-        {
-            UpdateSlotVisual(index);
-        }
+        Debug.Log($"[CookingCampFire] OnSlotStateChanged - index:{index}, old:{(CookingState)oldItem}, new:{(CookingState)newItem}");
+        UpdateSlotVisual(index);
     }
 
     private void OnSlotTimerChanged(SyncList<float>.Operation op, int index, float oldItem, float newItem)
     {
         // Timer changes don't need visual updates
+    }
+
+    // NEW CALLBACK
+    private void OnSlotRecipeChanged(SyncList<int>.Operation op, int index, int oldItem, int newItem)
+    {
+        Debug.Log($"[CookingCampFire] OnSlotRecipeChanged - index:{index}, old:{oldItem}, new:{newItem}");
+        // Recipe changed, update visual to ensure it has the right recipe data
+        UpdateSlotVisual(index);
     }
 
     // ================= FUEL MANAGEMENT =================
@@ -568,10 +591,15 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
     {
         if (slotIndex < 0 || slotIndex >= 4) return;
         if (cookingSlots[slotIndex] == null || cookingSlots[slotIndex].slotPosition == null)
+        {
+            Debug.LogWarning($"[CookingCampFire] Slot {slotIndex} position is null!");
             return;
+        }
 
         CookingState state = (CookingState)slotStatesSync[slotIndex];
         int recipeIndex = slotRecipeIndicesSync[slotIndex];
+
+        Debug.Log($"[CookingCampFire] UpdateSlotVisual - Slot:{slotIndex}, State:{state}, RecipeIndex:{recipeIndex}");
 
         CleanupSlotVisual(slotIndex);
 
@@ -579,11 +607,17 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
             return;
 
         if (recipeIndex < 0 || recipeIndex >= recipes.Count)
+        {
+            Debug.LogWarning($"[CookingCampFire] Invalid recipe index {recipeIndex} for slot {slotIndex}");
             return;
+        }
 
         CampfireRecipeSO recipe = recipes[recipeIndex];
         if (recipe == null)
+        {
+            Debug.LogWarning($"[CookingCampFire] Recipe at index {recipeIndex} is null!");
             return;
+        }
 
         Transform slotTransform = cookingSlots[slotIndex].slotPosition;
         GameObject prefabToInstantiate = null;
@@ -592,12 +626,15 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
         {
             case CookingState.Cooking:
                 prefabToInstantiate = recipe.rawVisualPrefab;
+                Debug.Log($"[CookingCampFire] Spawning RAW visual for slot {slotIndex}");
                 break;
             case CookingState.Cooked:
                 prefabToInstantiate = recipe.cookedVisualPrefab;
+                Debug.Log($"[CookingCampFire] Spawning COOKED visual for slot {slotIndex}");
                 break;
             case CookingState.Burned:
                 prefabToInstantiate = recipe.burnedVisualPrefab;
+                Debug.Log($"[CookingCampFire] Spawning BURNED visual for slot {slotIndex}");
                 break;
         }
 
@@ -605,6 +642,7 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
         {
             GameObject visual = Instantiate(prefabToInstantiate, slotTransform.position, slotTransform.rotation, slotTransform);
             visual.name = $"{state}Visual_Slot{slotIndex}";
+            Debug.Log($"[CookingCampFire] Visual spawned: {visual.name}");
 
             switch (state)
             {
@@ -618,6 +656,10 @@ public class CookingCampFire : NetworkBehaviour, Iinteractable, IHasCustomText, 
                     burnedVisuals[slotIndex] = visual;
                     break;
             }
+        }
+        else
+        {
+            Debug.LogWarning($"[CookingCampFire] No prefab assigned for state {state} in recipe {recipe.recipeName}");
         }
     }
 

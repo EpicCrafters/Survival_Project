@@ -74,7 +74,7 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
         {
             Debug.LogWarning($"{name}: HealthSystem null after InitializeHealth().");
         }
-
+      
         ValidateComponents();
     }
 
@@ -87,6 +87,8 @@ public abstract class BaseResource : MonoBehaviour, IDamageable
                 healthSystem.OnDead -= OnResourceDestroyed_Internal;
         }
         catch { /* best-effort cleanup */ }
+       
+
     }
 
     // --- Abstracts to implement in derived classes ---

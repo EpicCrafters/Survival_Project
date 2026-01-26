@@ -1,4 +1,4 @@
-using Mirror;
+﻿using Mirror;
 using System;
 using UnityEngine;
 
@@ -9,6 +9,9 @@ public abstract class ChoppableBase : BaseResource, IMinenable
 {
     [Header("Debug")]
     [SerializeField] protected bool debugMode = true;
+
+    [Header("Destroy Effect Spawn Position")]
+    [SerializeField] public Transform effectPosition;
 
     protected override void InitializeHealth()
     {
@@ -26,6 +29,7 @@ public abstract class ChoppableBase : BaseResource, IMinenable
             return;
         }
 
+        // Update ResourceManager state
         ResourceManager rm = ResourceManager.GetManagerForGameObject(this.gameObject);
         if (!string.IsNullOrEmpty(UniqueId))
         {
@@ -34,51 +38,86 @@ public abstract class ChoppableBase : BaseResource, IMinenable
 
         if (!NetworkServer.active)
         {
-            DebugLog("OnResourceDestroyed called on client, skipping");
+            DebugLog("OnResourceDestroyed called on client, skipping server logic");
             return;
         }
 
-        DebugLog($"Starting destruction for {gameObject.name}");
+        DebugLog($"Server: Starting destruction for {gameObject.name}");
 
         if (string.IsNullOrEmpty(UniqueId))
         {
             GenerateUniqueIdIfMissing();
         }
 
+        // Server spawns networked results (log)
         SpawnChopResults();
 
-        GameObject replacementPrefab = GetReplacementPrefab();
-        if (rm != null && replacementPrefab != null)
+        // ✅ Notify all clients to destroy their local copy
+        if (WorldResourceManager.Instance != null)
         {
-            RequestDestroyAndReplace(replacementPrefab);
+            WorldResourceManager.Instance.RpcDestroyTree(UniqueId);
         }
-        else
-        {
-            isBeingDestroyed = true;
-            DestroyResource();
-        }
+
+        // Server destroys its own copy
+        isBeingDestroyed = true;
+
+        // Spawn local stump for host
+        SpawnLocalStump();
+
+        DestroyResource();
     }
 
     protected abstract void SpawnChopResults();
     protected abstract GameObject GetReplacementPrefab();
-
-    protected void SpawnNetworkedObject(Transform prefab, Vector3 position, Quaternion rotation)
+    public void ClientSideDestroy()
     {
-        if (prefab == null || !NetworkServer.active) return;
+        if (isBeingDestroyed || isDestroyed)
+        {
+            DebugLog("Already being destroyed, skipping");
+            return;
+        }
 
-        var obj = Instantiate(prefab, position, rotation);
+        isBeingDestroyed = true;
 
-        var rb = obj.GetComponent<Rigidbody>();
-        if (rb == null) rb = obj.gameObject.AddComponent<Rigidbody>();
+        DebugLog("Client-side destruction triggered");
 
-        rb.AddForce(Vector3.up * UnityEngine.Random.Range(0.3f, 1f) +
-                   UnityEngine.Random.insideUnitSphere * UnityEngine.Random.Range(0.1f, 0.8f),
-                   ForceMode.Impulse);
-        rb.AddTorque(UnityEngine.Random.insideUnitSphere * 0.5f, ForceMode.Impulse);
+        // Spawn local stump (non-networked, visual only)
+        SpawnLocalStump();
 
-        NetworkServer.Spawn(obj.gameObject);
-        DebugLog($"Spawned networked object: {prefab.name}");
+        // Destroy this tree GameObject
+        DestroyResource();
     }
+
+    /// <summary>
+    /// Spawn stump locally without networking - override in derived classes
+    /// </summary>
+    protected virtual void SpawnLocalStump()
+    {
+        // Default: do nothing
+        // MyTree will override this to spawn the stump prefab
+    }
+
+  
+   protected void SpawnNetworkedObject(Transform prefab, Vector3 position, Quaternion rotation)
+{
+    if (prefab == null || !NetworkServer.active)
+    {
+        Debug.LogWarning($"[SpawnNetworkedObject] Skipped - Server:{NetworkServer.active}, Prefab:{prefab != null}");
+        return;
+    }
+
+    var obj = Instantiate(prefab, position, rotation);
+    var rb = obj.GetComponent<Rigidbody>();
+    if (rb == null) rb = obj.gameObject.AddComponent<Rigidbody>();
+    
+    rb.AddForce(Vector3.up * UnityEngine.Random.Range(0.3f, 1f) +
+               UnityEngine.Random.insideUnitSphere * UnityEngine.Random.Range(0.1f, 0.8f),
+               ForceMode.Impulse);
+    rb.AddTorque(UnityEngine.Random.insideUnitSphere * 0.5f, ForceMode.Impulse);
+    
+    NetworkServer.Spawn(obj.gameObject);
+    Debug.Log($"[SERVER] ✅ Spawned networked object: {prefab.name}");
+}
 
     protected override void ValidateComponents() { }
     public override ResourceType GetResourceType() => ResourceType.Tree;

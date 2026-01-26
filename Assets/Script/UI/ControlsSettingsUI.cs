@@ -1,6 +1,7 @@
 ﻿using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections;
 
 public class ControlsSettingsUI : MonoBehaviour
 {
@@ -10,24 +11,63 @@ public class ControlsSettingsUI : MonoBehaviour
     public Toggle invertYToggle;
 
     private ControlsController controller;
+    private bool isInitialized = false;
+
+    // Pending changes
+    private float pendingMouseSensitivity;
+    private bool pendingInvertY;
 
     void OnEnable()
     {
-        if (SettingsManager.Instance != null)
+        // Delay initialization to next frame to ensure SettingsManager is ready
+        if (!isInitialized)
         {
-            controller = SettingsManager.Instance.Controls;
-            InitializeUI();
+            StartCoroutine(DelayedInitialize());
+        }
+        else
+        {
             LoadCurrentSettings();
         }
     }
 
     void Start()
     {
-        if (controller == null)
+        if (!isInitialized)
+        {
+            StartCoroutine(DelayedInitialize());
+        }
+    }
+
+    private IEnumerator DelayedInitialize()
+    {
+        // Wait until SettingsManager is ready
+        while (SettingsManager.Instance == null)
+        {
+            yield return null;
+        }
+
+        EnsureInitialized();
+        if (isInitialized)
+        {
+            LoadCurrentSettings();
+        }
+    }
+
+    // Make sure controller is always initialized
+    private void EnsureInitialized()
+    {
+        if (isInitialized) return;
+
+        if (SettingsManager.Instance != null)
         {
             controller = SettingsManager.Instance.Controls;
             InitializeUI();
-            LoadCurrentSettings();
+            isInitialized = true;
+            Debug.Log("ControlsSettingsUI: Initialized");
+        }
+        else
+        {
+            Debug.LogError("ControlsSettingsUI: SettingsManager.Instance is null!");
         }
     }
 
@@ -37,33 +77,63 @@ public class ControlsSettingsUI : MonoBehaviour
         mouseSensitivitySlider.onValueChanged.RemoveAllListeners();
         invertYToggle.onValueChanged.RemoveAllListeners();
 
-        // Add listeners mới
+        // Add listeners mới - CHỈ lưu vào pending
         mouseSensitivitySlider.onValueChanged.AddListener(OnSensitivityChanged);
         invertYToggle.onValueChanged.AddListener(OnInvertYChanged);
     }
 
     public void LoadCurrentSettings()
     {
+        EnsureInitialized();
+
+        if (controller == null)
+        {
+            Debug.LogError("ControlsSettingsUI: Cannot load settings - controller is null");
+            return;
+        }
+
         var data = controller.GetData();
 
         mouseSensitivitySlider.SetValueWithoutNotify(data.mouseSensitivity);
         invertYToggle.SetIsOnWithoutNotify(data.invertY);
         UpdateSensitivityText(data.mouseSensitivity);
+
+        // Load vào pending values
+        pendingMouseSensitivity = data.mouseSensitivity;
+        pendingInvertY = data.invertY;
     }
 
+    // CHỈ lưu vào pending, KHÔNG apply ngay
     private void OnSensitivityChanged(float value)
     {
-        controller.SetMouseSensitivity(value);
+        pendingMouseSensitivity = value;
         UpdateSensitivityText(value);
     }
 
     private void OnInvertYChanged(bool value)
     {
-        controller.SetInvertY(value);
+        pendingInvertY = value;
     }
 
     private void UpdateSensitivityText(float value)
     {
         sensitivityValueText.text = value.ToString("F2");
+    }
+
+    // Method này được gọi bởi SettingsMenuUI khi nhấn Apply
+    public void ApplyPendingChanges()
+    {
+        EnsureInitialized();
+
+        if (controller == null)
+        {
+            Debug.LogError("ControlsSettingsUI: Cannot apply - controller is null!");
+            return;
+        }
+
+        Debug.Log("Controls: Applying pending changes...");
+        controller.SetMouseSensitivity(pendingMouseSensitivity);
+        controller.SetInvertY(pendingInvertY);
+        Debug.Log($"Controls pending applied - Sensitivity: {pendingMouseSensitivity}, Invert: {pendingInvertY}");
     }
 }

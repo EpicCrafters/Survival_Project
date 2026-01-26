@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5134766343260045317}
   - component: {fileID: 2409165816099146986}
   - component: {fileID: 5867953962341277322}
+  - component: {fileID: -7162425920960248686}
   m_Layer: 7
   m_Name: Stick
   m_TagString: Untagged
@@ -120,6 +121,40 @@ MonoBehaviour:
   syncMode: 0
   syncInterval: 0
   itemData: {fileID: 11400000, guid: 6ea3ff16cdacd6c4188f6d68e98b049a, type: 2}
+--- !u!114 &-7162425920960248686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 235764449273442991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a553cb17010b2403e8523b558bffbc14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  target: {fileID: 93746505767558392}
+  syncPosition: 1
+  syncRotation: 1
+  syncScale: 0
+  onlySyncOnChange: 1
+  compressRotation: 1
+  interpolatePosition: 1
+  interpolateRotation: 1
+  interpolateScale: 1
+  coordinateSpace: 0
+  timelineOffset: 1
+  showGizmos: 0
+  showOverlay: 0
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.5}
+  bufferResetMultiplier: 3
+  useFixedUpdate: 0
+  positionSensitivity: 0.01
+  rotationSensitivity: 0.01
+  scaleSensitivity: 0.01
 --- !u!1 &1326294435707539687
 GameObject:
   m_ObjectHideFlags: 0

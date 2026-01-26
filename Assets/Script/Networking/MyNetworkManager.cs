@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Text;
 using UnityEngine;
 using Mirror;
+using System.IO.Compression;
+using System.IO;
 
 /// <summary>
 /// Merged NetworkManager:
@@ -109,9 +111,16 @@ public class MyNetworkManager : NetworkManager
             foreach (var rm in managers)
             {
                 if (rm == null) continue;
-                var snap = rm.core.GetSnapshot(); // adapt to your API (core.GetSnapshot())
+                var snap = rm.core.GetSnapshot();
                 string json = JsonUtility.ToJson(snap);
-                return Encoding.UTF8.GetBytes(json);
+                byte[] uncompressed = Encoding.UTF8.GetBytes(json);
+
+                // Compress the data
+                byte[] compressed = CompressBytes(uncompressed);
+
+                Debug.Log($"[MyNetworkManager] Compressed snapshot: {uncompressed.Length} → {compressed.Length} bytes ({(float)compressed.Length / uncompressed.Length * 100:F1}%)");
+
+                return compressed;
             }
         }
         catch (Exception ex)
@@ -119,5 +128,17 @@ public class MyNetworkManager : NetworkManager
             Debug.LogError($"[MyNetworkManager] BuildSnapshotBytesFor failed: {ex}");
         }
         return new byte[0];
+    }
+
+    private static byte[] CompressBytes(byte[] data)
+    {
+        using (var ms = new MemoryStream())
+        {
+            using (var gzip = new GZipStream(ms, CompressionMode.Compress))
+            {
+                gzip.Write(data, 0, data.Length);
+            }
+            return ms.ToArray();
+        }
     }
 }

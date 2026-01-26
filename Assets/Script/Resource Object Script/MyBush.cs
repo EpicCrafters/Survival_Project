@@ -1,173 +1,443 @@
-﻿using Mirror;
-using UnityEngine;
+﻿using UnityEngine;
+using System.Collections;
+using Mirror;
 
 /// <summary>
-/// MyBush - harvestable bush that gives berries directly to player inventory
-/// - Interact harvests berries and adds to inventory (max 3 harvests)
-/// - Automatically stacks with existing items
-/// - Bush remains in world after all berries are harvested
+/// Simplified MyBush - NOT a NetworkBehaviour
+/// All state changes go through WorldResourceManager
+/// All inventory additions go through InventoryData.ServerAddItem
 /// </summary>
-public class MyBush : ChoppableBase, Iinteractable
+public class MyBush : ChoppableBase, Iinteractable, IWorldResource
 {
-    public enum BushType { BerryBush, FlowerBush, HerbBush }
+    // ==================== BUSH STATE ENUM ====================
+    public enum BushState
+    {
+        Full,           // Has berries
+        Empty,          // No berries, can be broken
+        Destroyed,      // Destroyed/respawning
+    }
 
-    [Header("Bush Specific")]
-    [SerializeField] private BushType bushType = BushType.BerryBush;
-    [SerializeField] private int maxHarvestCount = 3; // Number of times player can harvest
+    [Header("Bush Settings")]
+    [SerializeField] private int maxBerries = 3;
     [SerializeField] private GameObject berryVisualMesh;
+    [SerializeField] private int bushHealth = 20;
 
-    [Header("Item Reference")]
-    [SerializeField] private ItemData harvestItemData; // Direct reference to the ItemData ScriptableObject
+    [Header("Item Drops")]
+    [SerializeField] private ItemData berryItemData;
+    [SerializeField] private ItemData stickItemData;
+    [SerializeField] private int minSticks = 1;
+    [SerializeField] private int maxSticks = 3;
+    [SerializeField] private float dropRadius = 0.5f;
 
-    [Header("Respawn Settings (Optional)")]
+    [Header("Respawn Settings")]
     [SerializeField] private bool canRespawn = true;
-    [SerializeField] private float respawnTime = 60f; // Time in seconds to refill berries
+    [SerializeField] private float respawnTime = 120f;
 
-    // Runtime state (server-side only)
-    private int currentHarvestCount;
-    private float respawnTimer = 0f;
+    // ==================== LOCAL STATE ====================
+    private BushState currentState = BushState.Full;
+    private int currentBerries;
+    private Coroutine respawnCoroutine;
+    private bool isBeingChopped = false;
+    private NetworkConnectionToClient lastDamager;
 
+    // ==================== INITIALIZATION ====================
     protected override void Awake()
     {
         base.Awake();
 
-        // Initialize harvest count
-        currentHarvestCount = maxHarvestCount;
+        if (string.IsNullOrEmpty(UniqueId))
+        {
+            GenerateUniqueIdIfMissing();
+        }
+
+        currentBerries = maxBerries;
+    }
+
+    private void Start()
+    {
+        // Register on both server and client
+        if (WorldResourceManager.Instance != null)
+        {
+            WorldResourceManager.Instance.RegisterResource(UniqueId, this);
+
+            // Server initializes state
+            if (NetworkServer.active)
+            {
+                WorldResourceManager.Instance.InitializeResourceState(
+                    UniqueId,
+                    currentBerries,
+                    bushHealth,
+                    BushState.Full
+                );
+            }
+        }
+
         UpdateVisuals();
     }
 
-    private void Update()
-    {
-        // Handle respawn on server
-        if (NetworkServer.active && canRespawn && currentHarvestCount < maxHarvestCount)
-        {
-            respawnTimer += Time.deltaTime;
-            if (respawnTimer >= respawnTime)
-            {
-                currentHarvestCount = maxHarvestCount;
-                respawnTimer = 0f;
-                UpdateVisuals();
-                DebugLog("Bush berries respawned!");
-            }
-        }
-    }
-
-    protected override int GetHealthAmount()
-    {
-        // Bush doesn't take damage anymore, but we keep this for base class
-        return 9999;
-    }
-
-    protected override void SpawnChopResults()
-    {
-        // Bush no longer drops items when destroyed
-    }
-
-    protected override GameObject GetReplacementPrefab()
-    {
-        // Bush remains in world
-        return null;
-    }
-
-    public override ResourceType GetResourceType() => ResourceType.Bush;
-
-    // ================= Interact Logic =================
-
+    // ==================== INTERACTION ====================
     public void Interact(PlayerHoldingItem playerHoldingItem)
     {
-        DebugLog("Interact called on bush");
+        if (playerHoldingItem == null) return;
+        if (WorldResourceManager.Instance == null) return;
 
-        if (currentHarvestCount <= 0)
+        bool isHoldingAxe = IsPlayerHoldingAxe(playerHoldingItem);
+
+        if (isHoldingAxe)
         {
-            DebugLog("No berries left to harvest");
+            isBeingChopped = true;
             return;
         }
 
-        // Validate harvest item data
-        if (harvestItemData == null)
+        // Single unified command - manager decides what to do
+        WorldResourceManager.Instance.CmdHarvestBush(UniqueId);
+    }
+
+    // ==================== SERVER-SIDE ACTIONS ====================
+    /// <summary>
+    /// Called by WorldResourceManager on server
+    /// Picks one berry and updates state
+    /// Uses centralized InventoryData.ServerAddItem
+    /// </summary>
+    [Server]
+    public void ServerHarvestBerry(InventoryData inventory)
+    {
+        if (currentBerries <= 0 || berryItemData == null || inventory == null)
         {
-            DebugLog("ERROR: harvestItemData is not assigned in Inspector!");
+            Debug.LogWarning($"[SERVER] Cannot harvest berry from {UniqueId}");
             return;
         }
 
-        // Get player's inventory - try multiple methods
-        if (playerHoldingItem == null)
+        // ✅ USE CENTRALIZED INVENTORY METHOD
+        int itemsAdded = inventory.ServerAddItem(berryItemData.id, 1);
+
+        if (itemsAdded > 0)
         {
-            DebugLog("PlayerHoldingItem is null");
-            return;
+            currentBerries--;
+
+            // Update state: Still Full if berries remain, Empty if all picked
+            BushState newState = currentBerries > 0 ? BushState.Full : BushState.Empty;
+
+            WorldResourceManager.Instance.UpdateResourceState(
+                UniqueId,
+                currentBerries,
+                healthSystem?.GetHealth() ?? bushHealth,
+                newState
+            );
+
+            DebugLog($"[SERVER] Harvested berry. Remaining: {currentBerries}, State: {newState}");
+        }
+        else
+        {
+            // Inventory full - just don't pick the berry
+            DebugLog($"[SERVER] Inventory full, cannot harvest berry");
+        }
+    }
+
+    /// <summary>
+    /// Called when player interacts with empty bush (no berries)
+    /// Gives sticks and destroys the bush
+    /// Uses centralized InventoryData.ServerAddItem
+    /// </summary>
+    [Server]
+    public void ServerBreakBush(InventoryData inventory)
+    {
+        if (stickItemData == null || inventory == null) return;
+
+        // Mark as being destroyed FIRST to prevent OnResourceDestroyed from firing
+        isBeingDestroyed = true;
+
+        // Give sticks to player using centralized method
+        int stickCount = Random.Range(minSticks, maxSticks + 1);
+
+        // ✅ USE CENTRALIZED INVENTORY METHOD
+        int itemsAdded = inventory.ServerAddItem(stickItemData.id, stickCount);
+
+        DebugLog($"[SERVER] Broke empty bush, added {itemsAdded}/{stickCount} sticks to inventory");
+
+        // Destroy bush (with optional respawn) - NO item spawning
+        DestroyBushDirect(allowRespawn: canRespawn);
+    }
+
+    // ==================== DAMAGE & DESTROY ====================
+    public override void Damage(int amount)
+    {
+       
+        base.Damage(amount);
+
+        if (NetworkServer.active && WorldResourceManager.Instance != null)
+        {
+            WorldResourceManager.Instance.UpdateResourceState(
+                UniqueId,
+                currentBerries,
+                healthSystem?.GetHealth() ?? 0,
+                currentState
+            );
+        }
+    }
+
+    protected override void OnResourceDestroyed()
+    {
+        if (isBeingDestroyed || isDestroyed) return;
+        if (!NetworkServer.active) return;
+
+        DebugLog("[SERVER] Bush chopped down - spawning items to world");
+
+        // Mark as being destroyed to prevent double-calls
+        isBeingDestroyed = true;
+
+        // ✅ GET AUTHORITATIVE STATE FROM MANAGER
+        int authoritativeBerryCount = currentBerries;
+
+        if (WorldResourceManager.Instance != null &&
+            WorldResourceManager.Instance.TryGetResourceState(UniqueId, out var serverState))
+        {
+            // Use the manager's authoritative berry count
+            authoritativeBerryCount = serverState.berryCount;
+            DebugLog($"[SERVER] Using authoritative berry count from manager: {authoritativeBerryCount}");
+        }
+        else
+        {
+            DebugLog($"[SERVER] Using local berry count (manager state not found): {currentBerries}");
         }
 
-        // Try to get InventoryData from the same GameObject
-        InventoryData inventory = playerHoldingItem.GetComponent<InventoryData>();
+        // When destroyed by damage/chopping: ALWAYS spawn items to world
+        // Spawn sticks
+        SpawnSticks();
+        DebugLog($"[SERVER] Spawned sticks to world");
 
-        // If not found, try to get it from parent or children
-        if (inventory == null)
+        // Spawn remaining berries if any (using authoritative count)
+        if (authoritativeBerryCount > 0)
         {
-            inventory = playerHoldingItem.GetComponentInParent<InventoryData>();
+            SpawnBerries(authoritativeBerryCount);
+            DebugLog($"[SERVER] Spawned {authoritativeBerryCount} berries to world");
+        }
+        else
+        {
+            DebugLog($"[SERVER] No berries to spawn (count: {authoritativeBerryCount})");
         }
 
-        if (inventory == null)
+        DestroyBushDirect(allowRespawn: true);
+    }
+
+
+    // ==================== DAMAGER TRACKING ====================
+    [Server]
+    public void SetLastDamager(NetworkConnectionToClient damager)
+    {
+        lastDamager = damager;
+    }
+
+    // ==================== DESTROY & RESPAWN ====================
+    /// <summary>
+    /// Direct destruction without triggering OnResourceDestroyed callback
+    /// Used when we've already handled item drops manually
+    /// </summary>
+    [Server]
+    private void DestroyBushDirect(bool allowRespawn)
+    {
+        currentBerries = 0;
+        currentState = BushState.Destroyed;
+        lastDamager = null;
+
+        // Set health to 0 WITHOUT triggering the death callback
+        if (healthSystem != null)
         {
-            inventory = playerHoldingItem.GetComponentInChildren<InventoryData>();
+            healthSystem.SetHealth(0);
         }
 
-        if (inventory == null)
+        WorldResourceManager.Instance.UpdateResourceState(
+            UniqueId,
+            currentBerries,
+            0,
+            BushState.Destroyed
+        );
+
+        if (allowRespawn && canRespawn)
         {
-            DebugLog("Could not find InventoryData component anywhere on player hierarchy");
-            return;
+            if (respawnCoroutine != null)
+            {
+                StopCoroutine(respawnCoroutine);
+            }
+            respawnCoroutine = StartCoroutine(RespawnBush());
+        }
+        else
+        {
+            isDestroyed = true;
+            gameObject.SetActive(false);
+        }
+    }
+
+    [Server]
+    private IEnumerator RespawnBush()
+    {
+        gameObject.SetActive(false);
+        yield return new WaitForSeconds(respawnTime);
+
+        currentBerries = maxBerries;
+        currentState = BushState.Full;
+
+        if (healthSystem != null)
+        {
+            healthSystem.SetHealth(bushHealth);
         }
 
-        // Verify the item exists in the database
-        int itemId = harvestItemData.id;
-        ItemData itemData = ItemDatabase.Get(itemId);
-        if (itemData == null)
+        isBeingChopped = false;
+        isBeingDestroyed = false;
+        isDestroyed = false;
+
+        WorldResourceManager.Instance.UpdateResourceState(
+            UniqueId,
+            currentBerries,
+            bushHealth,
+            BushState.Full
+        );
+
+        gameObject.SetActive(true);
+        UpdateVisuals();
+
+        DebugLog("[SERVER] Bush respawned!");
+        respawnCoroutine = null;
+    }
+
+    // ==================== SPAWN LOOT ====================
+    [Server]
+    private void SpawnSticks()
+    {
+        if (stickItemData == null) return;
+
+        int stickCount = Random.Range(minSticks, maxSticks + 1);
+        SpawnItems(stickItemData, stickCount);
+    }
+
+    [Server]
+    private void SpawnBerries(int count)
+    {
+        if (berryItemData == null || count <= 0) return;
+        SpawnItems(berryItemData, count);
+    }
+
+    /// <summary>
+    /// Generic method to spawn items in the world
+    /// </summary>
+    [Server]
+    private void SpawnItems(ItemData itemData, int count)
+    {
+        if (itemData == null || count <= 0) return;
+
+        for (int i = 0; i < count; i++)
         {
-            DebugLog($"ERROR: Item ID {itemId} not found in ItemDatabase!");
-            return;
+            Vector3 offset = new Vector3(
+                Random.Range(-dropRadius, dropRadius),
+                0.1f,
+                Random.Range(-dropRadius, dropRadius)
+            );
+            Quaternion rot = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+
+            SpawnNetworkedObject(itemData.worldPrefab.transform, transform.position + offset, rot);
+        }
+    }
+
+    // ==================== WORLD RESOURCE INTERFACE ====================
+    public string GetUniqueId() => UniqueId;
+
+    /// <summary>
+    /// Called by WorldResourceManager when state updates from server
+    /// </summary>
+    public void ApplyState(WorldResourceManager.ResourceState state)
+    {
+        currentBerries = state.berryCount;
+        currentState = state.bushState;
+
+        if (healthSystem != null)
+        {
+            healthSystem.SetHealth(state.health);
         }
 
-        DebugLog($"Item found in database: {itemData.itemName} (ID: {itemId})");
-
-        // Add berry to inventory with stacking (this is a Command that runs on server)
-        inventory.CmdAddItemWithStacking(itemId, 1);
-
-        // Only decrease count on server
-        if (NetworkServer.active)
+        // Handle destruction state
+        if (state.bushState == BushState.Destroyed)
         {
-            currentHarvestCount--;
-            respawnTimer = 0f; // Reset respawn timer
-            UpdateVisuals();
-            DebugLog($"Harvested 1 {bushType}. Remaining harvests: {currentHarvestCount}");
+            gameObject.SetActive(false);
         }
+        else
+        {
+            gameObject.SetActive(true);
+        }
+
+        // FORCE visual update immediately
+        UpdateVisuals();
+
+        string role = NetworkServer.active ? "HOST" : "CLIENT";
+        string stateStr = state.bushState == BushState.Full ? "Full (has berries)" :
+                         state.bushState == BushState.Empty ? "Empty (no berries)" : "Destroyed";
+        Debug.Log($"[{role}] Applied state: {currentBerries} berries, {state.health} hp, {stateStr}, Berry Mesh Active: {berryVisualMesh?.activeSelf}");
+    }
+
+    // ==================== GETTERS ====================
+    public int GetCurrentBerries() => currentBerries;
+    public BushState GetCurrentState() => currentState;
+
+    // ==================== HELPERS ====================
+    private bool IsPlayerHoldingAxe(PlayerHoldingItem playerHoldingItem)
+    {
+        if (playerHoldingItem == null || !playerHoldingItem.IsHolding())
+            return false;
+
+        ItemData heldItemData = playerHoldingItem.ItemData;
+
+        if (heldItemData == null)
+        {
+            GameObject heldObject = playerHoldingItem.GetCurrentHeldObject();
+            if (heldObject != null && heldObject.TryGetComponent<Item>(out var heldItem))
+                heldItemData = heldItem.itemData;
+        }
+
+        if (heldItemData == null || heldItemData.type != ItemType.Tool)
+            return false;
+
+        return heldItemData.tool.toolType == ToolType.Axe;
     }
 
     private void UpdateVisuals()
     {
         if (berryVisualMesh != null)
         {
-            // Show berries only when harvest count > 0
-            berryVisualMesh.SetActive(currentHarvestCount > 0);
+            // Show berries only when count > 0
+            // Hide berries when empty (but bush still exists)
+            berryVisualMesh.SetActive(currentBerries > 0);
         }
     }
+
+    // ==================== ABSTRACT IMPLEMENTATIONS ====================
+    protected override int GetHealthAmount() => bushHealth;
+    protected override void SpawnChopResults() { }
+    protected override GameObject GetReplacementPrefab() => null;
+    public override ResourceType GetResourceType() => ResourceType.Bush;
+    public void Interact() { }
 
     protected override void ValidateComponents()
     {
         if (berryVisualMesh == null)
             Debug.LogWarning($"{name}: berryVisualMesh not assigned!");
-
-        if (harvestItemData == null)
-            Debug.LogWarning($"{name}: harvestItemData not assigned! Please assign the ItemData ScriptableObject.");
+        if (berryItemData == null)
+            Debug.LogWarning($"{name}: berryItemData not assigned!");
+        if (stickItemData == null)
+            Debug.LogWarning($"{name}: stickItemData not assigned!");
     }
 
-    // ================= Public Getters =================
-
-    public int GetRemainingHarvests() => currentHarvestCount;
-    public BushType GetBushType() => bushType;
-    public bool HasBerries() => currentHarvestCount > 0;
-
-    public void Interact()
+    // ==================== CLEANUP ====================
+    protected override void OnDestroy()
     {
-        // This empty method satisfies the interface but won't be called
-        // The version with PlayerHoldingItem parameter will be used instead
+        base.OnDestroy();
+
+        if (WorldResourceManager.Instance != null)
+        {
+            WorldResourceManager.Instance.UnregisterResource(UniqueId);
+        }
+
+        if (respawnCoroutine != null)
+        {
+            StopCoroutine(respawnCoroutine);
+        }
     }
 }

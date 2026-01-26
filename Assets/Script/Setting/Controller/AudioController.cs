@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using UnityEngine.InputSystem;
 using System;
 
 public class AudioController
@@ -12,57 +11,61 @@ public class AudioController
         this.data = data;
     }
 
+    // ONLY store data, DON'T apply immediately
     public void SetMasterVolume(float volume)
     {
         data.masterVolume = Mathf.Clamp01(volume);
-
-        // Áp dụng vào AudioManager nếu có
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.SetMasterVolume(data.muted ? 0 : data.masterVolume);
-        }
-
         OnSettingsChanged?.Invoke();
     }
 
     public void SetMusicVolume(float volume)
     {
         data.musicVolume = Mathf.Clamp01(volume);
-
-        // Áp dụng vào AudioManager
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.SetMusicVolume(data.musicVolume);
-        }
-
         OnSettingsChanged?.Invoke();
     }
 
     public void SetSFXVolume(float volume)
     {
         data.sfxVolume = Mathf.Clamp01(volume);
-        // Có thể áp dụng vào Audio Mixer Group cho SFX
         OnSettingsChanged?.Invoke();
     }
 
     public void SetMuted(bool muted)
     {
         data.muted = muted;
-
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.SetMasterVolume(muted ? 0 : data.masterVolume);
-        }
-
         OnSettingsChanged?.Invoke();
     }
 
+    // Apply ALL settings at once when called
     public void ApplySettings()
     {
-        SetMasterVolume(data.masterVolume);
-        SetMusicVolume(data.musicVolume);
-        SetSFXVolume(data.sfxVolume);
-        SetMuted(data.muted);
+        if (AudioManager.Instance != null)
+        {
+            // Apply master volume (with mute check)
+            AudioManager.Instance.SetMasterVolume(data.muted ? 0 : data.masterVolume);
+
+            // Apply music volume
+            AudioManager.Instance.SetMusicVolume(data.musicVolume);
+
+            // Apply SFX volume
+          
+        }
+        else
+        {
+            // Fallback if AudioManager doesn't exist
+            AudioListener.volume = data.muted ? 0 : data.masterVolume;
+        }
+
+        Debug.Log($"Audio Applied - Master: {data.masterVolume}, Music: {data.musicVolume}, SFX: {data.sfxVolume}, Muted: {data.muted}");
+    }
+
+    public void ResetToDefaults()
+    {
+        data.masterVolume = 1.0f;
+        data.musicVolume = 0.8f;
+        data.sfxVolume = 1.0f;
+        data.muted = false;
+        OnSettingsChanged?.Invoke();
     }
 
     public AudioSettingsData GetData() => data;

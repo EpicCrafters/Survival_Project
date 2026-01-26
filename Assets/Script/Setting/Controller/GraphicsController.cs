@@ -11,18 +11,16 @@ public class GraphicsController
         this.data = data;
     }
 
+    // ONLY store data, DON'T apply immediately
     public void SetQualityLevel(int level)
     {
         data.qualityLevel = level;
-        QualitySettings.SetQualityLevel(level);
         OnSettingsChanged?.Invoke();
     }
 
     public void SetResolution(int index)
     {
         data.resolutionIndex = index;
-        Resolution res = Screen.resolutions[index];
-        Screen.SetResolution(res.width, res.height, data.screenMode);
         OnSettingsChanged?.Invoke();
     }
 
@@ -36,20 +34,13 @@ public class GraphicsController
             2 => FullScreenMode.FullScreenWindow,  // Borderless
             _ => FullScreenMode.ExclusiveFullScreen
         };
-
         data.screenMode = mode;
-
-        // Áp dụng screen mode với resolution hiện tại
-        Resolution currentRes = Screen.resolutions[data.resolutionIndex];
-        Screen.SetResolution(currentRes.width, currentRes.height, mode);
-
         OnSettingsChanged?.Invoke();
     }
 
     public void SetVSync(bool enabled)
     {
         data.vsync = enabled;
-        QualitySettings.vSyncCount = enabled ? 1 : 0;
         OnSettingsChanged?.Invoke();
     }
 
@@ -64,48 +55,39 @@ public class GraphicsController
             3 => -1,  // Unlimited
             _ => 60
         };
-
         data.targetFrameRate = fps;
-        Application.targetFrameRate = fps;
         OnSettingsChanged?.Invoke();
     }
 
     public void SetBrightness(float brightness)
     {
         data.brightness = brightness;
-        RenderSettings.ambientIntensity = brightness;
         OnSettingsChanged?.Invoke();
     }
 
+    // Apply ALL settings at once when called
     public void ApplySettings()
     {
-        SetQualityLevel(data.qualityLevel);
-        SetResolution(data.resolutionIndex);
+        // Apply quality
+        QualitySettings.SetQualityLevel(data.qualityLevel);
 
-        // Áp dụng screen mode
-        int modeIndex = data.screenMode switch
+        // Apply VSync
+        QualitySettings.vSyncCount = data.vsync ? 1 : 0;
+
+        // Apply framerate
+        Application.targetFrameRate = data.targetFrameRate;
+
+        // Apply resolution and screen mode together
+        if (data.resolutionIndex >= 0 && data.resolutionIndex < Screen.resolutions.Length)
         {
-            FullScreenMode.ExclusiveFullScreen => 0,
-            FullScreenMode.Windowed => 1,
-            FullScreenMode.FullScreenWindow => 2,
-            _ => 0
-        };
-        SetScreenMode(modeIndex);
+            Resolution res = Screen.resolutions[data.resolutionIndex];
+            Screen.SetResolution(res.width, res.height, data.screenMode);
+        }
 
-        SetVSync(data.vsync);
+        // Apply brightness
+        RenderSettings.ambientIntensity = data.brightness;
 
-        // Áp dụng framerate
-        int framerateIndex = data.targetFrameRate switch
-        {
-            60 => 0,
-            90 => 1,
-            144 => 2,
-            -1 => 3,
-            _ => 0
-        };
-        SetTargetFrameRate(framerateIndex);
-
-        SetBrightness(data.brightness);
+        Debug.Log($"Graphics Applied - Quality: {data.qualityLevel}, Resolution: {data.resolutionIndex}, VSync: {data.vsync}, FPS: {data.targetFrameRate}");
     }
 
     // Helper để UI lấy screen mode index hiện tại
@@ -131,6 +113,17 @@ public class GraphicsController
             -1 => 3,
             _ => 0
         };
+    }
+
+    public void ResetToDefaults()
+    {
+        data.qualityLevel = 2;
+        data.resolutionIndex = Screen.resolutions.Length - 1;
+        data.screenMode = FullScreenMode.ExclusiveFullScreen;
+        data.targetFrameRate = 60;
+        data.vsync = true;
+        data.brightness = 1.0f;
+        OnSettingsChanged?.Invoke();
     }
 
     public GraphicsSettingsData GetData() => data;

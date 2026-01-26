@@ -98,7 +98,7 @@ public class DayNightCycle : NetworkBehaviour
 
     private void Start()
     {
-        _timeOfDay = 20f / 24f; // 6h sáng
+        _timeOfDay = 12f / 24f; // 6h sáng
         visualTimeOfDay = _timeOfDay;
         elapsedTime = _timeOfDay * targetDayLength * 60; // đồng bộ elapsedTime
         NormalTimeCurve();

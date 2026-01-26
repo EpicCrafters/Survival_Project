@@ -1,6 +1,5 @@
-﻿using UnityEngine;
-using UnityEngine.InputSystem;
-using System;
+﻿using System;
+using UnityEngine;
 
 public class ControlsController
 {
@@ -12,6 +11,7 @@ public class ControlsController
         this.data = data;
     }
 
+    // ONLY store data, DON'T apply immediately
     public void SetMouseSensitivity(float sensitivity)
     {
         data.mouseSensitivity = sensitivity;
@@ -24,9 +24,25 @@ public class ControlsController
         OnSettingsChanged?.Invoke();
     }
 
+    // Apply ALL settings at once when called
     public void ApplySettings()
     {
-        // Apply settings ở đây nếu cần
+        // Apply to your player/camera controller here
+        // Example:
+        // if (PlayerController.Instance != null)
+        // {
+        //     PlayerController.Instance.SetMouseSensitivity(data.mouseSensitivity);
+        //     PlayerController.Instance.SetInvertY(data.invertY);
+        // }
+
+        Debug.Log($"Controls Applied - Sensitivity: {data.mouseSensitivity}, Invert Y: {data.invertY}");
+    }
+
+    public void ResetToDefaults()
+    {
+        data.mouseSensitivity = 1.0f;
+        data.invertY = false;
+        OnSettingsChanged?.Invoke();
     }
 
     public ControlsSettingsData GetData() => data;

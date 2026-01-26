@@ -163,7 +163,7 @@ public class MainMenuUI : MonoBehaviour
     private void OnHostClicked()
     {
         if (manager == null) return;
-        
+
         // Fade out music when entering game scene
         AudioManager.Instance.StopMusic(1.5f);
         // Play ambient sound when game scene loads

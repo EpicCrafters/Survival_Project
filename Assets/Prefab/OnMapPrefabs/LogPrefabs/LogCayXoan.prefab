@@ -240,6 +240,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
       insertIndex: -1
       addedObject: {fileID: -6435212132139173826}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -7830274457114162239}
   m_SourcePrefab: {fileID: 100100000, guid: 6b85849b0edfe1c4299eb659cfc571a4, type: 3}
 --- !u!4 &496689655629043481 stripped
 Transform:
@@ -346,6 +349,40 @@ MonoBehaviour:
   randomLengthOffset: 0
   applyPhysicsForce: 1
   physicsForceStrength: 1.5
+--- !u!114 &-7830274457114162239
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2789272174467518687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a553cb17010b2403e8523b558bffbc14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  target: {fileID: 496689655629043481}
+  syncPosition: 1
+  syncRotation: 1
+  syncScale: 0
+  onlySyncOnChange: 1
+  compressRotation: 1
+  interpolatePosition: 1
+  interpolateRotation: 1
+  interpolateScale: 1
+  coordinateSpace: 0
+  timelineOffset: 1
+  showGizmos: 0
+  showOverlay: 0
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.5}
+  bufferResetMultiplier: 3
+  useFixedUpdate: 0
+  positionSensitivity: 0.01
+  rotationSensitivity: 0.01
+  scaleSensitivity: 0.01
 --- !u!1001 &7783397262670248902
 PrefabInstance:
   m_ObjectHideFlags: 0

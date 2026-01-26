@@ -50,7 +50,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
       propertyPath: m_Name
-      value: Log
+      value: Log_World
       objectReference: {fileID: 0}
     - target: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
       propertyPath: m_Layer
@@ -78,6 +78,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
       insertIndex: -1
       addedObject: {fileID: -1688787741545276002}
+    - targetCorrespondingSourceObject: {fileID: 3236695765921899963, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2129248879460305876}
   m_SourcePrefab: {fileID: 100100000, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}
 --- !u!1 &345173154147767209 stripped
 GameObject:
@@ -188,6 +191,40 @@ MonoBehaviour:
   minSticks: 2
   maxSticks: 3
   dropRadius: 0.5
+--- !u!114 &2129248879460305876
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 345173154147767209}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a553cb17010b2403e8523b558bffbc14, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  syncDirection: 0
+  syncMode: 0
+  syncInterval: 0
+  target: {fileID: 2637888889986962543}
+  syncPosition: 1
+  syncRotation: 1
+  syncScale: 0
+  onlySyncOnChange: 1
+  compressRotation: 1
+  interpolatePosition: 1
+  interpolateRotation: 1
+  interpolateScale: 1
+  coordinateSpace: 0
+  timelineOffset: 1
+  showGizmos: 0
+  showOverlay: 0
+  overlayColor: {r: 0, g: 0, b: 0, a: 0.5}
+  bufferResetMultiplier: 3
+  useFixedUpdate: 0
+  positionSensitivity: 0.01
+  rotationSensitivity: 0.01
+  scaleSensitivity: 0.01
 --- !u!4 &2637888889986962543 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 917302184313152125, guid: d3a30563b6fef1f4e81e604839813cc9, type: 3}

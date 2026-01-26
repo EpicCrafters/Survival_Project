@@ -141,6 +141,8 @@ public class PlayerCombat : NetworkBehaviour
         Debug.Log($"[Server] {name} dealt {damage} damage to {targetIdentity.name} with {itemData.itemName}");
     }
 
+    // In PlayerCombat.cs - Update CmdDamageResource()
+
     [Command]
     public void CmdDamageResource(string uniqueId, int damage, int toolId, ResourceType resourceType)
     {
@@ -153,8 +155,29 @@ public class PlayerCombat : NetworkBehaviour
             return;
         }
 
-        if (rm.core.TryGetRecord(uniqueId, out var record))
+        // Try to get the actual resource component
+        BaseResource resource = FindResourceByUniqueId(uniqueId);
+
+        if (resource != null)
         {
+            // ✅ Special handling for bushes - store the damager AND berry count
+            if (resource is MyBush bush)
+            {
+                bush.SetLastDamager(connectionToClient);
+
+                // ✅ Cache berry count BEFORE damage (in case this kills the bush)
+                int berryCountBeforeDamage = bush.GetCurrentBerries();
+                Debug.Log($"[SERVER] Bush {uniqueId} has {berryCountBeforeDamage} berries before damage");
+            }
+
+            // Apply damage directly to the resource
+            resource.Damage(damage);
+
+            Debug.Log($"[PlayerCombat] Damaged {resource.GetType().Name} {uniqueId} for {damage}");
+        }
+        else if (rm.core.TryGetRecord(uniqueId, out var record))
+        {
+            // Fallback: resource not found in scene, use record-based damage
             int newHealth = record.curHealth - damage;
 
             if (newHealth <= 0)
@@ -167,22 +190,35 @@ public class PlayerCombat : NetworkBehaviour
                 rm.ApplyResourceStateChange(uniqueId, record.isChopped, newHealth, ResourceChangeSource.Network);
             }
 
-            Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged: {damage} -> health {newHealth}");
+            Debug.Log($"[PlayerCombat] Resource {uniqueId} damaged via record: {damage} -> health {newHealth}");
 
+            // Broadcast change to clients
             ResourceManagerRouter router = FindObjectOfType<ResourceManagerRouter>();
             if (router != null)
             {
                 router.BroadcastResourceChange(uniqueId, record.isChopped, newHealth);
             }
-            else
-            {
-                Debug.LogWarning("[PlayerCombat] No ResourceManagerRouter found to broadcast resource change!");
-            }
         }
         else
         {
-            Debug.LogWarning($"[PlayerCombat] No record found for uniqueId: {uniqueId}");
+            Debug.LogWarning($"[PlayerCombat] No resource or record found for uniqueId: {uniqueId}");
         }
+    }
+
+    // Helper method to find resource by uniqueId
+    private BaseResource FindResourceByUniqueId(string uniqueId)
+    {
+        if (string.IsNullOrEmpty(uniqueId)) return null;
+
+        BaseResource[] resources = FindObjectsOfType<BaseResource>();
+        foreach (var resource in resources)
+        {
+            if (resource.UniqueId == uniqueId)
+            {
+                return resource;
+            }
+        }
+        return null;
     }
 
     [Command]
