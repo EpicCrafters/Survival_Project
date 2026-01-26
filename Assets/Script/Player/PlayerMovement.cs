@@ -542,7 +542,11 @@ public class PlayerMovement : NetworkBehaviour
             {
                 var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
                 input?.RequestCancelSplit();
-                CraftingManager.Instance?.ReturnCraftingItems();
+                
+                var invData = gameObject.GetComponentInChildren<InventoryData>();
+
+                invData?.CmdReturnCraftingItems();
+
                 CursorManager.Instance.HideCursor(CursorManager.CursorPriority.Inventory);
             }
         }

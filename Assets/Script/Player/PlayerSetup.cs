@@ -34,7 +34,7 @@ public class PlayerSetup : NetworkBehaviour
         var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
 
         view.Bind(invData);
-        CraftingManager.Instance.Bind(invData,view.CraftingSlots,view.InventorySlots);
+        CraftingManager.Instance.Bind(invData, view.CraftingSlots);
         var input = SystemManager.Instance.GetComponentInChildren<InventoryInput>();
 
         input.SetGameInput(gameInput);

@@ -16,6 +16,7 @@ public class WorldItemBundle : NetworkBehaviour, IPickupAble
     [SerializeField] private float maxDropForce = 2.0f;
     [SerializeField] private float minUpForce = 1.5f;
     [SerializeField] private float maxUpForce = 2.5f;
+    private Vector3 pendingDropDir;
 
     private bool hasInitialized;
 
@@ -39,8 +40,17 @@ public class WorldItemBundle : NetworkBehaviour, IPickupAble
         count = amount;
         cachedData = data;
 
+        pendingDropDir = dropDir;
         hasInitialized = true;
-        ApplyDropForce(dropDir);
+    }
+    public override void OnStartServer()
+    {
+        base.OnStartServer();
+
+        if (!hasInitialized)
+            return;
+
+        ApplyDropForce(pendingDropDir);
     }
 
     private void ApplyDropForce(Vector3 dir)

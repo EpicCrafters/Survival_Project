@@ -19,16 +19,15 @@ public class CraftingManager : MonoBehaviour
 
     private readonly List<CraftingRecipe> availableRecipes = new();
     private InventorySlot[] inventorySlots; // slot thường (không crafting)
-
-    public void Bind(
-        InventoryData data,
-        InventorySlot[] craftingSlotUIs,
-        InventorySlot[] inventorySlotUIs
-    )
+    public void Bind(InventoryData data, InventorySlot[] craftingSlotUIs)
     {
         inventoryData = data;
-        craftingSlots = craftingSlotUIs;
-        inventorySlots = inventorySlotUIs;
+
+        List<int> indices = new();
+        foreach (var slot in craftingSlotUIs)
+            indices.Add(slot.index);
+
+        inventoryData.CmdRegisterCraftingSlots(indices.ToArray());
     }
 
     private void Awake()
@@ -63,7 +62,6 @@ public class CraftingManager : MonoBehaviour
 
         RefreshRecipeListUI();
     }
-
     bool CanCraft(CraftingRecipe recipe)
     {
         foreach (var ing in recipe.ingredients)
@@ -73,6 +71,7 @@ public class CraftingManager : MonoBehaviour
         }
         return true;
     }
+
     int CountItemInCrafting(ItemData item)
     {
         if (inventoryData == null || craftingSlots == null)
@@ -93,78 +92,17 @@ public class CraftingManager : MonoBehaviour
     }
 
     // ================= CRAFT =================
-
     public void Craft(CraftingRecipe recipe)
     {
         if (inventoryData == null) return;
-        if (!CanCraft(recipe)) return;
 
-        ConsumeIngredients(recipe);
-        AddResult(recipe.result, recipe.resultAmount);
+        // client chỉ gửi request
+        int recipeIndex = System.Array.IndexOf(recipes, recipe);
+        if (recipeIndex < 0) return;
+
+        inventoryData.CmdCraft(recipeIndex);
     }
 
-    void ConsumeIngredients(CraftingRecipe recipe)
-    {
-        foreach (var ing in recipe.ingredients)
-        {
-            int remain = ing.amount;
-
-            foreach (var slotUI in craftingSlots)
-            {
-                int index = slotUI.index;
-                var slot = inventoryData.GetSlot(index);
-
-                if (slot.itemId != ing.item.id) continue;
-
-                int take = Mathf.Min(slot.count, remain);
-                slot.count -= take;
-                remain -= take;
-
-                inventoryData.slots[index] =
-                    slot.count <= 0
-                        ? new InventoryData.SlotState { itemId = -1, count = 0 }
-                        : slot;
-            }
-        }
-    }
-    void AddResult(ItemData result, int amount)
-    {
-        // 1️ Gộp vào slot inventory thường
-        foreach (var invSlotUI in inventorySlots)
-        {
-            if (amount <= 0) break;
-
-            int index = invSlotUI.index;
-            var slot = inventoryData.GetSlot(index);
-
-            if (slot.itemId == result.id)
-            {
-                slot.count += amount;
-                inventoryData.slots[index] = slot;
-                return;
-            }
-        }
-
-        // 2️ Nếu chưa có, tìm slot trống
-        foreach (var invSlotUI in inventorySlots)
-        {
-            if (amount <= 0) break;
-
-            int index = invSlotUI.index;
-            var slot = inventoryData.GetSlot(index);
-
-            if (slot.itemId < 0)
-            {
-                inventoryData.slots[index] =
-                    new InventoryData.SlotState
-                    {
-                        itemId = result.id,
-                        count = amount
-                    };
-                return;
-            }
-        }
-    }
 
     void RefreshRecipeListUI()
     {
@@ -177,60 +115,5 @@ public class CraftingManager : MonoBehaviour
             go.GetComponent<RecipeButton>().Setup(recipe, this);
         }
     }
-    public void ReturnCraftingItems()
-    {
-        if (inventoryData == null) return;
-
-        foreach (var craftSlotUI in craftingSlots)
-        {
-            int craftIndex = craftSlotUI.index;
-            var craftSlot = inventoryData.GetSlot(craftIndex);
-
-            if (craftSlot.itemId < 0 || craftSlot.count <= 0)
-                continue;
-
-            int remain = craftSlot.count;
-
-            // 1️ Thử gộp vào slot inventory thường
-            foreach (var invSlotUI in inventorySlots)
-            {
-                if (remain <= 0) break;
-
-                int invIndex = invSlotUI.index;
-                var invSlot = inventoryData.GetSlot(invIndex);
-
-                if (invSlot.itemId == craftSlot.itemId)
-                {
-                    invSlot.count += remain;
-                    inventoryData.slots[invIndex] = invSlot;
-                    remain = 0;
-                }
-            }
-
-            // 2️ Nếu chưa hết, tìm slot trống
-            foreach (var invSlotUI in inventorySlots)
-            {
-                if (remain <= 0) break;
-
-                int invIndex = invSlotUI.index;
-                var invSlot = inventoryData.GetSlot(invIndex);
-
-                if (invSlot.itemId < 0)
-                {
-                    inventoryData.slots[invIndex] =
-                        new InventoryData.SlotState
-                        {
-                            itemId = craftSlot.itemId,
-                            count = remain
-                        };
-                    remain = 0;
-                }
-            }
-
-            // 3️ Clear crafting slot
-            inventoryData.slots[craftIndex] =
-                new InventoryData.SlotState { itemId = -1, count = 0 };
-        }
-    }
-
+    
 }

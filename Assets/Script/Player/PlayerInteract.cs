@@ -356,7 +356,7 @@ public class PlayerInteract : NetworkBehaviour
         if (itemId < 0 || count <= 0)
             return;
 
-        invData.CmdAddItem(itemId, count);
+        invData.ServerAddItem(itemId, count);
         NetworkServer.Destroy(itemNetId.gameObject);
     }
 

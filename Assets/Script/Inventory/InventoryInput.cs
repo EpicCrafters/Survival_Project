@@ -52,10 +52,10 @@ public class InventoryInput : MonoBehaviour
             hotbarSlotsInput[index].Select();
             selectedHotbarIndex = index;
 
+            //  đổi hotbar → hỏi server slot
             UpdateHoldingFromData();
         }
     }
-
     public void SetGameInput(GameInput input)
     {
         if (gameInput != null)
@@ -109,9 +109,13 @@ public class InventoryInput : MonoBehaviour
     InventoryData.SlotState oldItem,
     InventoryData.SlotState newItem)
     {
-        if (index == selectedHotbarIndex)
-            UpdateHoldingFromData();
+        //  CHỈ quan tâm slot đang được chọn
+        if (index != selectedHotbarIndex)
+            return;
+
+        UpdateHoldingFromData();
     }
+
 
     //=====Request==========
     public bool RequestTryAddItem(int id, int amount)

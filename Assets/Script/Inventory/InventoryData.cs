@@ -8,7 +8,6 @@ public class StarterItem
     public ItemData itemId;
     public int amount = 1;
 }
-
 [System.Serializable]
 public struct SplitBuffer
 {
@@ -26,6 +25,7 @@ public class InventoryData : NetworkBehaviour
     [SerializeField] private List<StarterItem> starterItems = new();
 
     [System.Serializable]
+
     public struct SlotState
     {
         public int itemId;
@@ -35,12 +35,12 @@ public class InventoryData : NetworkBehaviour
     public readonly SyncList<SlotState> slots = new SyncList<SlotState>();
 
     private int totalSlots;
-
+    //public InventoryView inventoryView;
     public override void OnStartServer()
     {
         base.OnStartServer();
 
-        // Initialize empty slots
+        // Khởi tạo slot rỗng
         slots.Clear();
         totalSlots = SystemManager.Instance.GetComponentInChildren<InventoryView>().TotalSlots;
         for (int i = 0; i < totalSlots; i++)
@@ -53,12 +53,9 @@ public class InventoryData : NetworkBehaviour
         }
     }
 
-    // ==================== CENTRALIZED ADD ITEM SYSTEM ====================
+    // ===== SERVER API =====
+    // ===== ADD ITEM =====
 
-    /// <summary>
-    /// MAIN SERVER METHOD - All item additions go through here
-    /// Returns the number of items successfully added
-    /// </summary>
     [Server]
     public int ServerAddItem(int itemId, int amount)
     {
@@ -115,125 +112,51 @@ public class InventoryData : NetworkBehaviour
         return totalAdded;
     }
 
-    /// <summary>
-    /// Check if inventory has space for items
-    /// </summary>
-    [Server]
-    public bool CanAddItem(int itemId, int amount)
-    {
-        if (amount <= 0) return true;
-
-        ItemData itemData = ItemDatabase.GetById(itemId);
-        if (itemData == null) return false;
-
-        int maxStack = GetMaxStack(itemData);
-        int remaining = amount;
-
-        // Check existing stacks
-        for (int i = 0; i < slots.Count && remaining > 0; i++)
-        {
-            var slot = slots[i];
-            if (slot.itemId == itemId && slot.count < maxStack)
-            {
-                int canAdd = maxStack - slot.count;
-                remaining -= Mathf.Min(canAdd, remaining);
-            }
-        }
-
-        // Check empty slots
-        for (int i = 0; i < slots.Count && remaining > 0; i++)
-        {
-            if (slots[i].itemId == -1)
-            {
-                remaining -= Mathf.Min(remaining, maxStack);
-            }
-        }
-
-        return remaining <= 0;
-    }
-
-    /// <summary>
-    /// Helper to get max stack size for any item type
-    /// </summary>
-    private int GetMaxStack(ItemData data)
-    {
-        switch (data.type)
-        {
-            case ItemType.Resource:
-                return data.resource.maxStack;
-            case ItemType.BuildingPart:
-                return data.building.maxStack;
-            case ItemType.Consumable:
-                return data.consumable.maxStack;
-            default:
-                return 1;
-        }
-    }
-
-    // ==================== COMMAND WRAPPERS ====================
-
-    [Command]
-    public void CmdAddItem(int itemId, int amount)
-    {
-        ServerAddItem(itemId, amount);
-    }
-
     [Command]
     public void CmdAddItemWithStacking(int itemId, int amount)
     {
         ServerAddItem(itemId, amount);
     }
-
+    [Command]
+    public void CmdAddItem(int itemId, int amount)
+    {
+        ServerAddItem(itemId, amount);
+    }
     // ===== MOVE ITEM =====
     [Server]
-    private void TryMoveServer(int from, int to)
+    private bool TryMoveServer(int from, int to)
     {
         if (from < 0 || from >= slots.Count || to < 0 || to >= slots.Count)
-            return;
+            return false;
 
         var a = slots[from];
         var b = slots[to];
 
-        // Source slot empty → abort
         if (a.itemId < 0)
-            return;
+            return false;
 
-        // =========================
-        // 1. Destination slot empty
-        // =========================
+        // Slot đích trống
         if (b.itemId < 0)
         {
             slots[to] = a;
             slots[from] = EmptySlot();
-            return;
+            return true;
         }
 
-        // =========================
-        // 2. Same item → stack with limit
-        // =========================
+        // Cùng item → stack
         if (a.itemId == b.itemId)
         {
             ItemData data = ItemDatabase.Get(a.itemId);
-            if (data == null)
-                return;
-
             int maxStack = GetMaxStack(data);
-            if (maxStack <= 0)
-                return;
 
             int canAdd = maxStack - b.count;
-
-            // Cannot add → do nothing
             if (canAdd <= 0)
-                return;
+                return false;
 
             int move = Mathf.Min(canAdd, a.count);
-
-            // Update destination slot
             b.count += move;
             slots[to] = b;
 
-            // Update source slot
             if (a.count > move)
             {
                 a.count -= move;
@@ -243,15 +166,29 @@ public class InventoryData : NetworkBehaviour
             {
                 slots[from] = EmptySlot();
             }
-
-            return;
+            return true;
         }
 
-        // =========================
-        // 3. Different item → swap
-        // =========================
+        // Khác item → swap
         slots[from] = b;
         slots[to] = a;
+        return true;
+    }
+
+    private int GetMaxStack(ItemData data)
+    {
+        switch (data.type)
+        {
+            case ItemType.Resource:
+                return data.resource.maxStack;
+
+            case ItemType.BuildingPart:
+                return data.building.maxStack;
+            case ItemType.Consumable:
+                return data.consumable.maxStack;
+            default:
+                return 1;
+        }
     }
 
     [Command]
@@ -261,9 +198,8 @@ public class InventoryData : NetworkBehaviour
             return;
 
         TryMoveServer(fromIndex, toIndex);
-        SystemManager.Instance.GetComponentInChildren<InventoryView>().RedrawAll();
+        //SystemManager.Instance.GetComponentInChildren<InventoryView>().RedrawAll();
     }
-
     private SlotState EmptySlot()
     {
         return new SlotState { itemId = -1, count = 0 };
@@ -273,7 +209,6 @@ public class InventoryData : NetworkBehaviour
     {
         return i >= 0 && i < slots.Count;
     }
-
     // ===== DROP ITEM =====
     [Command]
     public void CmdRequestDrop(int fromIndex, int count)
@@ -287,17 +222,15 @@ public class InventoryData : NetworkBehaviour
 
         int dropCount = Mathf.Min(count, slot.count);
 
-        // 1) Remove item from inventory (SERVER)
+        // 1) Trừ item trong inventory (SERVER)
         slot.count -= dropCount;
         slots[fromIndex] = (slot.count > 0) ? slot : EmptySlot();
         Debug.Log("Drop item to world");
-
         // 2) Spawn world item (SERVER)
         var playerNet = GetComponent<PlayerNetwork>();
         if (playerNet != null)
             playerNet.SpawnWorldItem(slot.itemId, dropCount);
     }
-
     // ===== SPLIT ITEM =====
     [Command]
     public void CmdRequestSplitHalf(int fromSlot)
@@ -330,11 +263,11 @@ public class InventoryData : NetworkBehaviour
 
         if (split <= 0) return;
 
-        // Reduce source slot
+        // Trừ slot gốc
         slot.count = remain;
         slots[fromSlot] = slot;
 
-        // Create buffer
+        // Tạo buffer
         splitBuffer = new SplitBuffer
         {
             active = true,
@@ -343,7 +276,6 @@ public class InventoryData : NetworkBehaviour
             sourceSlot = fromSlot
         };
     }
-
     [Command]
     public void CmdPlaceSplit(int toSlot)
     {
@@ -352,7 +284,7 @@ public class InventoryData : NetworkBehaviour
 
         var dest = slots[toSlot];
 
-        // Empty slot
+        // Slot trống
         if (dest.itemId < 0)
         {
             slots[toSlot] = new SlotState
@@ -364,7 +296,7 @@ public class InventoryData : NetworkBehaviour
             return;
         }
 
-        // Same item → stack
+        // Cùng item → stack (chưa xét max stack ở phase này)
         if (dest.itemId == splitBuffer.itemId)
         {
             dest.count += splitBuffer.count;
@@ -372,7 +304,6 @@ public class InventoryData : NetworkBehaviour
             splitBuffer = default;
         }
     }
-
     [Command]
     public void CmdCancelSplit()
     {
@@ -388,8 +319,7 @@ public class InventoryData : NetworkBehaviour
 
         splitBuffer = default;
     }
-
-    // ===== REMOVE =====
+    //==========REMOVE=========
     [Command]
     public void CmdConsumeFromSlot(int slotIndex, int amount)
     {
@@ -410,13 +340,181 @@ public class InventoryData : NetworkBehaviour
     {
         OnSplitBufferClient?.Invoke(newVal);
     }
-
     public SlotState GetSlot(int index)
     {
         if (index < 0 || index >= slots.Count)
             return default;
 
         return slots[index];
+    }
+    //===========RETURN ITEM=========
+    [Command]
+    public void CmdReturnCraftingItems()
+    {
+        var view = SystemManager.Instance.GetComponentInChildren<InventoryView>();
+        if (view == null) return;
+
+        ReturnCraftingItemsServer(
+            view.CraftingSlots,
+            view.InventorySlots
+        );
+    }
+    [Server]
+    public void ReturnCraftingItemsServer(
+    InventorySlot[] craftingSlots,
+    InventorySlot[] inventorySlots)
+    {
+        foreach (var craftSlotUI in craftingSlots)
+        {
+            int craftIndex = craftSlotUI.index;
+            var craftSlot = GetSlot(craftIndex);
+
+            if (craftSlot.itemId < 0 || craftSlot.count <= 0)
+                continue;
+
+            int remain = craftSlot.count;
+
+            ItemData data = ItemDatabase.Get(craftSlot.itemId);
+            int maxStack = GetMaxStack(data);
+
+            // ===== PHASE 1: GỘP VÀO STACK CÙNG LOẠI =====
+            foreach (var invSlotUI in inventorySlots)
+            {
+                if (remain <= 0) break;
+
+                int invIndex = invSlotUI.index;
+                var invSlot = GetSlot(invIndex);
+
+                if (invSlot.itemId == craftSlot.itemId &&
+                    invSlot.count < maxStack)
+                {
+                    int canAdd = maxStack - invSlot.count;
+                    int add = Mathf.Min(canAdd, remain);
+
+                    invSlot.count += add;
+                    remain -= add;
+                    slots[invIndex] = invSlot;
+                }
+            }
+
+            // ===== PHASE 2: ĐẨY VÀO SLOT TRỐNG =====
+            foreach (var invSlotUI in inventorySlots)
+            {
+                if (remain <= 0) break;
+
+                int invIndex = invSlotUI.index;
+                var invSlot = GetSlot(invIndex);
+
+                if (invSlot.itemId < 0)
+                {
+                    int put = Mathf.Min(remain, maxStack);
+
+                    slots[invIndex] = new SlotState
+                    {
+                        itemId = craftSlot.itemId,
+                        count = put
+                    };
+
+                    remain -= put;
+                }
+            }
+
+            // ===== PHASE 3: UPDATE CRAFTING SLOT =====
+            if (remain > 0)
+            {
+                // Chưa trả hết → để lại crafting slot
+                slots[craftIndex] = new SlotState
+                {
+                    itemId = craftSlot.itemId,
+                    count = remain
+                };
+            }
+            else
+            {
+                // Trả hết → clear crafting slot
+                slots[craftIndex] = EmptySlot();
+            }
+        }
+    }
+    //===========Crating Item==========
+    [SerializeField]
+    private List<int> craftingSlotIndices = new();
+
+    [Command]
+    public void CmdCraft(int recipeIndex)
+    {
+        var craftingManager = CraftingManager.Instance;
+        if (craftingManager == null) return;
+
+        var recipes = craftingManager.recipes;
+        if (recipeIndex < 0 || recipeIndex >= recipes.Length) return;
+
+        var recipe = recipes[recipeIndex];
+
+        if (!ServerCanCraft(recipe)) return;
+
+        ServerConsumeIngredients(recipe);
+        ServerAddResult(recipe);
+    }
+    [Server]
+    bool ServerCanCraft(CraftingRecipe recipe)
+    {
+        foreach (var ing in recipe.ingredients)
+        {
+            if (CountItemInCraftingServer(ing.item) < ing.amount)
+                return false;
+        }
+        return true;
+    }
+
+    [Server]
+    void ServerConsumeIngredients(CraftingRecipe recipe)
+    {
+        foreach (var ing in recipe.ingredients)
+        {
+            int remain = ing.amount;
+
+            foreach (int index in craftingSlotIndices)
+            {
+                if (remain <= 0) break;
+
+                var slot = slots[index];
+                if (slot.itemId != ing.item.id) continue;
+
+                int take = Mathf.Min(slot.count, remain);
+                slot.count -= take;
+                remain -= take;
+
+                slots[index] =
+                    slot.count > 0 ? slot : EmptySlot();
+            }
+        }
+    }
+    [Server]
+    void ServerAddResult(CraftingRecipe recipe)
+    {
+        ServerAddItem(recipe.result.id, recipe.resultAmount);
+    }
+
+    [Command]
+    public void CmdRegisterCraftingSlots(int[] indices)
+    {
+        craftingSlotIndices.Clear();
+        craftingSlotIndices.AddRange(indices);
+    }
+    [Server]
+    int CountItemInCraftingServer(ItemData item)
+    {
+        int total = 0;
+
+        foreach (int index in craftingSlotIndices)
+        {
+            var slot = slots[index];
+            if (slot.itemId == item.id)
+                total += slot.count;
+        }
+
+        return total;
     }
 
     // ==================== RESOURCE INTERACTION COMMANDS ====================
